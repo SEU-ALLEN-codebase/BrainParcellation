@@ -1,8 +1,8 @@
 # Please put source codes and examples for local morphology tracing here
 
-##Data
-####Path: /PB/SEU-ALLEN/Users/Sujun/230k_organized_folder
-/PB/SEU-ALLEN/Users/Sujun/230k_organized_folder
+## Data
+#### Path: /PB/SEU-ALLEN/Users/Sujun/230k_organized_folder
+```
 |-- 230k_organized_folder/
     |-- app2/                       #app2追踪产生的swc文件     
     |-- v3dpbd/                     #追踪神经元的cropped image blcok(1024*1024*256)          
@@ -18,4 +18,4 @@
     |-- seg_prune.py           
     |-- supp.csv                    #brain info
     |-- data_info.txt               #readme
-
+```
