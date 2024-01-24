@@ -24,6 +24,20 @@
         |-- gf_1891_crop.csv
 ```
 
+### Reconstruction Examples (2D image)
+<div class="1" align='center'>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/10037_3580_6929.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/14129_11432_6574.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/29486_12020_6263.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/5442_14806_6648.png" width=200/>
+</div>
+<div class="2" align='center'>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/4772_16245_7343.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/8438_5109_3152.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/10886_7058_6257.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/8892_14003_10289.png" width=200/>
+</div>
+
 
 ### Characteristic Distribution compared with 1876(gold standard) dataset
 #### Pearson correlation between whole faeture matrix(22 features) : 0.56
