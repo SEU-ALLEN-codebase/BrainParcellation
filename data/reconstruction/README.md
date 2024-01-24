@@ -19,7 +19,12 @@
     |-- seg_prune.py           
     |-- supp.csv                    #brain info
     |-- data_info.txt               #readme
+    |-- analysis
+        |-- gf_179k_crop.csv        # L-measure(22 features) table for r=100um cropped sphere
+        |-- gf_1891_crop.csv
 ```
+
 
 ### Characteristic Distribution compared with 1876(gold standard) dataset
 #### Pearson correlation between whole faeture matrix(22 features) : 0.56
+![image](https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/1891_comparison.png)
