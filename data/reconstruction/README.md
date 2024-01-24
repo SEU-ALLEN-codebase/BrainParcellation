@@ -1,6 +1,6 @@
 # Please put source codes and examples for local morphology tracing here
 
-## Data
+### Data Storage
 #### Path: /PB/SEU-ALLEN/Users/Sujun/230k_organized_folder
 ```
 |-- 230k_organized_folder/
@@ -8,8 +8,9 @@
     |-- v3dpbd/                     #追踪神经元的cropped image blcok(1024*1024*256)          
     |-- mip/                        #图像块的mip
     |-- mip_swc/                    #图像块mip和对应神经元形态结构生成的png图片
-    |--                             
-    |-- cropped_100um/              #追踪结果的cropped sphere(r=100um)
+    |-- pruned_pre_registered/      #配准前最终重建结果
+    |-- 179k_CCFv3_25um_raw/        #CCFv3_25um配准结果                  
+    |-- cropped_100um/              #追踪结果配准后的cropped sphere(r=100um)
     |-- filter.py                   #block图像增强处理
     |-- filter-job.sh
     |-- recon-job.sh                #run app2
@@ -19,3 +20,6 @@
     |-- supp.csv                    #brain info
     |-- data_info.txt               #readme
 ```
+
+### Characteristic Distribution compared with 1876(gold standard) dataset
+#### Pearson correlation between whole faeture matrix(22 features) : 0.56
