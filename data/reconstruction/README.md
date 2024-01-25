@@ -28,16 +28,16 @@
 
 ### Reconstruction Examples (2D image)
 <div class="1" align='center'>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/10037_3580_6929.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/14129_11432_6574.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/29486_12020_6263.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/5442_14806_6648.png" width=200/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/5442_14806_6648.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/20606_13002_4069.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/25289_11528_2577.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/6751_18738_5413.png" width=200/>
 </div>
 <div class="2" align='center'>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/4772_16245_7343.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/8438_5109_3152.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/10886_7058_6257.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/8892_14003_10289.png" width=200/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/6077_10193_5771.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/11328_6883_7989.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/5697_4203_6212.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/4772_16245_7343.png" width=200/>
 </div>
 
 
