@@ -43,4 +43,5 @@
 
 ### Characteristic Distribution compared with 1876(gold standard) dataset
 #### Pearson correlation between whole faeture matrix(22 features) : 0.56
+##### Comment: Average parent-daughter ratio of 1891 dataset is 1.0
 ![image](https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/1891_comparison.png)
