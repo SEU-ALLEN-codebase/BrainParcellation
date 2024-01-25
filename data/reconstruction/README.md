@@ -11,15 +11,17 @@
     |-- pruned_pre_registered/      # Post-processed reconstructions (`SWC`). [~200K]
     |-- 179k_CCFv3_25um_raw/        # Filtered reconstructions (`SWC`), in isotropic 25um CCFv3 space. [179K]
     |-- cropped_100um/              # Spherically cropped reconstructions, with radius = 100um [~?]
-    |-- filter.py                   # Image preprocessing and enhancing script
-    |-- filter-job.sh               # Job schedular for `filter.py`
-    |-- recon-job.sh                # Batch runner of APP2 tracing
-    |-- soma_finder.py              # Script for soma position extraction
-    |-- prune-job.sh                # Script for morphology pruning (e.g., short segments, multifurcations, errorous
-    |                               #   with small angles)
-    |-- seg_prune.py                # Pruning methods
+    |-- Code
+        |-- filter.py               # Image preprocessing and enhancing script
+        |-- filter-job.sh           # Job schedular for `filter.py`
+        |-- recon-job.sh            # Batch runner of APP2 tracing
+        |-- soma_finder.py          # Script for soma position extraction
+        |-- prune-job.sh            # Script for morphology pruning (e.g., short segments, multifurcations, errorous
+        |                           #   with small angles)
+        |-- seg_prune.py            # Pruning methods
     |-- supp.csv                    # Meta information of brains
     |-- analysis
+        |-- comparison_with_1891.py # script for comparison with gold standard dataset [1876]
         |-- gf_179k_crop.csv        # L-measure(22 features) table for r=100um cropped sphere
         |-- gf_1891_crop.csv        
 ```
