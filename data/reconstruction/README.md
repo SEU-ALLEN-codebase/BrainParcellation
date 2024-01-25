@@ -23,7 +23,7 @@
     |-- analysis
         |-- comparison_with_1891.py # script for comparison with gold standard dataset [1876]
         |-- gf_179k_crop.csv        # L-measure(22 features) table for r=100um cropped sphere
-        |-- gf_1891_crop.csv        
+        |-- gf_1876_crop.csv        
 ```
 
 ### Reconstruction Examples (2D image)
