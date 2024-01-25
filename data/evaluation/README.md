@@ -1,6 +1,5 @@
-# Evaluation here
+# Reconstruction evaluation
 
 # Usage
-1. To reassignm soma regions considering minor registration errors using `soma_reassign.py`:
+1. Assign the brain region for each neuron (soma), using `soma_reassign.py`
    
-   `python soma_reassign.py`
