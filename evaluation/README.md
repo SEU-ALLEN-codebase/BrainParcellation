@@ -19,7 +19,8 @@
 
 
 ### Evaluation of dataset
-![image](https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/evaluation/figs/distribution_rough_brains.png)
+![image](https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/distribution_rough_brains.png)
+
 <div class="1" align='center'>
    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/CTX_count.png" width=500> <b>   </b>
    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/HB_count.png" width=500> <b>   </b>
