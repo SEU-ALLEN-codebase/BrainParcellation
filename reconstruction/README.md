@@ -27,21 +27,22 @@
 ```
 
 ### Reconstruction Examples (2D image)
+##### maximum correlation = 0.989
 <div class="1" align='center'>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/mip_examples/5749_4916_4542.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/mip_examples/5996_8205_3698.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/mip_examples/9517_8249_6626.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/mip_examples/9970_10457_5550.png" width=200/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/mip_examples/5749_4916_4542.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/mip_examples/5996_8205_3698.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/mip_examples/9517_8249_6626.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/mip_examples/9970_10457_5550.png" width=200/>
 </div>
 <div class="2" align='center'>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/mip_examples/17601_2198_4862.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/mip_examples/19014_2874_4233.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/mip_examples/19014_2874_4233.png" width=200/><b>  <b/>
-    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/mip_examples/23627_4542_5025.png" width=200/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/mip_examples/17601_2198_4862.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/mip_examples/19014_2874_4233.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/mip_examples/19014_2874_4233.png" width=200/><b>  <b/>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/mip_examples/23627_4542_5025.png" width=200/>
 </div>
 
 
 ### Characteristic Distribution compared with 1876(gold standard) dataset
 #### Pearson correlation between whole faeture matrix(22 features) : 0.56
 ##### Comment: Average parent-daughter ratio of 1891 dataset is 1.0
-![image](https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/data/reconstruction/figures/1891_comparison.png)
+![image](https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/1891_comparison.png)
