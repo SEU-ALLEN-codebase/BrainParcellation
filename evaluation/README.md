@@ -19,18 +19,20 @@
 
 
 ### Evaluation of dataset
-![image](https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/distribution_rough_brains.png)
+<div align='center'>
+   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/distribution_rough_brains.png" width=500>
+</div>
 
 <div class="1" align='center'>
-   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/CTX_count.png" width=500> <b>   </b>
-   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/HB_count.png" width=500> <b>   </b>
-   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/HY_count.png" width=500> <b>   </b>
+   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/CTX_count.png" width=330> <b>   </b>
+   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/HB_count.png" width=330> <b>   </b>
+   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/TH_count.png" width=330> <b>   </b>
 </div>
 <div clss="2" align='center'>
-   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/CNU_count.png" width=350> <b>   </b>
-   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/TH_count.png" width=350> <b>   </b>
-   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/CB_count.png" width=350> <b>   </b>
-   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/MB_count.png" width=450> <b>   </b>
+   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/CNU_count.png" width=252> <b>   </b>
+   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/HY_count.png" width=240> <b>   </b>
+   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/CB_count.png" width=252> <b>   </b>
+   <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/MB_count.png" width=240> <b>   </b>
 </div>
 
 
