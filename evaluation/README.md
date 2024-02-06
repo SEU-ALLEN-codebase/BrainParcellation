@@ -5,9 +5,9 @@
    <table frame=void border=0 cellspacing=1>
       <tr>
          <td>
-            <p>Total: 103704 (`SWC` after selection)</p>
+            <p>Total: 103603 (`SWC` after selection)</p>
             <p>Brain involved: 111</p>
-            <p>Brain region involved: 281</p>
+            <p>Brain region involved: 283</p>
             <p>Major Brain regions(#>30): 149</p>
          </td>
          <td>
