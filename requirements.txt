@@ -1,1 +1,2 @@
 neuro_morpho_toolbox
+leidenalg==0.10.2

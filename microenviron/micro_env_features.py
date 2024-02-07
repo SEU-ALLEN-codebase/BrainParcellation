@@ -39,7 +39,7 @@ def estimate_radius(lmf, topk=5, percentile=50):
     topk_d = topk_d[:,-1]
     pp = [0, 25, 50, 75, 100]
     pcts = np.percentile(topk_d, pp)
-    print(f'top{topk} threshold percentile: {pcts}')
+    print(f'top{topk} threshold percentile: {pcts}')    #[ 28.34184539  96.11359243 124.45518049 166.36041146 773.71830979]
     pct = np.percentile(topk_d, percentile)
     print(f'Selected threshold by percentile[{percentile}] = {pct:.2f} um')
     
