@@ -10,7 +10,7 @@
     |-- mip_swc/                    # MIP image with reconstruction overlaid [all, ~230K]
     |-- pruned_pre_registered/      # Post-processed reconstructions (`SWC`). [~200K]
     |-- 179k_CCFv3_25um_raw/        # Filtered reconstructions (`SWC`), in isotropic 25um CCFv3 space. [179K]
-    |-- cropped_100um/              # Spherically cropped reconstructions, with radius = 100um [~?]
+    |-- cropped_100um/              # Spherically cropped reconstructions, with radius = 100um [179568]
     |-- Code
         |-- filter.py               # Image preprocessing and enhancing script
         |-- filter-job.sh           # Job schedular for `filter.py`
@@ -21,7 +21,7 @@
         |-- seg_prune.py            # Pruning methods
     |-- supp.csv                    # Meta information of brains
     |-- analysis
-        |-- comparison_with_1891.py # script for comparison with gold standard dataset [1876]
+        |-- comparison_with_1876.py # script for comparison with gold standard dataset [1876]
         |-- gf_179k_crop.csv        # L-measure(22 features) table for r=100um cropped sphere
         |-- gf_1876_crop.csv        
 ```
@@ -42,5 +42,21 @@
 
 
 ### Characteristic Distribution compared with 1876(gold standard) dataset
-##### Comment: Average parent-daughter ratio of 1891 dataset is 1.0
-![image](https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/1891_comparison.png)
+<h3> Table for Structure Similarity </h3>
+<table border = "1.5" width="600px" cellspacing = 10 align = "center">
+    <tr>
+        <th align = "center"> Indicator</th>
+        <th align = "center"> Value</th>
+    </tr>
+    <tr>
+        <th align = "center"> Bi-directional entire structure average distance (&#956;m) </th>
+        <th align = "center"> 18.337</th>
+    </tr>
+    <tr>
+        <th align = "center"> Average percent of difference structure (%) </th>
+        <th algn = "center"> 50.172 </th>
+    </tr>
+</table>
+##### Comment: Average parent-daughter ratio of 1876 dataset is 1.0
+
+![image](https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/1876_comparison.png)
