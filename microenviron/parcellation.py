@@ -53,7 +53,7 @@ class BrainParcellation:
 
         return df
 
-    def initialize_graph(self, load_partition=True):
+    def community_detection(self, load_partition=True):
         t0 = time.time()
 
         # Compute the sparse nearest neighbors graph
@@ -115,7 +115,7 @@ class BrainParcellation:
         comms, counts = np.unique(community_sizes, return_counts=True)
         print(comms, counts)
 
-        # visualization
+        # visualization the graph
         #ig.plot(g, vertex_size=1, target='todel.png')
         #print(f'[Plot]: {time.time() - t0: .2f} seconds')
 
@@ -127,6 +127,7 @@ class BrainParcellation:
         for node_index, community_index in enumerate(partition.membership):
             communities[community_index].append(node_index)
 
+        # plot onto the CCF space
         
         
 
@@ -137,7 +138,7 @@ if __name__ == '__main__':
     full_features = False
     
     bp = BrainParcellation(mefile, scale=scale, full_features=full_features)
-    bp.initialize_graph()
+    bp.community_detection()
     
 
 
