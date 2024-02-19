@@ -130,14 +130,15 @@ class BrainParcellation:
         # Adjust n_neighbors based on your dataset and memory constraints
         coords = self.df[['soma_x', 'soma_y', 'soma_z']]
         feats = self.df[self.fnames].to_numpy()
-        #import ipdb; ipdb.set_trace()
+
+        partition_file = 'community_memberships.json'
+        
         
         # or try to use radius_neighbors_graph
         # the radius are in 25um space
         radius_th = 10.
-        par1 = 2.
+        par1 = 3.
         par2 = 5.
-        partition_file = 'community_memberships.json'
 
         #A = kneighbors_graph(coords, n_neighbors=50, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
         A = radius_neighbors_graph(coords, radius=radius_th, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
@@ -159,6 +160,8 @@ class BrainParcellation:
         print(f'[weights estimation]: {time.time() - t0:.2f} seconds')
 
         weights = wd * wf
+        
+
         g = ig.Graph(list(zip(sources, targets)), directed=False)
         g.es['weight'] = weights
         print(f'[Graph initialization]: {time.time() - t0: .2f} seconds')
