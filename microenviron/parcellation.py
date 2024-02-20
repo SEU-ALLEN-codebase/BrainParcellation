@@ -13,6 +13,7 @@ import pickle
 from collections import defaultdict
 from sklearn.neighbors import kneighbors_graph, radius_neighbors_graph
 from scipy.sparse import csr_matrix
+from scipy.interpolate import NearestNDInterpolator
 import matplotlib as mpl
 import matplotlib.cm as cm
 import cv2
@@ -23,6 +24,7 @@ import igraph as ig
 from image_utils import get_mip_image, image_histeq
 from file_io import load_image, save_image
 from anatomy.anatomy_config import MASK_CCF25_FILE
+from anatomy.anatomy_vis import detect_edges2d
 
 from generate_me_map import process_mip
 
@@ -70,25 +72,30 @@ class BrainParcellation:
         return df
 
     @staticmethod
-    def visualize_on_ccf(dfp):
-        mask = load_image(MASK_CCF25_FILE)  # z,y,x order!
-        shape3d = mask.shape
-        zdim2, ydim2, xdim2 = shape3d[0]//2, shape3d[1]//2, shape3d[2]//2
-
+    def random_colorize(coords, values, shape3d, color_level):
         # map the communities to different colors using randomized color map
-        norm = mpl.colors.Normalize(vmin=dfp['parc'].min(), vmax=dfp['parc'].max())
-        vals = np.linspace(0,1,5120)
+        norm = mpl.colors.Normalize(values.min(), vmax=values.max())
+        vals = np.linspace(0,1,color_level)
         np.random.shuffle(vals)
         cmap = cm.colors.ListedColormap(cm.jet(vals))
         #cmap = cm.bwr
         smapper = cm.ScalarMappable(norm=norm, cmap=cmap)
-        colors = np.floor(smapper.to_rgba(dfp['parc']) * 255).astype(np.uint8)
-        xyz = np.floor(dfp[['soma_x', 'soma_y', 'soma_z']].to_numpy()).astype(np.int32)
+        colors = np.floor(smapper.to_rgba(values) * 255).astype(np.uint8)
+        zyx = np.floor(coords).astype(np.int32)
 
         # intialize map
         pmap = np.zeros((*shape3d, colors.shape[-1]), dtype=np.uint8)
-        pmap[xyz[:,2], xyz[:,1], xyz[:,0]] = colors
+        pmap[zyx[:,0], zyx[:,1], zyx[:,2]] = colors
+    
+        return pmap
 
+    def visualize_on_ccf(self, dfp, mask):
+        shape3d = mask.shape
+        zdim2, ydim2, xdim2 = shape3d[0]//2, shape3d[1]//2, shape3d[2]//2
+
+        crds = dfp[['soma_z', 'soma_y', 'soma_x']]
+        values = dfp['parc']
+        pmap = self.random_colorize(crds.to_numpy(), values, shape3d, 5120)
         
         thickX2 = 20
         for axid in range(3):
@@ -172,12 +179,11 @@ class BrainParcellation:
             with open(partition_file, 'r') as fp:
                 community_memberships = json.load(fp)
             # Create a new partition object with the loaded memberships
-            partition = lg.RBConfigurationVertexPartition(g, 
+            partition = lg.ModularityVertexPartition(g, 
                                 initial_membership=community_memberships, 
                                 weights=weights)
         else:
             ### Step 3: Apply the Leiden Algorithm
-            #partition = lg.find_partition(g, lg.ModularityVertexPartition, weights='weight')
             partition = lg.find_partition(g, lg.ModularityVertexPartition, weights='weight')
             print(f'[Partition]: {time.time() - t0: .2f} seconds')
 
@@ -210,10 +216,45 @@ class BrainParcellation:
 
         # plot onto the CCF space
         dfp = coords.copy()
+        mask = load_image(MASK_CCF25_FILE)  # z,y,x order!
         dfp['parc'] = partition.membership
-        self.visualize_on_ccf(dfp)
+        self.parcellate(dfp, mask)
+        self.visualize_on_ccf(dfp, mask)
         print()
         
+    def parcellate(self, dfp, mask):
+        zdim, ydim, xdim = mask.shape
+        zdim2, ydim2, xdim2 = zdim // 2, ydim // 2, xdim // 2
+        lmask = mask > 0; lmask[:zdim2] = 0
+        lindices = np.where(lmask)
+        interp = NearestNDInterpolator(dfp[['soma_z', 'soma_y', 'soma_x']], dfp['parc'])
+        predv = interp(*lindices)
+        
+        lmask = lmask.astype(np.uint16)
+        lmask[lindices] = predv
+
+        # colorizing
+        lnz = lmask.nonzero()
+        crds = np.stack(lnz).transpose()
+        values = lmask[lnz]
+        cmask = self.random_colorize(crds, values, mask.shape, values.max())
+        save_image('parc3d.tif', cmask, useCompression=True)
+
+        # visualize
+        for i, dim in zip(range(3), (zdim2, ydim2, xdim2)):
+            m2d0 = np.take(cmask, dim, i)
+            # overlay the boundaries
+            m2d1 = np.take(mask, dim, i)
+            edges = detect_edges2d(m2d1)
+            p1 = m2d0.copy()
+            p1[edges] = np.array([0,0,0,255])
+            outfile = f'parc_axid{i}.png'
+            cv2.imwrite(outfile, p1)
+            if i != 0:
+                print(f'Rotate by 90 degree')
+                os.system(f'convert {outfile} -rotate 90 {outfile}')
+
+        print()
 
 
 if __name__ == '__main__':
