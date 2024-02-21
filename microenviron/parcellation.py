@@ -140,6 +140,39 @@ class BrainParcellation:
 
         partition_file = 'community_memberships.json'
         
+        feature_filter = False
+        if feature_filter:
+            ngb_dist = 4
+            ngbs = radius_neighbors_graph(coords.values, radius=ngb_dist, include_self=True, 
+                        mode='distance', metric='euclidean', n_jobs=8)
+            ngbs = csr_matrix(ngbs)
+           
+            # do filtering
+            sources, targets = ngbs.nonzero()
+            stdict = {}
+            for s, t in zip(sources, targets):
+                if s in stdict:
+                    stdict[s].append(t)
+                else:
+                    stdict[s] = [t]
+            # feature level median filtering
+            new_feats = feats.copy()
+            for s, ts in stdict.items():
+                if len(ts) > 1:
+                    ts = [s] + ts
+                    cur_fs = feats[ts]
+                    mf = np.median(cur_fs, axis=0)
+                    # select the one most similar to median feature vector
+                    #import ipdb; ipdb.set_trace()
+                    dist2mf = np.linalg.norm(cur_fs - mf, axis=1)
+                    new_mf = cur_fs[np.argmin(dist2mf)]
+                
+                    new_feats[s] = new_mf
+                
+            feats = new_feats
+            print(f'Average number of neighbors: {len(sources)/coords.shape[0]:.2f}')
+            print(f'[Feature filtering]: {time.time() - t0:.2f} seconds')
+
         
         # or try to use radius_neighbors_graph
         # the radius are in 25um space
@@ -148,7 +181,7 @@ class BrainParcellation:
         par2 = 5.
 
         #A = kneighbors_graph(coords, n_neighbors=50, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
-        A = radius_neighbors_graph(coords, radius=radius_th, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
+        A = radius_neighbors_graph(coords.values, radius=radius_th, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
         print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
         
         A_csr = csr_matrix(A)
