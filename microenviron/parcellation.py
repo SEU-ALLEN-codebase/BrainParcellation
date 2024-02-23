@@ -18,7 +18,9 @@ from scipy.spatial import Voronoi, distance_matrix
 import matplotlib as mpl
 import matplotlib.cm as cm
 import cv2
+import cc3d
 from skimage.morphology import ball as morphology_ball
+from skimage.morphology import cube as morphology_cube
 from skimage.filters.rank import median as rank_median_filter
 
 import leidenalg as lg
@@ -36,6 +38,7 @@ from generate_me_map import process_mip
 class BrainParcellation:
     def __init__(self, mefile, scale=25., full_features=True, flipLR=True, seed=1024):
         self.df = self.load_features(mefile, scale=scale, full_features=full_features, flipLR=flipLR)
+        self.seed = seed
         np.random.seed(seed)
         self.flipLR = flipLR
 
@@ -134,6 +137,59 @@ class BrainParcellation:
             img[img[:,:,-1] == 1] = 0
             cv2.imwrite(figname, img)
 
+    @staticmethod
+    def remove_small_parcs(sub_mask, sub_fg_mask, cc_mask=None, cc_ids=None, cc_cnts=None, min_pts=0):
+        if cc_mask is None:
+            cc_mask = cc3d.connected_components(sub_mask, connectivity=26)
+            # we would like to re-estimate the small communities/components
+            cc_ids, cc_cnts = np.unique(cc_mask, return_counts=True)
+        
+        have_small_parcs = False
+        for cc_id, cc_cnt in zip(cc_ids, cc_cnts):
+            if cc_cnt < min_pts:
+                try:
+                    interp_mask = interp_mask | (cc_mask == cc_id)
+                except UnboundLocalError:
+                    interp_mask = cc_mask == cc_id
+                have_small_parcs = True
+
+        if have_small_parcs:
+            anchor_mask = sub_fg_mask ^ interp_mask
+            anchor_coords = np.array(np.where(anchor_mask)).transpose()
+            anchor_values = sub_mask[anchor_mask]
+            interp = NearestNDInterpolator(anchor_coords, anchor_values)
+            predv = interp(*np.where(interp_mask))
+            sub_mask[interp_mask] = predv
+
+            # re-estimation
+            cc_mask = cc3d.connected_components(sub_mask, connectivity=26)
+            # we would like to re-estimate the small communities/components
+            cc_ids, cc_cnts = np.unique(cc_mask, return_counts=True)
+
+        return sub_mask, cc_mask, cc_ids, cc_cnts
+        
+    def save_colorized_images(self, cmask, mask):
+        zdim, ydim, xdim = mask.shape
+        zdim2, ydim2, xdim2 = zdim // 2, ydim // 2, xdim // 2
+        # visualize
+        for i, dim in zip(range(3), (zdim2, ydim2, xdim2)):
+            for j in range(3):
+                k = dim + (j-1)*40
+                m2d0 = np.take(cmask, k, i)
+                # overlay the boundaries
+                m2d1 = np.take(mask, k, i)
+                edges = detect_edges2d(m2d1)
+                p1 = m2d0.copy()
+                p1[edges] = np.array([0,0,0,255])
+                outfile = f'parc_axid{i}_{j}.png'
+                cv2.imwrite(outfile, p1)
+                if i != 0:
+                    print(f'Rotate by 90 degree')
+                    os.system(f'convert {outfile} -rotate 90 {outfile}')
+
+        print()
+
+
 
     def community_detection(self, load_partition=True):
         t0 = time.time()
@@ -157,10 +213,11 @@ class BrainParcellation:
         # the radius are in 25um space
         radius_th = 10.
         par1 = 3.
-        par2 = 5.
+        par2 = 3.
+        min_pts_per_parc = 4**3 # 10^6 um^3
 
         #A = radius_neighbors_graph(coords.values, radius=radius_th, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
-        A = kneighbors_graph(coords, n_neighbors=80, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
+        A = kneighbors_graph(coords.values, n_neighbors=80, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
         print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
         
         A_csr = csr_matrix(A)
@@ -186,35 +243,39 @@ class BrainParcellation:
         print(f'[Graph initialization]: {time.time() - t0: .2f} seconds')
         
         ### Step 3: Apply the Leiden Algorithm
-        partition = lg.find_partition(g, lg.ModularityVertexPartition, weights='weight')
+        partition = lg.find_partition(g, lg.ModularityVertexPartition, weights='weight', seed=self.seed)
         print(f'[Partition]: {time.time() - t0: .2f} seconds')
 
 
         print('>>> Saving partition')
-        community_memberships = partition.membership
-        min_pts_each_comm = np.sqrt(coords.shape[0])
+        community_memberships = [i+1 for i in partition.membership] # re-indexing starting from 1
+        min_pts_per_comm = np.sqrt(coords.shape[0])
 
         community_sizes = np.array([len(community) for community in partition])
         print(f'[Number of communities] = {len(partition)}')
-        print(f'[Number of large communities (n>{min_pts_each_comm:.2f})] = {(community_sizes > min_pts_each_comm).sum()}')
+        print(f'[Number of large communities (n>{min_pts_per_comm:.2f})] = {(community_sizes > min_pts_per_comm).sum()}')
         print(f'[Community statistics: mean/std/max/min]: {community_sizes.mean():.1f}, {community_sizes.std():.1f}, {community_sizes.max()}, {community_sizes.min()}')
         comms, counts = np.unique(community_sizes, return_counts=True)
         print(comms, counts)
 
-        node_to_community = {node: community for node, community in enumerate(partition.membership)}
+        node_to_community = {node: community for node, community in enumerate(community_memberships)}
         # Initialize a dictionary to hold lists of nodes for each community
         communities = defaultdict(list) # community to node
 
         # Populate the dictionary with node indices grouped by their community
-        for node_index, community_index in enumerate(partition.membership):
+        for node_index, community_index in enumerate(community_memberships):
             communities[community_index].append(node_index)
 
         # estimate the weighted center of each community
         mcoords = []
+        mnodes = []
+        mcomms = []
         for icomm, inodes in communities.items():
-            if len(inodes) < min_pts_each_comm:
+            if len(inodes) < min_pts_per_comm:
                 continue
             cur_coords = coords.iloc[inodes]
+            mnodes.extend(inodes)
+            mcomms.extend([icomm]*len(inodes))
             mcoord = cur_coords.mean(axis=0).values
             mcoords.append(mcoord)
         mcoords = np.array(mcoords)
@@ -232,45 +293,60 @@ class BrainParcellation:
             dms, dmi = min_distances_between_two_sets(nzcoords_t, mcoords, topk=1, reciprocal=False, return_index=True, tree_type='BallTree')
             cmask = self.random_colorize(nzcoords_t, dmi[:,0], reg_mask.shape, dmi.max())
         elif parc_method == 'NearestNeighbor':
-            interp = NearestNDInterpolator(coords[['soma_z', 'soma_y', 'soma_x']], partition.membership)
+            #interp = NearestNDInterpolator(coords[['soma_z', 'soma_y', 'soma_x']], partition.membership)
+            interp = NearestNDInterpolator(coords.iloc[mnodes][['soma_z', 'soma_y', 'soma_x']].values, mcomms)
             predv = interp(*nzcoords)
-            # median filtering
+            print(f'[Interpolation]: {time.time() - t0:.2f} seconds')
+
             cur_mask = reg_mask.astype(np.uint8)
             cur_mask[nzcoords] = predv
-            cur_mask = rank_median_filter(cur_mask, morphology_ball(5), mask=reg_mask)
+            #import ipdb; ipdb.set_trace()
+            # We should only processing the mask region, so pre-extracting it.
+            zmin, ymin, xmin = nzcoords_t.min(axis=0)
+            zmax, ymax, xmax = nzcoords_t.max(axis=0)
+            #import ipdb; ipdb.set_trace()
+            sub_mask = cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+            print(f'[Initial No. of CCs]: {len(np.unique(cc3d.connected_components(sub_mask, connectivity=26)))-1}')
+
+            # median filtering
+            # Python version on CPU. GPU implementation using PyTorch should be much faster, 
+            # we can refer to https://gist.github.com/rwightman/f2d3849281624be7c0f11c85c87c1598 
+            # for more specific implementation.
+            sub_fg_mask = sub_mask > 0
+
+            # 2 rounds of parcellation smoothing
+            cc_mask, cc_ids, cc_cnts = None, None, None
+            for i_interp in range(2):
+                sub_mask = rank_median_filter(sub_mask, morphology_ball(5), mask=sub_fg_mask)
+                sub_mask[~sub_fg_mask] = 0  # force to zero
+
+                sub_mask, cc_mask, cc_ids, cc_cnts = self.remove_small_parcs(sub_mask, sub_fg_mask, cc_mask, cc_ids, cc_cnts, min_pts_per_parc)
+                print(f'[No. of CCs for iter={i_interp}]: {cc_mask.max()}')
+                print(cc_ids, cc_cnts)
+
+            # further remove small parcellations
+            while (cc_cnts<min_pts_per_parc).sum() > 0:
+                sub_mask, cc_mask, cc_ids, cc_cnts = self.remove_small_parcs(sub_mask, sub_fg_mask, cc_mask, cc_ids, cc_cnts, min_pts_per_parc)
             
+            print(f'[No. of CCs finally]: {cc_mask.max()}')
+            print(cc_ids, cc_cnts)
+
+            # re-ordering the connected components or parcellations
+            fg_ids = np.unique(cc_mask[sub_fg_mask])
+            for i, fg_id in enumerate(fg_ids):
+                sub_mask[cc_mask == fg_id] = i+1
+            sub_mask[~sub_fg_mask] = 0
+
+            cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1] = sub_mask
+            # 
             cmask = self.random_colorize(nzcoords_t, cur_mask[nzcoords], mask.shape, predv.max())
-            print(f'Communities after filtering: {len(np.unique(cmask))-1}')
+            print(f'Communities after filtering: {len(np.unique(sub_mask))-1}')
 
         self.save_colorized_images(cmask, mask)
         print(f'[After colorization]: {time.time() - t0:.2f} seconds')
 
-        #print('Visualize...')
-        #self.visualize_on_ccf(dfp, mask)
-        print()
-        
-    def save_colorized_images(self, cmask, mask):
-        zdim, ydim, xdim = mask.shape
-        zdim2, ydim2, xdim2 = zdim // 2, ydim // 2, xdim // 2
-        # visualize
-        for i, dim in zip(range(3), (zdim2, ydim2, xdim2)):
-            for j in range(3):
-                k = dim + (j-1)*40
-                m2d0 = np.take(cmask, k, i)
-                # overlay the boundaries
-                m2d1 = np.take(mask, k, i)
-                edges = detect_edges2d(m2d1)
-                p1 = m2d0.copy()
-                p1[edges] = np.array([0,0,0,255])
-                outfile = f'parc_axid{i}_{j}.png'
-                cv2.imwrite(outfile, p1)
-                if i != 0:
-                    print(f'Rotate by 90 degree')
-                    os.system(f'convert {outfile} -rotate 90 {outfile}')
-
-        print()
-
-
+    
+    
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K.csv'
     scale = 25.
