@@ -204,10 +204,34 @@ class BrainParcellation:
         feats_all = self.df[self.fnames].to_numpy()
 
         # using CP to debug
-        regid = 672 # CP
+        # CP: 672; MOB:507, CA1: 382, AOB:151
+        regid = 502 # CP
         cp_mask = self.df['region_id_r316'] == regid
+        # Artificial cases for debugging
+        #nz_tmp = cp_mask.values.nonzero()[0]
+        #cp_mask = self.df.index.isin([self.df.iloc[nz_tmp[0]].name, self.df.iloc[nz_tmp[1]].name])
+
+        if cp_mask.sum() == 0:
+            print(f'No samples are found in regid={regid}')
+            return
+        elif cp_mask.sum() == 1:
+            print(f'Only one sample is found in regid={regid}! No need to parcellation!')
+            return 
+
         coords = coords_all[cp_mask]
         feats = feats_all[cp_mask]
+
+        # assign the current region into Voronoi cells
+        if self.flipLR:
+            reg_mask = (lmask == regid)
+        else:
+            reg_mask = (mask == regid)
+        if reg_mask.sum() == 0:
+            print(f'The mask and the region is inconsistent')
+            return
+        nzcoords = reg_mask.nonzero()
+        nzcoords_t = np.array(nzcoords).transpose()
+
 
         # or try to use radius_neighbors_graph
         # the radius are in 25um space
@@ -217,7 +241,8 @@ class BrainParcellation:
         min_pts_per_parc = 4**3 # 10^6 um^3
 
         #A = radius_neighbors_graph(coords.values, radius=radius_th, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
-        A = kneighbors_graph(coords.values, n_neighbors=80, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
+        n_neighbors = min(80, coords.values.shape[0])
+        A = kneighbors_graph(coords.values, n_neighbors=n_neighbors, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
         print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
         
         A_csr = csr_matrix(A)
@@ -280,14 +305,6 @@ class BrainParcellation:
             mcoords.append(mcoord)
         mcoords = np.array(mcoords)
 
-        # assign the current region into Voronoi cells
-        if self.flipLR:
-            reg_mask = (lmask == regid)
-        else:
-            reg_mask = (mask == regid)
-        nzcoords = reg_mask.nonzero()
-        nzcoords_t = np.array(nzcoords).transpose()
-
         parc_method = 'NearestNeighbor'
         if parc_method == 'Voronoi':
             dms, dmi = min_distances_between_two_sets(nzcoords_t, mcoords, topk=1, reciprocal=False, return_index=True, tree_type='BallTree')
@@ -300,11 +317,9 @@ class BrainParcellation:
 
             cur_mask = reg_mask.astype(np.uint8)
             cur_mask[nzcoords] = predv
-            #import ipdb; ipdb.set_trace()
             # We should only processing the mask region, so pre-extracting it.
             zmin, ymin, xmin = nzcoords_t.min(axis=0)
             zmax, ymax, xmax = nzcoords_t.max(axis=0)
-            #import ipdb; ipdb.set_trace()
             sub_mask = cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
             print(f'[Initial No. of CCs]: {len(np.unique(cc3d.connected_components(sub_mask, connectivity=26)))-1}')
 
