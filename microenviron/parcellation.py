@@ -5,11 +5,13 @@
 ##########################################################
 
 import os
+import glob
 import time
 import json
 import numpy as np
 import pandas as pd
 import pickle
+from multiprocessing.pool import Pool
 from collections import defaultdict
 from sklearn.neighbors import kneighbors_graph, radius_neighbors_graph
 from scipy.sparse import csr_matrix
@@ -28,19 +30,48 @@ import igraph as ig
 
 from image_utils import get_mip_image, image_histeq
 from file_io import load_image, save_image
-from anatomy.anatomy_config import MASK_CCF25_FILE
+from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE, REGION314, REGION671, SALIENT_REGIONS
 from anatomy.anatomy_vis import detect_edges2d
 from math_utils import min_distances_between_two_sets
 
 from generate_me_map import process_mip
 
 
+def reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask):
+    # reordering the mask indices using connected components
+    # Firstly, found out the background mask
+    bg_ids = np.unique(cc_mask[~sub_fg_mask])
+    fg_ids = np.unique(cc_mask[sub_fg_mask])
+    sub_mask[~sub_fg_mask] = 0
+    for i, fg_id in enumerate(fg_ids):
+        sub_mask[cc_mask == fg_id] = i+1
+
+
 class BrainParcellation:
-    def __init__(self, mefile, scale=25., full_features=True, flipLR=True, seed=1024):
+    def __init__(self, mefile, scale=25., full_features=True, flipLR=True, seed=1024, r314_mask=True, 
+                 debug=False, out_mask_dir='./output', out_vis_dir='./vis'):
         self.df = self.load_features(mefile, scale=scale, full_features=full_features, flipLR=flipLR)
         self.seed = seed
         np.random.seed(seed)
         self.flipLR = flipLR
+        self.debug = debug
+
+        self.r314_mask = r314_mask
+        if self.r314_mask:
+            mask_file = MASK_CCF25_R314_FILE
+        else:
+            mask_file = MASK_CCF25_FILE
+        self.mask = load_image(mask_file)  # z,y,x order!
+        lmask = self.mask.copy() # left mask
+        lmask[:self.mask.shape[0]//2] = 0
+        self.lmask = lmask
+
+        if not os.path.exists(out_mask_dir):
+            os.mkdir(out_mask_dir)
+        if not os.path.exists(out_vis_dir):
+            os.mkdir(out_vis_dir)
+        self.out_vis_dir = out_vis_dir
+        self.out_mask_dir = out_mask_dir
 
 
     def load_features(self, mefile, scale=25., full_features=True, flipLR=True):
@@ -138,7 +169,7 @@ class BrainParcellation:
             cv2.imwrite(figname, img)
 
     @staticmethod
-    def remove_small_parcs(sub_mask, sub_fg_mask, cc_mask=None, cc_ids=None, cc_cnts=None, min_pts=0):
+    def remove_small_parcs(sub_mask, sub_fg_mask, cc_mask=None, cc_ids=None, cc_cnts=None, min_pts=0, use_cc_ids=False):
         if cc_mask is None:
             cc_mask = cc3d.connected_components(sub_mask, connectivity=26)
             # we would like to re-estimate the small communities/components
@@ -152,8 +183,11 @@ class BrainParcellation:
                 except UnboundLocalError:
                     interp_mask = cc_mask == cc_id
                 have_small_parcs = True
-
+        
         if have_small_parcs:
+            if use_cc_ids:
+                reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask)
+
             anchor_mask = sub_fg_mask ^ interp_mask
             anchor_coords = np.array(np.where(anchor_mask)).transpose()
             anchor_values = sub_mask[anchor_mask]
@@ -168,10 +202,13 @@ class BrainParcellation:
 
         return sub_mask, cc_mask, cc_ids, cc_cnts
         
-    def save_colorized_images(self, cmask, mask):
+    def save_colorized_images(self, cmask, mask, out_image_file):
         zdim, ydim, xdim = mask.shape
         zdim2, ydim2, xdim2 = zdim // 2, ydim // 2, xdim // 2
         # visualize
+        prefix = os.path.splitext(os.path.split(out_image_file)[-1])[0]
+        fprefix = os.path.join(self.out_vis_dir, prefix)
+
         for i, dim in zip(range(3), (zdim2, ydim2, xdim2)):
             for j in range(3):
                 k = dim + (j-1)*40
@@ -181,107 +218,65 @@ class BrainParcellation:
                 edges = detect_edges2d(m2d1)
                 p1 = m2d0.copy()
                 p1[edges] = np.array([0,0,0,255])
-                outfile = f'parc_axid{i}_{j}.png'
+                outfile = f'{fprefix}_axid{i}_{j}.png'
                 cv2.imwrite(outfile, p1)
                 if i != 0:
-                    print(f'Rotate by 90 degree')
+                    #print(f'Rotate by 90 degree')
                     os.system(f'convert {outfile} -rotate 90 {outfile}')
 
         print()
 
-
-
-    def community_detection(self, load_partition=True):
-        t0 = time.time()
-        mask = load_image(MASK_CCF25_FILE)  # z,y,x order!
-        lmask = mask.copy() # left mask
-        mshape = mask.shape
-        lmask[:mshape[0]//2] = 0
-
-        # Compute the sparse nearest neighbors graph
-        # Adjust n_neighbors based on your dataset and memory constraints
-        coords_all = self.df[['soma_x', 'soma_y', 'soma_z']]
-        feats_all = self.df[self.fnames].to_numpy()
-
-        # using CP to debug
-        # CP: 672; MOB:507, CA1: 382, AOB:151
-        regid = 502 # CP
-        cp_mask = self.df['region_id_r316'] == regid
-        # Artificial cases for debugging
-        #nz_tmp = cp_mask.values.nonzero()[0]
-        #cp_mask = self.df.index.isin([self.df.iloc[nz_tmp[0]].name, self.df.iloc[nz_tmp[1]].name])
-
-        if cp_mask.sum() == 0:
-            print(f'No samples are found in regid={regid}')
-            return
-        elif cp_mask.sum() == 1:
-            print(f'Only one sample is found in regid={regid}! No need to parcellation!')
-            return 
-
-        coords = coords_all[cp_mask]
-        feats = feats_all[cp_mask]
-
-        # assign the current region into Voronoi cells
-        if self.flipLR:
-            reg_mask = (lmask == regid)
-        else:
-            reg_mask = (mask == regid)
-        if reg_mask.sum() == 0:
-            print(f'The mask and the region is inconsistent')
-            return
-        nzcoords = reg_mask.nonzero()
-        nzcoords_t = np.array(nzcoords).transpose()
-
-
+    def community_detection(self, coords, feats, n_jobs=2):
         # or try to use radius_neighbors_graph
         # the radius are in 25um space
-        radius_th = 10.
-        par1 = 3.
+        radius_th = 4.  # 4x25=100um
         par2 = 3.
-        min_pts_per_parc = 4**3 # 10^6 um^3
 
+        t0 = time.time()
         #A = radius_neighbors_graph(coords.values, radius=radius_th, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
         n_neighbors = min(80, coords.values.shape[0])
-        A = kneighbors_graph(coords.values, n_neighbors=n_neighbors, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
-        print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
+        A = kneighbors_graph(coords.values, n_neighbors=n_neighbors, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
+        if self.debug:
+            print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
         
         A_csr = csr_matrix(A)
         sources, targets = A_csr.nonzero()
         # estimate the edge weights
         dists = A_csr[sources, targets]
-        dt = radius_th
-        wd = np.squeeze(np.asarray(np.exp(-par1*dists/dt)))
-        print(f'wd[mean/max/min]: {wd.mean():.2f}, {wd.max():.2f}, {wd.min():.2f}')
-        print(f'Total and avg number of edges: {wd.shape[0]}, {wd.shape[0]/feats.shape[0]:.2f}')
+        wd = np.squeeze(np.asarray(np.exp(-dists/radius_th)))
+        if self.debug:
+            print(f'wd[mean/max/min]: {wd.mean():.2f}, {wd.max():.2f}, {wd.min():.2f}')
+            print(f'Total and avg number of edges: {wd.shape[0]}, {wd.shape[0]/feats.shape[0]:.2f}')
 
         fs = feats[sources]
         ft = feats[targets]
         wf = np.exp(-par2 * np.linalg.norm(fs - ft, axis=1))
-        print(f'wf[mean/max/min]: {wf.mean():.2f}, {wf.max():.2f}, {wf.min():.2g}')
-        print(f'[weights estimation]: {time.time() - t0:.2f} seconds')
+        if self.debug:
+            print(f'wf[mean/max/min]: {wf.mean():.2f}, {wf.max():.2f}, {wf.min():.2g}')
+            print(f'[weights estimation]: {time.time() - t0:.2f} seconds')
 
         weights = wd * wf
         
 
         g = ig.Graph(list(zip(sources, targets)), directed=False)
         g.es['weight'] = weights
-        print(f'[Graph initialization]: {time.time() - t0: .2f} seconds')
+        if self.debug:
+            print(f'[Graph initialization]: {time.time() - t0: .2f} seconds')
         
         ### Step 3: Apply the Leiden Algorithm
         partition = lg.find_partition(g, lg.ModularityVertexPartition, weights='weight', seed=self.seed)
-        print(f'[Partition]: {time.time() - t0: .2f} seconds')
+        if self.debug:
+            print(f'[Partition]: {time.time() - t0: .2f} seconds')
 
 
-        print('>>> Saving partition')
-        community_memberships = [i+1 for i in partition.membership] # re-indexing starting from 1
-        min_pts_per_comm = np.sqrt(coords.shape[0])
+        community_memberships = [i+1 for i in partition.membership] # re-indexing starting from 1, to differentiate with background
 
         community_sizes = np.array([len(community) for community in partition])
-        print(f'[Number of communities] = {len(partition)}')
-        print(f'[Number of large communities (n>{min_pts_per_comm:.2f})] = {(community_sizes > min_pts_per_comm).sum()}')
-        print(f'[Community statistics: mean/std/max/min]: {community_sizes.mean():.1f}, {community_sizes.std():.1f}, {community_sizes.max()}, {community_sizes.min()}')
         comms, counts = np.unique(community_sizes, return_counts=True)
-        print(comms, counts)
+        if self.debug:
+            print(f'[Number of communities] = {len(partition)}')
+            print(f'[Community statistics: mean/std/max/min]: {community_sizes.mean():.1f}, {community_sizes.std():.1f}, {community_sizes.max()}, {community_sizes.min()}')
+            print(comms, counts)
 
         node_to_community = {node: community for node, community in enumerate(community_memberships)}
         # Initialize a dictionary to hold lists of nodes for each community
@@ -290,11 +285,64 @@ class BrainParcellation:
         # Populate the dictionary with node indices grouped by their community
         for node_index, community_index in enumerate(community_memberships):
             communities[community_index].append(node_index)
+        
+        return communities
+
+    def insufficient_data(self, reg_mask, out_image_file):
+        mask_u16 = reg_mask.astype(np.uint16)
+        if save_image:
+            save_image(out_image_file, mask_u16, useCompression=True)
+        return mask_u16
+
+    def parcellate_region(self, regid, save_mask=True):
+        print(f'---> Processing for region={regid}')
+        t0 = time.time()
+        min_pts_per_parc = 4**3 # 10^6 um^3
+        out_image_file = os.path.join(self.out_mask_dir, f'parc_region{regid}.nrrd')
+
+        # Compute the sparse nearest neighbors graph
+        # Adjust n_neighbors based on your dataset and memory constraints
+        coords_all = self.df[['soma_x', 'soma_y', 'soma_z']]
+        feats_all = self.df[self.fnames].to_numpy()
+
+        # using CP to debug
+        # CP: 672; MOB:507, CA1: 382, AOB:151
+        cp_mask = self.df['region_id_r316'] == regid
+        # Artificial cases for debugging
+        #nz_tmp = cp_mask.values.nonzero()[0]
+        #cp_mask = self.df.index.isin([self.df.iloc[nz_tmp[0]].name, self.df.iloc[nz_tmp[1]].name])
+
+        # assign the current region into Voronoi cells
+        if self.flipLR:
+            reg_mask = (self.lmask == regid)
+        else:
+            reg_mask = (self.mask == regid)
+        
+        if cp_mask.sum() == 0:
+            print(f'[Warning] No samples are found in regid={regid}')
+            return self.insufficient_data(reg_mask, out_image_file)
+
+        coords = coords_all[cp_mask]
+        feats = feats_all[cp_mask]
+
+        if reg_mask.sum() == 0:
+            print(f'[Error] The mask and the region is inconsistent')
+            return
+
+        if cp_mask.sum() == 1:
+            print(f'[Warning] Only one sample is found in regid={regid}! No need to parcellation!')
+            return self.insufficient_data(reg_mask, out_image_file)
+
+        nzcoords = reg_mask.nonzero()
+        nzcoords_t = np.array(nzcoords).transpose()
+
+        communities = self.community_detection(coords, feats, n_jobs=1)
+        min_pts_per_comm = np.sqrt(coords.shape[0])
 
         # estimate the weighted center of each community
-        mcoords = []
-        mnodes = []
-        mcomms = []
+        mcoords = []    # weighted center of filtered communities
+        mnodes = []     # filtered nodes
+        mcomms = []     # community index for each node
         for icomm, inodes in communities.items():
             if len(inodes) < min_pts_per_comm:
                 continue
@@ -304,24 +352,33 @@ class BrainParcellation:
             mcoord = cur_coords.mean(axis=0).values
             mcoords.append(mcoord)
         mcoords = np.array(mcoords)
+        if mcoords.shape[0] == 0:
+            print(f'[Warning] Insufficient data to detect sub-regions for regid={regid}!')
+            return self.insufficient_data(reg_mask, out_image_file)
 
         parc_method = 'NearestNeighbor'
         if parc_method == 'Voronoi':
             dms, dmi = min_distances_between_two_sets(nzcoords_t, mcoords, topk=1, reciprocal=False, return_index=True, tree_type='BallTree')
-            cmask = self.random_colorize(nzcoords_t, dmi[:,0], reg_mask.shape, dmi.max())
+            if self.debug:
+                cmask = self.random_colorize(nzcoords_t, dmi[:,0], reg_mask.shape, dmi.max())
+            # The following 2 lines of codes are added without verification!
+            cur_mask = reg_mask.astype(uint16)
+            cur_mask[nzcoords] = dmi[:,0]
         elif parc_method == 'NearestNeighbor':
-            #interp = NearestNDInterpolator(coords[['soma_z', 'soma_y', 'soma_x']], partition.membership)
+            import ipdb; ipdb.set_trace()
             interp = NearestNDInterpolator(coords.iloc[mnodes][['soma_z', 'soma_y', 'soma_x']].values, mcomms)
             predv = interp(*nzcoords)
-            print(f'[Interpolation]: {time.time() - t0:.2f} seconds')
+            if self.debug:
+                print(f'[Interpolation]: {time.time() - t0:.2f} seconds')
 
-            cur_mask = reg_mask.astype(np.uint8)
+            cur_mask = reg_mask.astype(np.uint16)
             cur_mask[nzcoords] = predv
             # We should only processing the mask region, so pre-extracting it.
             zmin, ymin, xmin = nzcoords_t.min(axis=0)
             zmax, ymax, xmax = nzcoords_t.max(axis=0)
             sub_mask = cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
-            print(f'[Initial No. of CCs]: {len(np.unique(cc3d.connected_components(sub_mask, connectivity=26)))-1}')
+            if self.debug:
+                print(f'[Initial No. of CCs]: {len(np.unique(cc3d.connected_components(sub_mask, connectivity=26)))-1}')
 
             # median filtering
             # Python version on CPU. GPU implementation using PyTorch should be much faster, 
@@ -336,40 +393,110 @@ class BrainParcellation:
                 sub_mask[~sub_fg_mask] = 0  # force to zero
 
                 sub_mask, cc_mask, cc_ids, cc_cnts = self.remove_small_parcs(sub_mask, sub_fg_mask, cc_mask, cc_ids, cc_cnts, min_pts_per_parc)
-                print(f'[No. of CCs for iter={i_interp}]: {cc_mask.max()}')
+                if self.debug:
+                    print(f'[No. of CCs for iter={i_interp}]: {cc_mask.max()}')
+                    print(cc_ids, cc_cnts)
+
+            # Ensure no small parcellations
+            niter = 0
+            while (cc_cnts<min_pts_per_parc).sum() > 0:
+                if niter < 5:
+                    sub_mask, cc_mask, cc_ids, cc_cnts = self.remove_small_parcs(sub_mask, sub_fg_mask, cc_mask, cc_ids, cc_cnts, min_pts_per_parc)
+                else:
+                    #sub_mask, cc_mask, cc_ids, cc_cnts = self.remove_small_parcs(sub_mask, sub_fg_mask, cc_mask, cc_ids, cc_cnts, min_pts_per_parc, use_cc_ids=True)
+                    break
+
+                print(niter, cc_ids.shape, cc_cnts)
+                niter += 1
+            
+            
+
+            if self.debug:
+                print(f'[No. of CCs finally]: {cc_mask.max()}')
                 print(cc_ids, cc_cnts)
 
-            # further remove small parcellations
-            while (cc_cnts<min_pts_per_parc).sum() > 0:
-                sub_mask, cc_mask, cc_ids, cc_cnts = self.remove_small_parcs(sub_mask, sub_fg_mask, cc_mask, cc_ids, cc_cnts, min_pts_per_parc)
-            
-            print(f'[No. of CCs finally]: {cc_mask.max()}')
-            print(cc_ids, cc_cnts)
-
             # re-ordering the connected components or parcellations
-            fg_ids = np.unique(cc_mask[sub_fg_mask])
-            for i, fg_id in enumerate(fg_ids):
-                sub_mask[cc_mask == fg_id] = i+1
-            sub_mask[~sub_fg_mask] = 0
+            reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask)
 
             cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1] = sub_mask
-            # 
-            cmask = self.random_colorize(nzcoords_t, cur_mask[nzcoords], mask.shape, predv.max())
-            print(f'Communities after filtering: {len(np.unique(sub_mask))-1}')
+            
+            if self.debug: 
+                cmask = self.random_colorize(nzcoords_t, cur_mask[nzcoords], self.mask.shape, predv.max())
 
-        self.save_colorized_images(cmask, mask)
-        print(f'[After colorization]: {time.time() - t0:.2f} seconds')
+        if self.debug:
+            self.save_colorized_images(cmask, self.mask, out_image_file)
 
-    
+        if save_mask:
+            save_image(out_image_file, cur_mask, useCompression=True)
+
+        print(f'<--- [{len(np.unique(sub_mask))-1}] sub-regions for region index={regid} found in {time.time() - t0:.2f} seconds')
+        return cur_mask
+
+
+    def parcellate_brain(self, n_jobs=12):
+        if self.r314_mask:
+            regions = REGION314
+        else:
+            regions = SALIENT_REGIONS
+
+        zyxs = self.df[['soma_z', 'soma_y', 'soma_x']]
+        zyxs_int = np.floor(zyxs).astype(np.int32)
+        zs, ys, xs = zyxs_int.transpose().values
+        regids = self.mask[zs, ys, xs]
+        rids, cnts = np.unique(regids, return_counts=True)
+        # run parcellation each region separately in parallel
+        save_mask = True
+        args_list = []
+        for rid in rids:
+            # make sure we estimate only necessary regions
+            #if rid in regions:
+            if (rid in regions) and (not os.path.exists(os.path.join(self.out_mask_dir, f'parc_region{rid}.nrrd'))):
+                args_list.append((rid, save_mask))
+        print(f'No. of regions to calculate: {len(args_list)}')
+        
+        #self.parcellate_region(206, save_mask); sys.exit() # debug
+        
+        # multiprocessing
+        pt = Pool(n_jobs)
+        pt.starmap(self.parcellate_region, args_list)
+        pt.close()
+        pt.join()
+
+    def merge_parcs(self):
+        mask = self.mask.copy()
+        mask.fill(0)
+        cur_id = 0
+        cnt = 0
+        t0 = time.time()
+        for pfile in glob.glob(os.path.join(self.out_mask_dir, '*nrrd')):
+            prefix = os.path.splitext(os.path.split(pfile)[-1])[0]
+            regid = prefix[11:]
+            # load the parcellation file for current region
+            cur_mask = load_image(pfile)
+            nzm = cur_mask != 0
+            mask[nzm] = cur_mask[nzm] + cur_id
+            cur_id += cur_mask.max()
+            print(regid, cur_mask.max(), mask.max())
+
+            cnt += 1
+            if cnt % 10 == 0:
+                print(f'===> Processed {cnt} regions in {time.time() - t0:.2f} seconds')
+
+        save_image('final_parcellation.nrrd', mask, useCompression=True)
     
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K.csv'
     scale = 25.
     full_features = False
-    load_partition = False
+    debug = True
+    regid = 178
+    r314_mask = True
+    parc_dir = './output'
     
-    bp = BrainParcellation(mefile, scale=scale, full_features=full_features)
-    bp.community_detection(load_partition=load_partition)
+    bp = BrainParcellation(mefile, scale=scale, full_features=full_features, r314_mask=r314_mask, debug=debug)
+    #bp.parcellate_region(regid=regid)
+    #bp.parcellate_brain()
+    bp.merge_parcs()
     
 
 

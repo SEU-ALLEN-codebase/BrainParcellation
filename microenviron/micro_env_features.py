@@ -26,7 +26,7 @@ def get_highquality_subset(feature_file, filter_file):
     df = pd.read_csv(feature_file, index_col=0)
     print(f'Initial number of recons: {df.shape[0]}')
     fl = pd.read_csv(filter_file, names=['Name'])
-    names = [n[:-9] for n in fl.Name]
+    names = fl.Name #[n[:-9] for n in fl.Name]
     df = df[df.index.isin(names)]
     print(f'Number of filtered recons: {df.shape[0]}')
 
@@ -139,7 +139,7 @@ def calc_regional_mefeatures(mefeature_file, rmefeature_file, region_num=316):
 if __name__ == '__main__':
     if 1:
         feature_file = './data/lm_features_d28.csv'
-        filter_file = '../evaluation/data/final_filtered_swc.txt'
+        filter_file = '../evaluation/data/final_filtered_swc0205.txt'
         mefile = f'./data/mefeatures_100K.csv'
         topk = 5
         

@@ -1,2 +1,7 @@
 neuro_morpho_toolbox
 leidenalg==0.10.2
+cc3d
+pylib
+opencv-python
+leidenalg
+igraph
