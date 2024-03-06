@@ -49,14 +49,15 @@
         <th align = "center"> Value</th>
     </tr>
     <tr>
-        <th align = "center"> Bi-directional entire structure average distance (&#956;m) </th>
-        <th align = "center"> 18.337</th>
-    </tr>
-    <tr>
-        <th align = "center"> Average percent of difference structure (%) </th>
-        <th algn = "center"> 50.172 </th>
+        <th align = "center"> Bi-directional entire structure median distance (&#956;m) </th>
+        <th align = "center"> 5.846</th>
     </tr>
 </table>
+<div align='center'>
+    <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/median_structure_similarity.png">
+</div>
+
+
 ##### Comment: Average parent-daughter ratio of 1876 dataset is 1.0
 
 ![image](https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/reconstruction/figures/1876_comparison.png)
