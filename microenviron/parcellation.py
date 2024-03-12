@@ -46,6 +46,25 @@ def reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask):
     for i, fg_id in enumerate(fg_ids):
         sub_mask[cc_mask == fg_id] = i+1
 
+def random_colorize(coords, values, shape3d, color_level):
+    """
+    coords in shape of [N,3], in order of ZYX
+    """
+    # map the communities to different colors using randomized color map
+    norm = mpl.colors.Normalize(values.min(), vmax=values.max())
+    vals = np.linspace(0,1,color_level)
+    np.random.shuffle(vals)
+    cmap = cm.colors.ListedColormap(cm.jet(vals))
+    #cmap = cm.bwr
+    smapper = cm.ScalarMappable(norm=norm, cmap=cmap)
+    colors = np.floor(smapper.to_rgba(values) * 255).astype(np.uint8)
+    zyx = np.floor(coords).astype(np.int32)
+
+    # intialize map
+    pmap = np.zeros((*shape3d, colors.shape[-1]), dtype=np.uint8)
+    pmap[zyx[:,0], zyx[:,1], zyx[:,2]] = colors
+
+    return pmap
 
 class BrainParcellation:
     def __init__(self, mefile, scale=25., full_features=True, flipLR=True, seed=1024, r314_mask=True, 
@@ -110,23 +129,7 @@ class BrainParcellation:
 
         return df
 
-    @staticmethod
-    def random_colorize(coords, values, shape3d, color_level):
-        # map the communities to different colors using randomized color map
-        norm = mpl.colors.Normalize(values.min(), vmax=values.max())
-        vals = np.linspace(0,1,color_level)
-        np.random.shuffle(vals)
-        cmap = cm.colors.ListedColormap(cm.jet(vals))
-        #cmap = cm.bwr
-        smapper = cm.ScalarMappable(norm=norm, cmap=cmap)
-        colors = np.floor(smapper.to_rgba(values) * 255).astype(np.uint8)
-        zyx = np.floor(coords).astype(np.int32)
-
-        # intialize map
-        pmap = np.zeros((*shape3d, colors.shape[-1]), dtype=np.uint8)
-        pmap[zyx[:,0], zyx[:,1], zyx[:,2]] = colors
     
-        return pmap
 
     def visualize_on_ccf(self, dfp, mask):
         shape3d = mask.shape
@@ -134,7 +137,7 @@ class BrainParcellation:
 
         crds = dfp[['soma_z', 'soma_y', 'soma_x']]
         values = dfp['parc']
-        pmap = self.random_colorize(crds.to_numpy(), values, shape3d, 5120)
+        pmap = random_colorize(crds.to_numpy(), values, shape3d, 5120)
         
         thickX2 = 20
         for axid in range(3):
@@ -360,7 +363,7 @@ class BrainParcellation:
         if parc_method == 'Voronoi':
             dms, dmi = min_distances_between_two_sets(nzcoords_t, mcoords, topk=1, reciprocal=False, return_index=True, tree_type='BallTree')
             if self.debug:
-                cmask = self.random_colorize(nzcoords_t, dmi[:,0], reg_mask.shape, dmi.max())
+                cmask = random_colorize(nzcoords_t, dmi[:,0], reg_mask.shape, dmi.max())
             # The following 2 lines of codes are added without verification!
             cur_mask = reg_mask.astype(uint16)
             cur_mask[nzcoords] = dmi[:,0]
@@ -421,7 +424,7 @@ class BrainParcellation:
             cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1] = sub_mask
             
             if self.debug: 
-                cmask = self.random_colorize(nzcoords_t, cur_mask[nzcoords], self.mask.shape, predv.max())
+                cmask = random_colorize(nzcoords_t, cur_mask[nzcoords], self.mask.shape, predv.max())
 
         if self.debug:
             self.save_colorized_images(cmask, self.mask, out_image_file)
