@@ -300,7 +300,7 @@ class BrainParcellation:
     def parcellate_region(self, regid, save_mask=True):
         print(f'---> Processing for region={regid}')
         t0 = time.time()
-        min_pts_per_parc = 4**3 # 10^6 um^3
+        min_pts_per_parc = 4**3 # (0.25*x)^6 um^3
         out_image_file = os.path.join(self.out_mask_dir, f'parc_region{regid}.nrrd')
 
         # Compute the sparse nearest neighbors graph
@@ -368,7 +368,6 @@ class BrainParcellation:
             cur_mask = reg_mask.astype(uint16)
             cur_mask[nzcoords] = dmi[:,0]
         elif parc_method == 'NearestNeighbor':
-            import ipdb; ipdb.set_trace()
             interp = NearestNDInterpolator(coords.iloc[mnodes][['soma_z', 'soma_y', 'soma_x']].values, mcomms)
             predv = interp(*nzcoords)
             if self.debug:
@@ -411,7 +410,6 @@ class BrainParcellation:
 
                 print(niter, cc_ids.shape, cc_cnts)
                 niter += 1
-            
             
 
             if self.debug:
@@ -492,14 +490,14 @@ if __name__ == '__main__':
     scale = 25.
     full_features = False
     debug = True
-    regid = 178
+    regid = 672
     r314_mask = True
     parc_dir = './output'
     
     bp = BrainParcellation(mefile, scale=scale, full_features=full_features, r314_mask=r314_mask, debug=debug)
-    #bp.parcellate_region(regid=regid)
+    bp.parcellate_region(regid=regid)
     #bp.parcellate_brain()
-    bp.merge_parcs()
+    #bp.merge_parcs()
     
 
 

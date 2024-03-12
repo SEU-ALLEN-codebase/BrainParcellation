@@ -15,17 +15,26 @@ sys.path.append('../')
 from parcellation import random_colorize
 
 
+def Ashwini_Chaudhary(a, val_old, val_new):
+    arr = np.empty(a.max()+1, dtype=val_new.dtype)
+    arr[val_old] = val_new
+    return arr[a]
+
 def random_colorize_mask(mask):
     nzcoords = np.array(mask.nonzero()).transpose()
     values = mask[mask > 0]
+    # Maybe use continuous values should be better
+    vuniq = np.unique(values)
+    values = Ashwini_Chaudhary(values, vuniq, np.arange(1, len(vuniq)+1))
     shape3d = mask.shape
-    color_level = len(np.unique(values))
+    color_level = values.max()
     cimg = random_colorize(nzcoords, values, shape3d, color_level)
     return cimg
 
 class StriatumValidator(object):
     def __init__(self, str_indices=(672,56),#,56,998,754),
                 bregmas=(1.70,1.10,0.74,0.38,-0.10,-0.58,-1.06,-1.46),
+                #bregmas=(152,169,180,195,218,233,249,268),
                 ):
         self.ccf25m = load_image(MASK_CCF25_FILE)
         self.strm = self.get_striatal_mask(str_indices)
@@ -50,6 +59,7 @@ class StriatumValidator(object):
         rx, rz = __RX_CCF25__, __RZ_CCF25__
         # convert stereotactic coordinates to voxel coordinates
         xs = np.round(self.bregmas * 1000/25.).astype(int) + rx
+        #xs = self.bregmas
         # random colorization
         cmask = random_colorize_mask(stereo_parc)
         # extract sections
@@ -60,6 +70,10 @@ class StriatumValidator(object):
             sec = cv2.flip(sec, 1)    # flip horizontal
             # remove non-zero backgrounds
             nzc = sec.sum(axis=-1).nonzero()
+            if len(nzc[0]) == 0:
+                print(f'WARNING: the {isec}-th section is empty!')
+                continue
+            
             ymax, ymin = nzc[0].max(), nzc[0].min()
             xmax, xmin = nzc[1].max(), nzc[1].min()
             dd = 5
