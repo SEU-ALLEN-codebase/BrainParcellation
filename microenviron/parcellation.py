@@ -66,10 +66,59 @@ def random_colorize(coords, values, shape3d, color_level):
 
     return pmap
 
+def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True):
+    df = pd.read_csv(mefile, index_col=0, comment='#')
+    
+    if feat_type == 'full':
+        cols = df.columns
+        fnames = [fname for fname in cols if fname[-3:] == '_me']
+    elif feat_type == 'mRMR':
+        # Features selected by mRMR
+        fnames = ['Length_me', 'AverageFragmentation_me', 'AverageContraction_me']
+    elif feat_type == 'PCA':
+        fnames = ['pca_feat1', 'pca_feat2', 'pca_feat3']
+    else:
+        raise ValueError("Unsupported feature types")
+
+    # standardize
+    tmp = df[fnames]
+    tmp = (tmp - tmp.mean()) / (tmp.std() + 1e-10)
+    df[fnames] = tmp
+
+    # scaling the coordinates to CCFv3-25um space
+    df['soma_x'] /= scale
+    df['soma_y'] /= scale
+    df['soma_z'] /= scale
+    # we should remove the out-of-region coordinates
+    zdim,ydim,xdim = (456,320,528)   # dimensions for CCFv3-25um atlas
+    in_region = (df['soma_x'] >= 0) & (df['soma_x'] < xdim) & \
+                (df['soma_y'] >= 0) & (df['soma_y'] < ydim) & \
+                (df['soma_z'] >= 0) & (df['soma_z'] < zdim)
+    df = df[in_region]
+    print(f'Filtered out {in_region.shape[0] - df.shape[0]}')
+
+    if flipLR:
+        # mirror right hemispheric points to left hemisphere
+        zdim2 = zdim // 2
+        nzi = np.nonzero(df['soma_z'] < zdim2)
+        loci = df.index[nzi]
+        df.loc[loci, 'soma_z'] = zdim - df.loc[loci, 'soma_z']
+
+    return df, fnames
+
+
+
 class BrainParcellation:
-    def __init__(self, mefile, scale=25., full_features=True, flipLR=True, seed=1024, r314_mask=True, 
+    def __init__(self, mefile, scale=25., feat_type='mRMR', flipLR=True, seed=1024, r314_mask=True, 
                  debug=False, out_mask_dir='./output', out_vis_dir='./vis'):
-        self.df = self.load_features(mefile, scale=scale, full_features=full_features, flipLR=flipLR)
+        """
+        @args feat_type: 
+                    - "full": complete set of L-Measure features
+                    - "mRMR": the top 3 features selected using mRMR from the complete set
+                    - "PCA": the top 3 features selected using PCA from the complete set
+        """
+        self.df, self.fnames = load_features(mefile, scale=scale, feat_type=feat_type, flipLR=flipLR)
+        self.feat_type = feat_type
         self.seed = seed
         np.random.seed(seed)
         self.flipLR = flipLR
@@ -93,43 +142,6 @@ class BrainParcellation:
         self.out_mask_dir = out_mask_dir
 
 
-    def load_features(self, mefile, scale=25., full_features=True, flipLR=True):
-        df = pd.read_csv(mefile, index_col=0)
-        
-        if full_features:
-            cols = df.columns
-            self.fnames = [fname for fname in cols if fname[-3:] == '_me']
-        else:
-            # Features selected by mRMR
-            self.fnames = ['Length_me', 'AverageFragmentation_me', 'AverageContraction_me']
-    
-        # standardize
-        tmp = df[self.fnames]
-        tmp = (tmp - tmp.mean()) / (tmp.std() + 1e-10)
-        df[self.fnames] = tmp
-
-        # scaling the coordinates to CCFv3-25um space
-        df['soma_x'] /= scale
-        df['soma_y'] /= scale
-        df['soma_z'] /= scale
-        # we should remove the out-of-region coordinates
-        zdim,ydim,xdim = (456,320,528)   # dimensions for CCFv3-25um atlas
-        in_region = (df['soma_x'] >= 0) & (df['soma_x'] < xdim) & \
-                    (df['soma_y'] >= 0) & (df['soma_y'] < ydim) & \
-                    (df['soma_z'] >= 0) & (df['soma_z'] < zdim)
-        df = df[in_region]
-        print(f'Filtered out {in_region.shape[0] - df.shape[0]}')
-
-        if flipLR:
-            # mirror right hemispheric points to left hemisphere
-            zdim2 = zdim // 2
-            nzi = np.nonzero(df['soma_z'] < zdim2)
-            loci = df.index[nzi]
-            df.loc[loci, 'soma_z'] = zdim - df.loc[loci, 'soma_z']
-
-        return df
-
-    
 
     def visualize_on_ccf(self, dfp, mask):
         shape3d = mask.shape
@@ -247,12 +259,17 @@ class BrainParcellation:
         # estimate the edge weights
         dists = A_csr[sources, targets]
         wd = np.squeeze(np.asarray(np.exp(-dists/radius_th)))
+
         if self.debug:
             print(f'wd[mean/max/min]: {wd.mean():.2f}, {wd.max():.2f}, {wd.min():.2f}')
             print(f'Total and avg number of edges: {wd.shape[0]}, {wd.shape[0]/feats.shape[0]:.2f}')
 
         fs = feats[sources]
         ft = feats[targets]
+        if self.feat_type == 'full':
+            # The mean pairwise distances of full set of features (`feat_type == full`) are about 3x
+            # (6.576) compared to that of mRMR3 (2.180) and PCA3 (2.236).
+            par2 = par2 / 3.
         wf = np.exp(-par2 * np.linalg.norm(fs - ft, axis=1))
         if self.debug:
             print(f'wf[mean/max/min]: {wf.mean():.2f}, {wf.max():.2f}, {wf.min():.2g}')
@@ -486,15 +503,15 @@ class BrainParcellation:
         save_image('final_parcellation.nrrd', mask, useCompression=True)
     
 if __name__ == '__main__':
-    mefile = './data/mefeatures_100K.csv'
+    mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
-    full_features = False
+    feat_type = 'full'
     debug = True
     regid = 672
     r314_mask = True
     parc_dir = './output'
     
-    bp = BrainParcellation(mefile, scale=scale, full_features=full_features, r314_mask=r314_mask, debug=debug)
+    bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug)
     bp.parcellate_region(regid=regid)
     #bp.parcellate_brain()
     #bp.merge_parcs()
