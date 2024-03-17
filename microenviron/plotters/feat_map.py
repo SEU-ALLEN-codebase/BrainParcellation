@@ -5,6 +5,7 @@
 ##########################################################
 import sys
 import random
+import pickle
 import numpy as np
 from scipy.stats import pearsonr, spearmanr
 from scipy.spatial.distance import pdist
@@ -17,6 +18,7 @@ sys.path.append('..')
 from parcellation import load_features
 
 from file_io import load_image
+from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE
 
 def estimate_fmap_similarities(mefile, dist='pearson'):
     # randomly select 10K samples for estimation
@@ -74,6 +76,23 @@ def estimate_fmap_similarities(mefile, dist='pearson'):
     plt.close()
 
 
+def get_correspondence_map(parc1, parc2, rmask):
+    # estimate the correspondence of the sub-regions of parc2 to parc1
+    regs1, cnts1 = np.unique(parc1[rmask], return_counts=True)
+    regs2, cnts2 = np.unique(parc2[rmask], return_counts=True)
+    # initialize the correspondence matrix
+    rsize1, rsize2 = regs1.size, regs2.size
+    cmat = np.zeros((rsize1, rsize2))
+    for irid2, rid2 in enumerate(regs2):
+        # find its correspondence in parc1
+        mask2 = parc2 == rid2
+        regs21 = parc1[mask2]
+        cmat[:,irid2] = np.histogram(regs21, bins=rsize1, range=(1,rsize1+1))[0]
+    # normalize
+    cmat /= (cmat.sum(axis=0).reshape(1,-1) + 1e-10)
+
+    return cmat
+
 def estimate_parc_similarities(parc_files):
 
     # utilities
@@ -88,19 +107,8 @@ def estimate_parc_similarities(parc_files):
         return cmap
 
     def parc_correspondence(parc1, parc2, rmask, prefix='temp'):
-        # estimate the correspondence of the sub-regions of parc2 to parc1
-        regs1, cnts1 = np.unique(parc1[rmask], return_counts=True)
-        regs2, cnts2 = np.unique(parc2[rmask], return_counts=True)
-        # initialize the correspondence matrix
-        rsize1, rsize2 = regs1.size, regs2.size
-        cmat = np.zeros((rsize1, rsize2))
-        for irid2, rid2 in enumerate(regs2):
-            # find its correspondence in parc1
-            mask2 = parc2 == rid2
-            regs21 = parc1[mask2]
-            cmat[:,irid2] = np.histogram(regs21, bins=rsize1, range=(1,rsize1+1))[0]
-        # normalize
-        cmat /= (cmat.sum(axis=0).reshape(1,-1) + 1e-10)
+        cmat = get_correspondence_map(parc1, parc2, rmask)
+        rsize1, rsize2 = cmat.shape
         df = pd.DataFrame(cmat, index=np.arange(rsize1)+1, columns=np.arange(rsize2)+1)
         print(df)
         cmap = get_customized_cmap()
@@ -128,8 +136,35 @@ def estimate_parc_similarities(parc_files):
     parc_correspondence(mrmr, full, rmask, 'mRMR-full')
     print()
 
-def find_best_feat_type():
-    # We can choose the best feature type based on the separation between different laminations of cortical layers
+def find_best_feat_type(rmap_file, parc_file, r314_mask_file, r671_mask_file, flipLR=True):
+    """We can choose the best feature type based on the separability of well-defined CCF regions"""
+    # load the region mapping file
+    with open(rmap_file, 'rb') as fp:
+        rmap = pickle.load(fp)[0]
+    # load the CCFv3 masks
+    r314_mask = load_image(r314_mask_file)
+    r671_mask = load_image(r671_mask_file)
+    if flipLR:
+        zs = r314_mask.shape[0]//2
+        r314_mask[:zs] = 0
+        r671_mask[:zs] = 0
+    # load the parcellation
+    parc = load_image(parc_file)
+
+    # Then we find out the hierarchical regions
+    for r1, rs in rmap.items():
+        if len(rs) > 1:
+            rmask = r314_mask == r1
+            cmat = get_correspondence_map(r671_mask, parc, rmask)
+            prids = np.unique(parc[rmask])
+            print(r1, len(rs), prids)
+            # check no errors
+            assert(rmask.sum() == (r671_mask[rmask]>0).sum())
+            assert(rmask.sum() == (parc[rmask]>0).sum())
+            
+            
+            #import ipdb; ipdb.set_trace()
+            print()
     
     
 
@@ -139,11 +174,19 @@ if __name__ == '__main__':
         dist = 'euclidean'
         estimate_fmap_similarities(mefile, dist=dist)
 
-    if 1:
+    if 0:
         parc_files = {
             'full': '../intermediate_data/parc_full_region672.nrrd',
             'mRMR': '../intermediate_data/parc_mRMR_region672.nrrd',
             'PCA': '../intermediate_data/parc_PCA_region672.nrrd'
         }
         estimate_parc_similarities(parc_files)
+
+    if 1:
+        rmap_file = '/home/lyf/Softwares/installation/pylib/anatomy/resources/region671_to_region314_woFiberTracts.pkl'
+        parc_file = '../intermediate_data/parc_r671_mrmr.nrrd'
+        r314_mask_file = MASK_CCF25_R314_FILE
+        r671_mask_file = MASK_CCF25_FILE
+        find_best_feat_type(rmap_file, parc_file, r314_mask_file, r671_mask_file)
+
 

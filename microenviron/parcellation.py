@@ -308,9 +308,9 @@ class BrainParcellation:
         
         return communities
 
-    def insufficient_data(self, reg_mask, out_image_file):
+    def insufficient_data(self, reg_mask, out_image_file, save_mask):
         mask_u16 = reg_mask.astype(np.uint16)
-        if save_image:
+        if save_mask:
             save_image(out_image_file, mask_u16, useCompression=True)
         return mask_u16
 
@@ -340,7 +340,7 @@ class BrainParcellation:
         
         if cp_mask.sum() == 0:
             print(f'[Warning] No samples are found in regid={regid}')
-            return self.insufficient_data(reg_mask, out_image_file)
+            return self.insufficient_data(reg_mask, out_image_file, save_mask)
 
         coords = coords_all[cp_mask]
         feats = feats_all[cp_mask]
@@ -351,7 +351,7 @@ class BrainParcellation:
 
         if cp_mask.sum() == 1:
             print(f'[Warning] Only one sample is found in regid={regid}! No need to parcellation!')
-            return self.insufficient_data(reg_mask, out_image_file)
+            return self.insufficient_data(reg_mask, out_image_file, save_mask)
 
         nzcoords = reg_mask.nonzero()
         nzcoords_t = np.array(nzcoords).transpose()
@@ -374,7 +374,7 @@ class BrainParcellation:
         mcoords = np.array(mcoords)
         if mcoords.shape[0] == 0:
             print(f'[Warning] Insufficient data to detect sub-regions for regid={regid}!')
-            return self.insufficient_data(reg_mask, out_image_file)
+            return self.insufficient_data(reg_mask, out_image_file, save_mask)
 
         parc_method = 'NearestNeighbor'
         if parc_method == 'Voronoi':
@@ -443,7 +443,7 @@ class BrainParcellation:
 
         if self.debug:
             self.save_colorized_images(cmask, self.mask, out_image_file)
-
+        
         if save_mask:
             save_image(out_image_file, cur_mask, useCompression=True)
 
@@ -465,10 +465,10 @@ class BrainParcellation:
         # run parcellation each region separately in parallel
         save_mask = True
         args_list = []
-        for rid in rids:
+        for rid in regions:
             # make sure we estimate only necessary regions
             #if rid in regions:
-            if (rid in regions) and (not os.path.exists(os.path.join(self.out_mask_dir, f'parc_region{rid}.nrrd'))):
+            if not os.path.exists(os.path.join(self.out_mask_dir, f'parc_region{rid}.nrrd')):
                 args_list.append((rid, save_mask))
         print(f'No. of regions to calculate: {len(args_list)}')
         
@@ -505,16 +505,16 @@ class BrainParcellation:
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
-    feat_type = 'full'
-    debug = True
-    regid = 672
-    r314_mask = True
-    parc_dir = './output'
+    feat_type = 'mRMR'
+    debug = False
+    regid = 614454277
+    r314_mask = False
+    parc_dir = f'./output_{feat_type.lower()}_r314'
     
-    bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug)
-    bp.parcellate_region(regid=regid)
+    bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
+    #bp.parcellate_region(regid=regid)
     #bp.parcellate_brain()
-    #bp.merge_parcs()
+    bp.merge_parcs()
     
 
 
