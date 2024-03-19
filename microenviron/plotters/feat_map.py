@@ -3,6 +3,7 @@
 #Create time:     2024-03-14
 #Description:               
 ##########################################################
+import os
 import sys
 import random
 import pickle
@@ -16,6 +17,7 @@ import matplotlib.colors
 
 sys.path.append('..')
 from parcellation import load_features
+from utils import crop_regional_mask
 
 from file_io import load_image
 from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE
@@ -82,13 +84,17 @@ def get_correspondence_map(parc1, parc2, rmask):
     regs2, cnts2 = np.unique(parc2[rmask], return_counts=True)
     # initialize the correspondence matrix
     rsize1, rsize2 = regs1.size, regs2.size
-    cmat = np.zeros((rsize1, rsize2))
+    cmat = pd.DataFrame(np.zeros((rsize1, rsize2)), columns=regs2, index=regs1)
     for irid2, rid2 in enumerate(regs2):
         # find its correspondence in parc1
         mask2 = parc2 == rid2
         regs21 = parc1[mask2]
-        cmat[:,irid2] = np.histogram(regs21, bins=rsize1, range=(1,rsize1+1))[0]
+        #cmat[:,irid2] = np.histogram(regs21, bins=rsize1, range=(1,rsize1+1))[0]
+        univ = np.unique(regs21, return_counts=True)
+        cmat.loc[univ[0], rid2] = univ[1]
+        
     # normalize
+    cmat = cmat.values
     cmat /= (cmat.sum(axis=0).reshape(1,-1) + 1e-10)
 
     return cmat
@@ -136,7 +142,8 @@ def estimate_parc_similarities(parc_files):
     parc_correspondence(mrmr, full, rmask, 'mRMR-full')
     print()
 
-def find_best_feat_type(rmap_file, parc_file, r314_mask_file, r671_mask_file, flipLR=True):
+def find_best_feat_type(rmap_file, parc_files, r314_mask_file, r671_mask_file, 
+                        flipLR=True, same_subregions_only=True, plot=True):
     """We can choose the best feature type based on the separability of well-defined CCF regions"""
     # load the region mapping file
     with open(rmap_file, 'rb') as fp:
@@ -149,31 +156,77 @@ def find_best_feat_type(rmap_file, parc_file, r314_mask_file, r671_mask_file, fl
         r314_mask[:zs] = 0
         r671_mask[:zs] = 0
     # load the parcellation
-    parc = load_image(parc_file)
+    parcs = []
+    for parc_file in parc_files:
+        parc = load_image(parc_file)
+        parcs.append(parc)
+        print(f'{os.path.split(parc_file)[-1]}: {parc.max()}')
 
     # Then we find out the hierarchical regions
+    scores = []
+    all_scores = [[] for i in range(len(parcs))]
     for r1, rs in rmap.items():
         if len(rs) > 1:
-            rmask = r314_mask == r1
-            cmat = get_correspondence_map(r671_mask, parc, rmask)
-            prids = np.unique(parc[rmask])
-            print(r1, len(rs), prids)
-            # check no errors
-            assert(rmask.sum() == (r671_mask[rmask]>0).sum())
-            assert(rmask.sum() == (parc[rmask]>0).sum())
+            # to speed up, use cropped mask
+            r314ms,zmin,zmax,ymin,ymax,xmin,xmax = crop_regional_mask(r314_mask, v=r1)
+            r671ms = r671_mask[zmin:zmax+1,ymin:ymax+1,xmin:xmax+1]
+
+            rmask = r314ms == r1
+            cnt314 = rmask.sum()
+            cnt671 = (r671ms[rmask]>0).sum()
+            assert(cnt314 == cnt671)
             
+            nregions = []
+            for parc in parcs:
+                sub_parc = parc[zmin:zmax+1,ymin:ymax+1,xmin:xmax+1]
+                assert(cnt314 == (sub_parc[rmask]>0).sum())
+                prids = np.unique(sub_parc[rmask])
+                nregions.append(len(prids))
+            print(r1, len(rs), nregions)
             
-            #import ipdb; ipdb.set_trace()
-            print()
+            # we only estimate based on the regions with the same sub-regions
+            if same_subregions_only and (len(np.unique(nregions)) != 1):
+                continue
+            else:
+                cur_scores = []
+                for i, parc in enumerate(parcs):
+                    cmat = get_correspondence_map(r671ms, parc[zmin:zmax+1,ymin:ymax+1,xmin:xmax+1], rmask)
+                    score = cmat.max(axis=0)
+                    avg_score = score.mean()
+                    cur_scores.append(avg_score)
+                    all_scores[i].extend(score.tolist())
+                scores.append(cur_scores)
+                print(f'==> {cur_scores}')
+    
+    scores = np.array(scores)
+    print(scores.shape)
+    print(scores.mean(axis=0), scores.std(axis=0)); print()
+
+    if plot:
+        for i, parc_file in enumerate(parc_files):
+            scores_i = all_scores[i]
+            parc_name = os.path.split(parc_file)[-1][:-5]
+            df = pd.DataFrame(scores_i, columns=('score',))
+            fig, ax = plt.subplots(1,1,figsize=(8,8))
+            sns.histplot(df, x='score', color='silver', edgecolor='black', bins=20, stat='proportion', legend=False)
+            plt.xlim(0, 1.01)
+            plt.xlabel('Score')
+            for spine in ['top', 'right']:
+                ax.spines[spine].set_visible(False)
+            plt.savefig(f'{parc_name}.png', dpi=300)
+            plt.close()
+        print()
     
     
 
 if __name__ == '__main__':
+    # calculate the similarity between different sets of features
     if 0:
         mefile = '../data/mefeatures_100K_with_PCAfeatures3.csv'
         dist = 'euclidean'
         estimate_fmap_similarities(mefile, dist=dist)
 
+    # calculate the parcellation similarity based on different feature types
     if 0:
         parc_files = {
             'full': '../intermediate_data/parc_full_region672.nrrd',
@@ -182,11 +235,15 @@ if __name__ == '__main__':
         }
         estimate_parc_similarities(parc_files)
 
+    # compare the parcellation with CCF anatomy
     if 1:
         rmap_file = '/home/lyf/Softwares/installation/pylib/anatomy/resources/region671_to_region314_woFiberTracts.pkl'
-        parc_file = '../intermediate_data/parc_r671_mrmr.nrrd'
+        parc_files = ['../intermediate_data/parc_r314_mrmr.nrrd', 
+                     '../intermediate_data/parc_r314_pca.nrrd', 
+                     '../intermediate_data/parc_r314_full.nrrd', ]
+        same_subregions_only = False
         r314_mask_file = MASK_CCF25_R314_FILE
         r671_mask_file = MASK_CCF25_FILE
-        find_best_feat_type(rmap_file, parc_file, r314_mask_file, r671_mask_file)
+        find_best_feat_type(rmap_file, parc_files, r314_mask_file, r671_mask_file, same_subregions_only=same_subregions_only)
 
 
