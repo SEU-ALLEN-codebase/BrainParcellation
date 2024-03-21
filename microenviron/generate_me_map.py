@@ -419,6 +419,7 @@ def plot_parcellations(parc_file, ccf_tree_file=ANATOMY_TREE_FILE, ccf_atlas_fil
     # flip
     zdim2 = parc.shape[0] // 2 
     parc[:zdim2] = parc[zdim2:][::-1]
+    import ipdb; ipdb.set_trace()
     ana_tree = parse_ana_tree(ccf_tree_file)
     ccf25 = load_image(ccf_atlas_file)
     shape3d = parc.shape
@@ -440,14 +441,16 @@ def plot_parcellations(parc_file, ccf_tree_file=ANATOMY_TREE_FILE, ccf_atlas_fil
         # draw the sub-parcellation
         parc_edges = detect_edges2d(section)
         ccf25_edges = detect_edges2d(ccf25s)
-        out[parc_edges] = (0,0,255,255)
+        extra_edges = parc_edges ^ ccf25_edges
+        extra_edges[:zdim2] = extra_edges[zdim2:][::-1]
+        out[extra_edges] = (0,0,255,255)
         # draw the original ccf outline
         out[ccf25_edges] = (0,0,0,128)
         # zeroing the background
         # rotate
         out = cv2.rotate(out, cv2.ROTATE_90_CLOCKWISE)
         cv2.imwrite(figname, out)
-        print(); break
+        print()
 
 
     
