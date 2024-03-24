@@ -41,8 +41,9 @@ from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_o
                                 get_brain_mask2d, get_section_boundary, detect_edges2d
 from anatomy.anatomy_core import parse_ana_tree
 
-sys.path.append('../../../full-spectrum/neurite_arbors')
-from neurite_arbors import NeuriteArbors
+if __name__ == '__main__':
+    sys.path.append('../../../full-spectrum/neurite_arbors')
+    from neurite_arbors import NeuriteArbors
 
 
 # features selected by mRMR
@@ -367,16 +368,21 @@ def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
     n1, n2, n3 = keys[-3:]
     dfr1 = dfr[dfr['region_name_r316'] == regions[0]]
     dfr2 = dfr[dfr['region_name_r316'] == regions[1]]
-    sc1 = ax.scatter(dfr1[n3], dfr1[n2], dfr1[n1], s=10, c='magenta', marker='o', alpha=.75, label=regions[0])
-    sc2 = ax.scatter(dfr2[n3], dfr2[n2], dfr2[n1], s=10, c='cyan', marker='o', alpha=.75, label=regions[1])
-    ax.set_xlabel('Straightness')
-    ax.set_ylabel('Fragmentation')
-    ax.set_zlabel('Total Length (um)')
+    sc1 = ax.scatter(dfr1[n3], dfr1[n2], dfr1[n1]/1000, s=12, c='magenta', marker='o', alpha=.75, label=regions[0])
+    sc2 = ax.scatter(dfr2[n3], dfr2[n2], dfr2[n1]/1000, s=12, c='cyan', marker='o', alpha=1., label=regions[1])
+
+    label_size = 22
+    ax.set_xlabel('Straightness', fontsize=label_size, labelpad=10)
+    ax.set_ylabel('Fragmentation', fontsize=label_size)
+    ax.set_zlabel('Total Length (mm)', fontsize=label_size, labelpad=10)
+
+    ax.tick_params(axis='both', which='major', labelsize=14)
 
     # legend
-    #plt.legend(*sc.legend_elements(), bbox_to_anchor=(1.05, 1), loc=2)
-    plt.legend(bbox_to_anchor=(0.8,0.8))
-
+    plt.legend(bbox_to_anchor=(0.6,0.6), fontsize=label_size, markerscale=3., handletextpad=0.2)
+    fig.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
+            hspace = 0, wspace = 0)
+    ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
     # save
     plt.savefig("IC_SIM_features.png", bbox_inches='tight')
     plt.close()
@@ -399,14 +405,22 @@ def plot_MOB_features(mefile):
 
     # plot
     n1, n2, n3 = keys[-3:]
-    sc = ax.scatter(dfr[n2], dfr[n3], dfr[n1], s=10, c=dfc.values, marker='o', alpha=.75)
-    ax.set_ylabel('Straightness')
-    ax.set_xlabel('Fragmentation')
-    ax.set_zlabel('Total Length (um)')
-    ax.set_zlim3d(480, 2000)
+    print(n1, n2, n3)
+    sc = ax.scatter(dfr[n2], dfr[n3], dfr[n1]/1000, s=10, c=dfc.values, marker='o', alpha=.75)
+    label_size = 22
+    ax.set_xlabel('Fragmentation', fontsize=label_size, labelpad=10)
+    ax.set_ylabel('Straightness', fontsize=label_size, labelpad=10)
+    ax.set_zlabel('Total Length (mm)', fontsize=label_size, labelpad=10)
+
+    ax.tick_params(axis='both', which='major', labelsize=14)
 
     # legend
-    #plt.legend(bbox_to_anchor=(0.8,0.8))
+    plt.legend(bbox_to_anchor=(0.6,0.6), fontsize=label_size, markerscale=3., handletextpad=0.2)
+    fig.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
+            hspace = 0, wspace = 0)
+    ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
+    ax.set_zlim3d(0.5, 2)
+    ax.get_legend().remove()
 
     # save
     plt.savefig("MOB_features.png", bbox_inches='tight')
@@ -472,19 +486,19 @@ if __name__ == '__main__':
         sectionX = 60
         colorize_atlas2d_cv2(annot=True, fmt=fmt, sectionX=sectionX)
 
-    if 0:
+    if 1:
         mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
         swcdir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/cropped_100um/'
-        region = 'IC'
+        region = 'SIM'
         if region == 'IC':
-            color = 'magenta'
+            color = 'black' #'magenta'
         elif region == 'SIM':
-            color = 'cyan'
+            color = 'black' #'cyan'
 
         #find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
         #plot_inter_regional_features(mefile)
         plot_MOB_features(mefile)
    
-    if 1:
+    if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'
         plot_parcellations(parc_file)

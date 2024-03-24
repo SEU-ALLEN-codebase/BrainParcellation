@@ -30,6 +30,9 @@ def estimate_fmap_similarities(mefile, dist='pearson'):
     nsel = 1000
     sindices = random.sample(np.arange(ntotal).tolist(), nsel)
 
+    # configuring figures
+    sns.set_context("paper", rc={"axes.labelsize":18})
+
 
     # utility
     def get_data(mefile, feat_type, dist, normalize=True):
@@ -73,7 +76,8 @@ def estimate_fmap_similarities(mefile, dist='pearson'):
     data = data[dindices]
     df = pd.DataFrame(data, columns=('full', 'mRMR', 'PCA'))
     
-    sns.pairplot(df, plot_kws={'marker':'.', 'color':'orange', 'line_kws':dict(color='m')}, kind='reg')
+    sns.pairplot(df, plot_kws={'marker':'.', 'color':'cornflowerblue', 'line_kws':dict(color='red')}, 
+                 diag_kws={'color':'darkgray'}, kind='reg')
     plt.savefig('feature_correlations.png', dpi=300)
     plt.close()
 
@@ -125,7 +129,8 @@ def estimate_parc_similarities(parc_files):
         vmaxs = np.round(cmat[cargmax, np.arange(cmat.shape[1])], 2).astype(str)
         annot[cargmax, np.arange(cmat.shape[1])] = vmaxs
         sns.heatmap(df, cmap=cmap, annot=annot, fmt='s', annot_kws={'c':'k', 'fontsize':5, 'fontweight':'bold'})
-        plt.title(prefix)
+        plt.title(prefix, fontsize=18)
+        
         plt.gca().spines[:].set_visible(True)
         plt.savefig(f'parc_correspondence_CP_{prefix}.png', dpi=300)
         plt.close()
@@ -138,8 +143,8 @@ def estimate_parc_similarities(parc_files):
 
     rmask = full > 0
     print('Now we will compare there difference')
-    parc_correspondence(mrmr, pca, rmask, 'mRMR-PCA')
-    parc_correspondence(mrmr, full, rmask, 'mRMR-full')
+    parc_correspondence(full, pca, rmask, 'full-PCA')
+    parc_correspondence(full, mrmr, rmask, 'full-mrmr')
     print()
 
 def find_best_feat_type(rmap_file, parc_files, r314_mask_file, r671_mask_file, 
@@ -227,7 +232,7 @@ if __name__ == '__main__':
         estimate_fmap_similarities(mefile, dist=dist)
 
     # calculate the parcellation similarity based on different feature types
-    if 0:
+    if 1:
         parc_files = {
             'full': '../intermediate_data/parc_full_region672.nrrd',
             'mRMR': '../intermediate_data/parc_mRMR_region672.nrrd',
@@ -236,7 +241,7 @@ if __name__ == '__main__':
         estimate_parc_similarities(parc_files)
 
     # compare the parcellation with CCF anatomy
-    if 1:
+    if 0:
         rmap_file = '/home/lyf/Softwares/installation/pylib/anatomy/resources/region671_to_region314_woFiberTracts.pkl'
         parc_files = ['../intermediate_data/parc_r314_mrmr.nrrd', 
                      '../intermediate_data/parc_r314_pca.nrrd', 

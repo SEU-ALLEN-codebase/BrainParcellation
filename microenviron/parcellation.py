@@ -152,24 +152,17 @@ class BrainParcellation:
         pmap = random_colorize(crds.to_numpy(), values, shape3d, 5120)
         
         thickX2 = 20
-        for axid in range(3):
-            print(f'--> Processing axis: {axid}')
+        axid = 2
+        for isec, sec in enumerate(range(thickX2, shape3d[axid], thickX2*2)):
+            print(f'--> Processing section: {sec}')
             cur_map = pmap.copy()
-            if thickX2 != -1:
-                if axid == 0:
-                    cur_map[:zdim2-thickX2] = 0
-                    cur_map[zdim2+thickX2:] = 0
-                elif axid == 1:
-                    cur_map[:,:ydim2-thickX2] = 0
-                    cur_map[:,ydim2+thickX2:] = 0
-                else:
-                    cur_map[:,:,:xdim2-thickX2] = 0
-                    cur_map[:,:,xdim2+thickX2:] = 0
+            cur_map[:,:,:isec*2*thickX2] = 0
+            cur_map[:,:,(isec*2+2)*thickX2] = 0
             print(cur_map.mean(), cur_map.std())
 
             mip = get_mip_image(cur_map, axid)
-            figname = f'temp_mip{axid}.png'
-            process_mip(mip, mask, axis=axid, figname=figname, mode='composite')
+            figname = os.path.join(self.out_vis_dir, f'temp_mip{axid}_{isec:02d}.png')
+            process_mip(mip, mask, axis=axid, figname=figname, mode='composite', sectionX=sec, with_outline=False)
             # load and remove the zero-alpha block
             img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
             wnz = np.nonzero(img[img.shape[0]//2,:,-1])[0]
@@ -224,16 +217,19 @@ class BrainParcellation:
         prefix = os.path.splitext(os.path.split(out_image_file)[-1])[0]
         fprefix = os.path.join(self.out_vis_dir, prefix)
 
-        for i, dim in zip(range(3), (zdim2, ydim2, xdim2)):
-            for j in range(3):
-                k = dim + (j-1)*40
+        thickX2 = 20
+        for i, dim in zip(range(3), (zdim, ydim, xdim)):
+            if i != 2: continue
+
+            for isec, sec in enumerate(range(thickX2, dim, thickX2*2)):
+                k = sec
                 m2d0 = np.take(cmask, k, i)
                 # overlay the boundaries
                 m2d1 = np.take(mask, k, i)
                 edges = detect_edges2d(m2d1)
                 p1 = m2d0.copy()
                 p1[edges] = np.array([0,0,0,255])
-                outfile = f'{fprefix}_axid{i}_{j}.png'
+                outfile = f'{fprefix}_axid{i}_{isec:02d}.png'
                 cv2.imwrite(outfile, p1)
                 if i != 0:
                     #print(f'Rotate by 90 degree')
@@ -306,7 +302,7 @@ class BrainParcellation:
         for node_index, community_index in enumerate(community_memberships):
             communities[community_index].append(node_index)
         
-        return communities
+        return communities, community_memberships
 
     def insufficient_data(self, reg_mask, out_image_file, save_mask):
         mask_u16 = reg_mask.astype(np.uint16)
@@ -356,7 +352,13 @@ class BrainParcellation:
         nzcoords = reg_mask.nonzero()
         nzcoords_t = np.array(nzcoords).transpose()
 
-        communities = self.community_detection(coords, feats, n_jobs=1)
+        communities, comms = self.community_detection(coords, feats, n_jobs=1)
+        if debug:
+            dfp = self.df[cp_mask].copy()
+            dfp['parc'] = comms
+            self.visualize_on_ccf(dfp, self.mask)
+    
+
         min_pts_per_comm = np.sqrt(coords.shape[0])
 
         # estimate the weighted center of each community
@@ -398,7 +400,8 @@ class BrainParcellation:
             sub_mask = cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
             if self.debug:
                 print(f'[Initial No. of CCs]: {len(np.unique(cc3d.connected_components(sub_mask, connectivity=26)))-1}')
-
+            
+            """
             # median filtering
             # Python version on CPU. GPU implementation using PyTorch should be much faster, 
             # we can refer to https://gist.github.com/rwightman/f2d3849281624be7c0f11c85c87c1598 
@@ -435,7 +438,8 @@ class BrainParcellation:
 
             # re-ordering the connected components or parcellations
             reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask)
-
+            """
+            
             cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1] = sub_mask
             
             if self.debug: 
@@ -505,16 +509,17 @@ class BrainParcellation:
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
-    feat_type = 'mRMR'
-    debug = False
-    regid = 614454277
+    feat_type = 'full'
+    debug = True
+    regid = 507
     r314_mask = False
-    parc_dir = f'./output_{feat_type.lower()}_r314'
+    #parc_dir = f'./output_{feat_type.lower()}_r314'
+    parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    #bp.parcellate_region(regid=regid)
+    bp.parcellate_region(regid=regid)
     #bp.parcellate_brain()
-    bp.merge_parcs()
+    #bp.merge_parcs()
     
 
 
