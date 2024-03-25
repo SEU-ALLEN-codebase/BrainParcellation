@@ -62,7 +62,6 @@ def exec_pca(ffile, fpca_file):
     vr1, vr2, vr3 = pca.explained_variance_ratio_
     print(f'Variance ratios: {vr1:.4f}, {vr2:.4f}, {vr3:.4f}')
 
-    fpca_file = 'tmp.csv'
     if os.path.exists(fpca_file):
         os.system(f'rm {fpca_file}')
     
@@ -84,8 +83,8 @@ def exec_pca(ffile, fpca_file):
             r671_names.append('')
         else:
             r671_names.append(ana_tree[idx]['acronym'])
-    dfo['region_name_r671'] = r671_ids
-    dfo['region_id_r671'] = r671_names
+    dfo['region_name_r671'] = r671_names
+    dfo['region_id_r671'] = r671_ids
 
     with open(fpca_file, 'a') as fp:
         fp.write(f'# explained_variance_ratios: {vr1:.4f}, {vr2:.4f}, {vr3:.4f}\n')

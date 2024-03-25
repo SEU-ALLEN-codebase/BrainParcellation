@@ -1,0 +1,10 @@
+*/**/__pycache__
+*/**/*.pyc
+*/**/*.pyd
+./microenviron/misc
+./microenviron/Tmp
+./microenviron/output_*/
+./microenviron/vis/
+build
+*.cpp
+*.so
