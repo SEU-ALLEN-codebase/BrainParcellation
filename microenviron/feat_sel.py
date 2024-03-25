@@ -16,6 +16,10 @@ from sklearn.decomposition import PCA
 import pymrmr
 import pickle
 
+from file_io import load_image
+from anatomy.anatomy_config import MASK_CCF25_FILE, ANATOMY_TREE_FILE
+from anatomy.anatomy_core import parse_ana_tree
+
 def load_features(ffile, only_features=False):
     __FEATS__ = 'Stems_me,Bifurcations_me,Branches_me,Tips_me,OverallWidth_me,OverallHeight_me,OverallDepth_me,Length_me,Volume_me,MaxEuclideanDistance_me,MaxPathDistance_me,MaxBranchOrder_me,AverageContraction_me,AverageFragmentation_me,AverageParent-daughterRatio_me,AverageBifurcationAngleLocal_me,AverageBifurcationAngleRemote_me,HausdorffDimension_me,pca_vr1_me,pca_vr2_me,pca_vr3_me'.split(',')
 
@@ -58,6 +62,7 @@ def exec_pca(ffile, fpca_file):
     vr1, vr2, vr3 = pca.explained_variance_ratio_
     print(f'Variance ratios: {vr1:.4f}, {vr2:.4f}, {vr3:.4f}')
 
+    fpca_file = 'tmp.csv'
     if os.path.exists(fpca_file):
         os.system(f'rm {fpca_file}')
     
@@ -66,6 +71,22 @@ def exec_pca(ffile, fpca_file):
     dfo['pca_feat1'] = pca_feat3[:,0]
     dfo['pca_feat2'] = pca_feat3[:,1]
     dfo['pca_feat3'] = pca_feat3[:,2]
+    # we should also annotate the r671 regions
+    mask = load_image(MASK_CCF25_FILE)
+    ana_tree = parse_ana_tree()
+    # check the existing region indices are correct
+    coords = dfo[['soma_z', 'soma_y', 'soma_x']] / 25.
+    coords_floor = np.floor(coords).astype(int)
+    r671_ids = mask[coords_floor['soma_z'], coords_floor['soma_y'], coords_floor['soma_x']]
+    r671_names = []
+    for idx in r671_ids:
+        if idx == 0:
+            r671_names.append('')
+        else:
+            r671_names.append(ana_tree[idx]['acronym'])
+    dfo['region_name_r671'] = r671_ids
+    dfo['region_id_r671'] = r671_names
+
     with open(fpca_file, 'a') as fp:
         fp.write(f'# explained_variance_ratios: {vr1:.4f}, {vr2:.4f}, {vr3:.4f}\n')
         dfo.to_csv(fp)

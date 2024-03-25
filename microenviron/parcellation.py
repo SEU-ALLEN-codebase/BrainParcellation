@@ -401,7 +401,6 @@ class BrainParcellation:
             if self.debug:
                 print(f'[Initial No. of CCs]: {len(np.unique(cc3d.connected_components(sub_mask, connectivity=26)))-1}')
             
-            """
             # median filtering
             # Python version on CPU. GPU implementation using PyTorch should be much faster, 
             # we can refer to https://gist.github.com/rwightman/f2d3849281624be7c0f11c85c87c1598 
@@ -438,7 +437,6 @@ class BrainParcellation:
 
             # re-ordering the connected components or parcellations
             reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask)
-            """
             
             cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1] = sub_mask
             
