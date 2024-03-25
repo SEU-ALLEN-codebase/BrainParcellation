@@ -128,8 +128,13 @@ def estimate_parc_similarities(parc_files):
         annot[:] = ''
         vmaxs = np.round(cmat[cargmax, np.arange(cmat.shape[1])], 2).astype(str)
         annot[cargmax, np.arange(cmat.shape[1])] = vmaxs
-        sns.heatmap(df, cmap=cmap, annot=annot, fmt='s', annot_kws={'c':'k', 'fontsize':5, 'fontweight':'bold'})
-        plt.title(prefix, fontsize=18)
+        g = sns.heatmap(df, cmap=cmap, annot=annot, fmt='s', annot_kws={'c':'k', 'fontsize':5, 'fontweight':'bold'},
+                    xticklabels=1, yticklabels=1, cbar_kws={'label':'Overlap ratio', 'pad':0.02})
+        label_size = 15
+        #plt.title(prefix, fontsize=18)
+        plt.ylabel('Sub-region ID (full)', fontsize=label_size)
+        xlabel = prefix.split("-")[1]
+        plt.xlabel(f'Sub-region ID ({xlabel})', fontsize=label_size)
         
         plt.gca().spines[:].set_visible(True)
         plt.savefig(f'parc_correspondence_CP_{prefix}.png', dpi=300)
