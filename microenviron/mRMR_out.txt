@@ -1,0 +1,15 @@
+*** MaxRel features ***
+Order 	 Fea 	 Name 	 Score
+1 	 8 	 Length_me 	 0.388
+2 	 21 	 pca_vr3_me 	 0.374
+3 	 5 	 OverallWidth_me 	 0.347
+4 	 4 	 Tips_me 	 0.346
+5 	 3 	 Branches_me 	 0.337
+
+*** mRMR features ***
+Order 	 Fea 	 Name 	 Score
+1 	 8 	 Length_me 	 0.388
+2 	 14 	 AverageFragmentation_me 	 8.914
+3 	 13 	 AverageContraction_me 	 7.996
+4 	 18 	 HausdorffDimension_me 	 4.166
+5 	 1 	 Stems_me 	 5.131
