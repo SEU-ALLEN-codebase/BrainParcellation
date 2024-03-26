@@ -488,7 +488,7 @@ class BrainParcellation:
         pt.close()
         pt.join()
 
-    def merge_parcs(self):
+    def merge_parcs(self, parc_file=):
         mask = self.mask.copy()
         mask.fill(0)
         cur_id = 0
@@ -508,7 +508,7 @@ class BrainParcellation:
             if cnt % 10 == 0:
                 print(f'===> Processed {cnt} regions in {time.time() - t0:.2f} seconds')
 
-        save_image('final_parcellation.nrrd', mask, useCompression=True)
+        save_image(parc_file, mask, useCompression=True)
     
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
@@ -520,14 +520,16 @@ if __name__ == '__main__':
     
     if r314_mask:
         parc_dir = f'./output_{feat_type.lower()}_r314'
+        parc_file = f'intermediate_data/parc_r314_{feat_type.lower()}.nrrd'
     else:
         parc_dir = f'./output_{feat_type.lower()}_r671'
+        parc_file = f'intermediate_data/parc_r671_{feat_type.lower()}.nrrd'
     #parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
     #bp.parcellate_region(regid=regid)
     bp.parcellate_brain()
-    bp.merge_parcs()
+    bp.merge_parcs(parc_file=parc_file)
     
 
 
