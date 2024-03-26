@@ -244,9 +244,13 @@ class BrainParcellation:
         par2 = 3.
 
         t0 = time.time()
-        #A = radius_neighbors_graph(coords.values, radius=radius_th, include_self=True, mode='distance', metric='euclidean', n_jobs=8)
         n_neighbors = min(80, coords.values.shape[0])
         A = kneighbors_graph(coords.values, n_neighbors=n_neighbors, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
+        dist_th = A[A>0].max()
+        if self.debug:
+            print(f'Threshold for graph construction: {dist_th:.4f} <<-- {time.time() - t0:.2f} seconds')
+            A = radius_neighbors_graph(coords.values, radius=dist_th, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
+
         if self.debug:
             print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
         
@@ -441,7 +445,7 @@ class BrainParcellation:
             cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1] = sub_mask
             
             if self.debug: 
-                cmask = random_colorize(nzcoords_t, cur_mask[nzcoords], self.mask.shape, predv.max())
+                cmask = random_colorize(nzcoords_t, cur_mask[nzcoords], self.mask.shape, int(predv.max()))
 
         if self.debug:
             self.save_colorized_images(cmask, self.mask, out_image_file)
@@ -509,7 +513,7 @@ if __name__ == '__main__':
     scale = 25.
     feat_type = 'full'
     debug = True
-    regid = 507
+    regid = 843
     r314_mask = False
     #parc_dir = f'./output_{feat_type.lower()}_r314'
     parc_dir = 'Tmp'
