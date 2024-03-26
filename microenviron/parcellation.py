@@ -249,8 +249,8 @@ class BrainParcellation:
         dist_th = A[A>0].max()
         if self.debug:
             print(f'Threshold for graph construction: {dist_th:.4f} <<-- {time.time() - t0:.2f} seconds')
-            A = radius_neighbors_graph(coords.values, radius=dist_th, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
-
+        
+        A = radius_neighbors_graph(coords.values, radius=dist_th, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
         if self.debug:
             print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
         
@@ -512,7 +512,7 @@ if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
     feat_type = 'full'  # mRMR, PCA, full
-    debug = True
+    debug = False
     regid = 843
     r314_mask = False
     
@@ -523,9 +523,9 @@ if __name__ == '__main__':
     #parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    bp.parcellate_region(regid=regid)
-    #bp.parcellate_brain()
-    #bp.merge_parcs()
+    #bp.parcellate_region(regid=regid)
+    bp.parcellate_brain()
+    bp.merge_parcs()
     
 
 
