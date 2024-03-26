@@ -244,13 +244,14 @@ class BrainParcellation:
         par2 = 3.
 
         t0 = time.time()
-        n_neighbors = min(80, coords.values.shape[0])
-        A = kneighbors_graph(coords.values, n_neighbors=n_neighbors, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
-        dist_th = A[A>0].max()
+        coords = coords.values.astype(np.float64)
+        n_neighbors = min(80, coords.shape[0])
+        A = kneighbors_graph(coords, n_neighbors=n_neighbors, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
+        dist_th = A[A>0].max() + 1e-5   # to ensure all included
         if self.debug:
             print(f'Threshold for graph construction: {dist_th:.4f} <<-- {time.time() - t0:.2f} seconds')
         
-        A = radius_neighbors_graph(coords.values, radius=dist_th, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
+        A = radius_neighbors_graph(coords, radius=dist_th, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
         if self.debug:
             print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
         
@@ -476,6 +477,7 @@ class BrainParcellation:
             #if rid in regions:
             if not os.path.exists(os.path.join(self.out_mask_dir, f'parc_region{rid}.nrrd')):
                 args_list.append((rid, save_mask))
+                #self.parcellate_region(rid, save_mask); sys.exit()
         print(f'No. of regions to calculate: {len(args_list)}')
         
         #self.parcellate_region(206, save_mask); sys.exit() # debug
