@@ -511,12 +511,16 @@ class BrainParcellation:
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
-    feat_type = 'full'
+    feat_type = 'full'  # mRMR, PCA, full
     debug = True
     regid = 843
     r314_mask = False
-    #parc_dir = f'./output_{feat_type.lower()}_r314'
-    parc_dir = 'Tmp'
+    
+    if r314_mask:
+        parc_dir = f'./output_{feat_type.lower()}_r314'
+    else:
+        parc_dir = f'./output_{feat_type.lower()}_r671'
+    #parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
     bp.parcellate_region(regid=regid)
