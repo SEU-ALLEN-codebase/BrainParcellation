@@ -300,7 +300,7 @@ def colorize_atlas2d_cv2(axid=2, sectionX=420, outscale=3, annot=False, fmt='svg
     so1, so2 = out.shape[:2]
     # annotation if required
     if annot:
-        figname = f'atlas_axis{axid}_annot.{fmt}'
+        figname = f'atlas_axis{axid}_section{sectionX}_annot.{fmt}'
         shift = 20
         for center, rn in zip(centers, rnames):
             sx, sy = center[1]*outscale, center[0]*outscale
@@ -383,14 +383,17 @@ def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
     fig.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
             hspace = 0, wspace = 0)
     ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
+    #hide the gridline
+    ax.grid(False)
+    #ax.view_init(30, 75)
     # save
     plt.savefig("IC_SIM_features.png", bbox_inches='tight')
     plt.close()
 
-def plot_MOB_features(mefile):
+def plot_MOB_features(mefile, rname='MOB'):
     df = pd.read_csv(mefile, comment='#', index_col=0)
     keys = [f'{key}_me' for key in __MAP_FEATS__]
-    dfr = df[keys][df['region_name_r316'] == 'MOB']
+    dfr = df[keys][df['region_name_r316'] == rname]
     # We handling the coloring
     dfc = dfr.copy()
     for i in range(3):
@@ -421,9 +424,13 @@ def plot_MOB_features(mefile):
     ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
     ax.set_zlim3d(0.5, 2)
     ax.get_legend().remove()
+    # Hide grid lines
+    ax.grid(False)
+    if rname == 'ACB':
+        ax.view_init(30, 30)
 
     # save
-    plt.savefig("MOB_features.png", bbox_inches='tight')
+    plt.savefig(f"{rname}_features.png", bbox_inches='tight')
     plt.close()
 
 def plot_parcellations(parc_file, ccf_tree_file=ANATOMY_TREE_FILE, ccf_atlas_file=MASK_CCF25_FILE):
@@ -483,8 +490,8 @@ if __name__ == '__main__':
         generate_me_maps(mefile, outfile=mapfile, flip_to_left=flip_to_left, mode=mode, findex=findex, fmt=fmt, axids=axids)
 
     if 0:
-        sectionX = 60
-        colorize_atlas2d_cv2(annot=True, fmt=fmt, sectionX=sectionX)
+        for sectionX in range(20, 528, 40):
+            colorize_atlas2d_cv2(annot=True, fmt=fmt, sectionX=sectionX)
 
     if 1:
         mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
@@ -496,8 +503,8 @@ if __name__ == '__main__':
             color = 'black' #'cyan'
 
         #find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
-        #plot_inter_regional_features(mefile)
-        plot_MOB_features(mefile)
+        plot_inter_regional_features(mefile)
+        #plot_MOB_features(mefile, 'MOB')
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'

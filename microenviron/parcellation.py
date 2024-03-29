@@ -252,6 +252,7 @@ class BrainParcellation:
             print(f'Threshold for graph construction: {dist_th:.4f} <<-- {time.time() - t0:.2f} seconds')
         
         A = radius_neighbors_graph(coords, radius=dist_th, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
+        A.setdiag(0)
         if self.debug:
             print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
         
@@ -488,7 +489,7 @@ class BrainParcellation:
         pt.close()
         pt.join()
 
-    def merge_parcs(self, parc_file=):
+    def merge_parcs(self, parc_file):
         mask = self.mask.copy()
         mask.fill(0)
         cur_id = 0
@@ -513,10 +514,10 @@ class BrainParcellation:
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
-    feat_type = 'full'  # mRMR, PCA, full
+    feat_type = 'PCA'  # mRMR, PCA, full
     debug = False
     regid = 843
-    r314_mask = False
+    r314_mask = True
     
     if r314_mask:
         parc_dir = f'./output_{feat_type.lower()}_r314'
