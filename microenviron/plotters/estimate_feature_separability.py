@@ -270,6 +270,31 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
     plt.savefig('tmp3.png')
     plt.close()
 
+
+    # ------ Section 4: comparison between ds_inter and ds_intra ------- #
+    ds_intra = np.diagonal(d1)
+    ds_inter = d1.values[np.triu_indices_from(d1, k=1)]
+    sns.kdeplot(ds_inter, label='inter-region', alpha=0.5, color='orange', fill=True)
+    sns.kdeplot(ds_intra, label='intra-region', alpha=0.5, color='blue', fill=True)
+
+    fig = plt.gcf()
+    fig.set_size_inches(6,6)
+    ax = plt.gca()
+    __LABEL_FONTS__ = 18
+
+    plt.xlabel(f'Distance in standardized feature space', fontsize=__LABEL_FONTS__)
+    plt.ylabel(f'Density', fontsize=__LABEL_FONTS__)
+    ax.spines['left'].set_linewidth(2)
+    ax.spines['bottom'].set_linewidth(2)
+    ax.spines['right'].set_linewidth(2)
+    ax.spines['top'].set_linewidth(2)
+    ax.xaxis.set_tick_params(width=2, direction='in', labelsize=__LABEL_FONTS__ - 4)
+    ax.yaxis.set_tick_params(width=2, direction='in', labelsize=__LABEL_FONTS__ - 4)
+    plt.legend(loc='upper right', frameon=False, fontsize=__LABEL_FONTS__)
+    plt.savefig('tmp4.png', dpi=300)
+    plt.close()
+
+
     
 def analyze_dsmatrix_vs_parcellations(dsmean_file, parc_file, atlas_file=None):
     # load the ds matrix
@@ -327,7 +352,7 @@ if __name__ == '__main__':
         cortical_separability(mefile, regions, sname='r671', disp_type='r671')
 
     if 1:
-        metric = 'cosine'
+        metric = 'euclidean'
         ds_file1 = f'dsmean_{metric}.csv'
         ds_file2 = f'dsstd_{metric}.csv'
         dsmatrix_of_all(mefile, ds_file1, ds_file2, metric=metric)

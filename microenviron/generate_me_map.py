@@ -139,7 +139,7 @@ def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='comp
     #out = np.frombuffer(img_buffer, dtype=np.uint8).reshape(height, width, 3)
     #return out
 
-def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,), thickX2=20):
+def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,), thickX2=20, disp_right_hemi=False):
     df, feat_names = process_features(mefile)
     
     c = len(feat_names)
@@ -160,12 +160,13 @@ def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,),
         right_hemi_mask = xyz[:,2] < zdim2
         xyz[:,2][right_hemi_mask] = zdim - xyz[:,2][right_hemi_mask]
         # I would also like to show the right hemisphere
-        xyz2 = xyz.copy()
-        xyz2[:,2] = zdim - xyz2[:,2]
-        # concat
-        xyz = np.vstack((xyz, xyz2))
-        # also for the values
-        fvalues = np.vstack((fvalues, fvalues))
+        if disp_right_hemi:
+            xyz2 = xyz.copy()
+            xyz2[:,2] = zdim - xyz2[:,2]
+            # concat
+            xyz = np.vstack((xyz, xyz2))
+            # also for the values
+            fvalues = np.vstack((fvalues, fvalues))
     
     debug = False
     if debug: #visualize the distribution of features
@@ -234,10 +235,18 @@ def generate_me_maps(mefile, outfile, histeq=True, flip_to_left=True, mode='comp
                 hnz = np.nonzero(img[:,img.shape[1]//2,-1])[0]
                 hs, he = hnz[0], hnz[-1]
                 img = img[hs:he+1, ws:we+1]
-                if axid != 0:   # rotate 90
-                    img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
                 # set the alpha of non-brain region as 0
                 img[img[:,:,-1] == 1] = 0
+                if axid != 0:   # rotate 90
+                    img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+                    # concatenate with the sectional atlas
+                    outscale = 3
+                    atlas2d = colorize_atlas2d_cv2(axid, sectionX, outscale=outscale, annot=True, fmt='png')
+                    # 
+                    atlas2d = cv2.resize(atlas2d, img.shape[:2][::-1])
+                    r2 = img.shape[1]//2
+                    img[:,r2:,:3] = atlas2d[:,r2:]
+
                 cv2.imwrite(figname, img)
        
 
@@ -321,6 +330,8 @@ def colorize_atlas2d_cv2(axid=2, sectionX=420, outscale=3, annot=False, fmt='svg
         plt.close('all')
     else:
         cv2.imwrite(figname, out)
+    
+    return out
 
 def find_regional_representative(mefile, region='IC', swcdir='', color='magenta'):
     random.seed(1024)
@@ -486,14 +497,14 @@ if __name__ == '__main__':
     findex = 0
     fmt = 'png'
 
-    if 0:
+    if 1:
         generate_me_maps(mefile, outfile=mapfile, flip_to_left=flip_to_left, mode=mode, findex=findex, fmt=fmt, axids=axids)
 
     if 0:
         for sectionX in range(20, 528, 40):
             colorize_atlas2d_cv2(annot=True, fmt=fmt, sectionX=sectionX)
 
-    if 1:
+    if 0:
         mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
         swcdir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/cropped_100um/'
         region = 'SIM'
