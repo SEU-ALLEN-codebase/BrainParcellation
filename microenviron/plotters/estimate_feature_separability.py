@@ -351,14 +351,14 @@ if __name__ == '__main__':
         regions = ['SSp-n']
         cortical_separability(mefile, regions, sname='r671', disp_type='r671')
 
-    if 1:
+    if 0:
         metric = 'euclidean'
         ds_file1 = f'dsmean_{metric}.csv'
         ds_file2 = f'dsstd_{metric}.csv'
         dsmatrix_of_all(mefile, ds_file1, ds_file2, metric=metric)
 
-    if 0:
-        dsmean_file = 'dsmean.csv'
+    if 1:
+        dsmean_file = 'dsmean_euclidean.csv'
         parc_file = '../intermediate_data/parc_r671_full.nrrd'
         analyze_dsmatrix_vs_parcellations(dsmean_file, parc_file)
     

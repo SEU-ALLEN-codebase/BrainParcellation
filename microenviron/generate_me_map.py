@@ -401,10 +401,21 @@ def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
     plt.savefig("IC_SIM_features.png", bbox_inches='tight')
     plt.close()
 
-def plot_MOB_features(mefile, rname='MOB'):
+def plot_MOB_features(mefile, rname='MOB', r316=False):
     df = pd.read_csv(mefile, comment='#', index_col=0)
     keys = [f'{key}_me' for key in __MAP_FEATS__]
-    dfr = df[keys][df['region_name_r316'] == rname]
+    if r316:
+        rkey = 'region_name_r316'
+    else:
+        rkey = 'region_name_r671'
+
+    if type(rname) is list:
+        dfr = df[keys][df[rkey].isin(rname)]
+        out_prefix = 'tmp'
+    else:
+        dfr = df[keys][df[rkey] == rname]
+        out_prefix = rname
+
     # We handling the coloring
     dfc = dfr.copy()
     for i in range(3):
@@ -433,7 +444,8 @@ def plot_MOB_features(mefile, rname='MOB'):
     fig.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
             hspace = 0, wspace = 0)
     ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
-    ax.set_zlim3d(0.5, 2)
+    if rname in ['MOB', 'ACB']:
+        ax.set_zlim3d(0.5, 2)
     ax.get_legend().remove()
     # Hide grid lines
     ax.grid(False)
@@ -441,8 +453,69 @@ def plot_MOB_features(mefile, rname='MOB'):
         ax.view_init(30, 30)
 
     # save
-    plt.savefig(f"{rname}_features.png", bbox_inches='tight')
+    if '/' in rname:
+        rname = rname.replace('/', '_')
+    plt.savefig(f"{out_prefix}_features.png", bbox_inches='tight')
     plt.close()
+
+def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=True):
+    df = pd.read_csv(mefile, comment='#', index_col=0)
+    keys = [f'{key}_me' for key in __MAP_FEATS__]
+    if r316:
+        rkey = 'region_name_r316'
+    else:
+        rkey = 'region_name_r671'
+
+    if type(rname) is list:
+        sel_mask = df[rkey].isin(rname)
+        out_prefix = 'tmp'
+    else:
+        sel_mask = df[rkey] == rname
+        out_prefix = rname
+    
+    dfr = df[keys][sel_mask]
+    coords = df[['soma_x', 'soma_y', 'soma_z']][sel_mask].values / 1000
+    if flipLR:
+        zdim = 456 * 25. / 1000
+        right = np.nonzero(coords[:,2] > zdim/2)[0]
+        coords[right, 2] = zdim - coords[right, 2]
+
+    # We handling the coloring
+    dfc = dfr.copy()
+    for i in range(3):
+        tmp = dfc.iloc[:,i]
+        dfc.iloc[:,i] = image_histeq(tmp.values)[0] / 255.
+    dfc[dfc > 1] = 1.
+        
+    # axes instance
+    fig = plt.figure(figsize=(6,6))
+    ax = Axes3D(fig, auto_add_to_figure=False)
+    fig.add_axes(ax)
+
+    # plot
+    sc = ax.scatter(coords[:,0], coords[:,1], coords[:,2], s=10, c=dfc.values, marker='o', alpha=.75)
+    label_size = 22
+    ax.set_xlabel('X', fontsize=label_size, labelpad=10)
+    ax.set_ylabel('Y', fontsize=label_size, labelpad=10)
+    ax.set_zlabel('Z', fontsize=label_size, labelpad=10)
+
+    ax.tick_params(axis='both', which='major', labelsize=14)
+
+    # legend
+    plt.legend(bbox_to_anchor=(0.6,0.6), fontsize=label_size, markerscale=3., handletextpad=0.2)
+    fig.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
+            hspace = 0, wspace = 0)
+    ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
+    ax.get_legend().remove()
+    # Hide grid lines
+    ax.grid(False)
+
+    # save
+    if '/' in out_prefix:
+        out_prefix = out_prefix.replace('/', '_')
+    plt.savefig(f"{out_prefix}_features_ccf.png", bbox_inches='tight')
+    plt.close()
+    
 
 def plot_parcellations(parc_file, ccf_tree_file=ANATOMY_TREE_FILE, ccf_atlas_file=MASK_CCF25_FILE):
     thickX2 = 20
@@ -497,14 +570,14 @@ if __name__ == '__main__':
     findex = 0
     fmt = 'png'
 
-    if 1:
+    if 0:
         generate_me_maps(mefile, outfile=mapfile, flip_to_left=flip_to_left, mode=mode, findex=findex, fmt=fmt, axids=axids)
 
     if 0:
         for sectionX in range(20, 528, 40):
             colorize_atlas2d_cv2(annot=True, fmt=fmt, sectionX=sectionX)
 
-    if 0:
+    if 1:
         mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
         swcdir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/cropped_100um/'
         region = 'SIM'
@@ -514,8 +587,10 @@ if __name__ == '__main__':
             color = 'black' #'cyan'
 
         #find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
-        plot_inter_regional_features(mefile)
-        #plot_MOB_features(mefile, 'MOB')
+        #plot_inter_regional_features(mefile)
+        rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
+        #plot_MOB_features(mefile, rname)
+        plot_region_feature_in_ccf_space(mefile, rname)
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'
