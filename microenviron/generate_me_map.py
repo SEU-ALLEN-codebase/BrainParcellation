@@ -75,7 +75,7 @@ def process_features(mefile, scale=25.):
 
     return df, feat_names
 
-def plot_section_outline(mask, axis=0, sectionX=None, ax=None, with_outline=True, outline_color='orange'):
+def plot_section_outline(mask, axis=0, sectionX=None, ax=None, with_outline=True, outline_color='orange', b_scale=0.5):
     boundary_mask2d = get_section_boundary(mask, axis=axis, v=1, c=sectionX)
     sh, sw = boundary_mask2d.shape[:2]
     if ax is None:
@@ -86,7 +86,7 @@ def plot_section_outline(mask, axis=0, sectionX=None, ax=None, with_outline=True
 
     # show boundary
     b_indices = np.where(boundary_mask2d)
-    ax.scatter(b_indices[1], b_indices[0], s=0.5, c='black', alpha=0.5, edgecolors='none')
+    ax.scatter(b_indices[1], b_indices[0], s=b_scale, c='black', alpha=0.5, edgecolors='none')
     # intra-brain regions
         
     if with_outline:
@@ -100,7 +100,7 @@ def plot_section_outline(mask, axis=0, sectionX=None, ax=None, with_outline=True
         return ax
     
 
-def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='composite', with_outline=True, outline_color='orange', pt_scale=2):
+def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='composite', with_outline=True, outline_color='orange', pt_scale=2, b_scale=0.5):
     # get the mask
     brain_mask2d = get_brain_mask2d(mask, axis=axis, v=1)
 
@@ -129,7 +129,7 @@ def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='comp
     
     if len(fg_indices[0]) > 0:
         ax.scatter(fg_indices[1], fg_indices[0], c=fg_values, s=pt_scale, edgecolors='none', cmap=cmap)
-    plot_section_outline(mask, axis=axis, sectionX=sectionX, ax=ax, with_outline=with_outline, outline_color=outline_color)
+    plot_section_outline(mask, axis=axis, sectionX=sectionX, ax=ax, with_outline=with_outline, outline_color=outline_color, b_scale=b_scale)
 
     plt.savefig(figname, dpi=300)
     plt.close('all')
@@ -583,7 +583,8 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         mip = get_mip_image(cur_memap, axid)
         
         figname = f'{rname}_section{sid}.png'
-        process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5)
+        print(mip.shape, sub_mask.shape)
+        process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5, b_scale=2)
         # load and remove the zero-alpha block
         img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
         wnz = np.nonzero(img[img.shape[0]//2,:,-1])[0]
@@ -674,7 +675,7 @@ if __name__ == '__main__':
         rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
         #plot_MOB_features(mefile, rname)
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
-        plot_region_feature_sections(mefile, 'CA1')
+        plot_region_feature_sections(mefile, 'ENTl6a')
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'
