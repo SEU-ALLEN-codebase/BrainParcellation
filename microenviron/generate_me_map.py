@@ -36,7 +36,7 @@ from sklearn.metrics import r2_score
 
 from image_utils import get_mip_image, image_histeq
 from file_io import load_image, save_image
-from anatomy.anatomy_config import MASK_CCF25_FILE, ANATOMY_TREE_FILE
+from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE, ANATOMY_TREE_FILE
 from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_outline, \
                                 get_brain_mask2d, get_section_boundary, detect_edges2d
 from anatomy.anatomy_core import parse_ana_tree
@@ -100,7 +100,7 @@ def plot_section_outline(mask, axis=0, sectionX=None, ax=None, with_outline=True
         return ax
     
 
-def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='composite', with_outline=True, outline_color='orange'):
+def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='composite', with_outline=True, outline_color='orange', pt_scale=2):
     # get the mask
     brain_mask2d = get_brain_mask2d(mask, axis=axis, v=1)
 
@@ -128,7 +128,7 @@ def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='comp
         cmap = 'coolwarm'
     
     if len(fg_indices[0]) > 0:
-        ax.scatter(fg_indices[1], fg_indices[0], c=fg_values, s=2, edgecolors='none', cmap=cmap)
+        ax.scatter(fg_indices[1], fg_indices[0], c=fg_values, s=pt_scale, edgecolors='none', cmap=cmap)
     plot_section_outline(mask, axis=axis, sectionX=sectionX, ax=ax, with_outline=with_outline, outline_color=outline_color)
 
     plt.savefig(figname, dpi=300)
@@ -495,9 +495,9 @@ def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=Tru
     # plot
     sc = ax.scatter(coords[:,0], coords[:,1], coords[:,2], s=10, c=dfc.values, marker='o', alpha=.75)
     label_size = 22
-    ax.set_xlabel('X', fontsize=label_size, labelpad=10)
-    ax.set_ylabel('Y', fontsize=label_size, labelpad=10)
-    ax.set_zlabel('Z', fontsize=label_size, labelpad=10)
+    ax.set_xlabel('AP axis (mm)', fontsize=label_size, labelpad=10)
+    ax.set_ylabel('LR axis (mm)', fontsize=label_size, labelpad=10)
+    ax.set_zlabel('DV axis (mm)', fontsize=label_size, labelpad=10)
 
     ax.tick_params(axis='both', which='major', labelsize=14)
 
@@ -509,12 +509,95 @@ def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=Tru
     ax.get_legend().remove()
     # Hide grid lines
     ax.grid(False)
+    ax.view_init(0, 30)
 
     # save
     if '/' in out_prefix:
         out_prefix = out_prefix.replace('/', '_')
     plt.savefig(f"{out_prefix}_features_ccf.png", bbox_inches='tight')
     plt.close()
+
+def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10):
+    df = pd.read_csv(mefile, comment='#', index_col=0)
+    keys = [f'{key}_me' for key in __MAP_FEATS__]
+    if r316:
+        rkey = 'region_name_r316'
+        mask = load_image(MASK_CCF25_R314_FILE)
+    else:
+        rkey = 'region_name_r671'
+        mask = load_image(MASK_CCF25_FILE)
+    ana_tree = parse_ana_tree(keyname='name')
+
+    if type(rname) is list:
+        sel_mask = df[rkey].isin(rname)
+        rmask = np.zeros_like(mask)
+        for ri in rname:
+            idx = ana_tree[ri]['id']
+            rmask = rmask | (mask == idx)
+            
+        out_prefix = 'tmp'
+    else:
+        sel_mask = df[rkey] == rname
+        idx = ana_tree[rname]['id']
+        rmask = mask == idx
+        out_prefix = rname
+    
+    dfr = df[keys][sel_mask]
+    coords = df[['soma_x', 'soma_y', 'soma_z']][sel_mask].values / 1000
+    if flipLR:
+        zdim = 456
+        zcoord = zdim * 25. / 1000
+        right = np.nonzero(coords[:,2] > zcoord/2)[0]
+        coords[right, 2] = zcoord - coords[right, 2]
+        rmask[zdim//2:] = 0
+
+    # We handling the coloring
+    dfc = dfr.copy()
+    for i in range(3):
+        tmp = dfc.iloc[:,i]
+        dfc.iloc[:,i] = image_histeq(tmp.values)[0]
+    dfc[dfc > 255] = 255
+
+    # get the boundary of region
+    nzcoords = rmask.nonzero()
+    nzcoords_t = np.array(nzcoords).transpose()
+    zmin, ymin, xmin = nzcoords_t.min(axis=0)
+    zmax, ymax, xmax = nzcoords_t.max(axis=0)
+    sub_mask = rmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+    memap = np.zeros((*sub_mask.shape, 3), dtype=np.uint8)
+    
+    coords_s = np.floor(coords * 40).astype(int)
+    memap[coords_s[:,2]-zmin, coords_s[:,1]-ymin, coords_s[:,0]-xmin] = dfc.values
+
+    mips = []
+    thickX2 = 10
+    shape3d = mask.shape
+    axid = 2
+    for sid in range(0, xmax-xmin-thickX2-1, thickX2*2):
+        sid = sid + thickX2
+        cur_memap = memap.copy()
+        cur_memap[:,:,:sid-thickX2] = 0
+        cur_memap[:,:,sid+thickX2:] = 0
+        print(cur_memap.mean(), cur_memap.std())
+
+        mip = get_mip_image(cur_memap, axid)
+        
+        figname = f'{rname}_section{sid}.png'
+        process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5)
+        # load and remove the zero-alpha block
+        img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
+        wnz = np.nonzero(img[img.shape[0]//2,:,-1])[0]
+        ws, we = wnz[0], wnz[-1]
+        hnz = np.nonzero(img[:,img.shape[1]//2,-1])[0]
+        hs, he = hnz[0], hnz[-1]
+        img = img[hs:he+1, ws:we+1]
+        # set the alpha of non-brain region as 0
+        img[img[:,:,-1] == 1] = 0
+        if axid != 0:   # rotate 90
+            img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+            #
+        cv2.imwrite(figname, img)
+ 
     
 
 def plot_parcellations(parc_file, ccf_tree_file=ANATOMY_TREE_FILE, ccf_atlas_file=MASK_CCF25_FILE):
@@ -590,7 +673,8 @@ if __name__ == '__main__':
         #plot_inter_regional_features(mefile)
         rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
         #plot_MOB_features(mefile, rname)
-        plot_region_feature_in_ccf_space(mefile, rname)
+        #plot_region_feature_in_ccf_space(mefile, 'CA1')
+        plot_region_feature_sections(mefile, 'CA1')
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'

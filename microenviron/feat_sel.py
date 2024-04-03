@@ -86,6 +86,10 @@ def exec_pca(ffile, fpca_file):
     dfo['region_name_r671'] = r671_names
     dfo['region_id_r671'] = r671_ids
 
+    # I would like to also correct the R314 region
+    r314_mask = load_image(MASK_CCF25_R314_FILE)
+    
+
     with open(fpca_file, 'a') as fp:
         fp.write(f'# explained_variance_ratios: {vr1:.4f}, {vr2:.4f}, {vr3:.4f}\n')
         dfo.to_csv(fp)

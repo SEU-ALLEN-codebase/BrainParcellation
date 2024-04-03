@@ -143,7 +143,7 @@ class BrainParcellation:
 
 
 
-    def visualize_on_ccf(self, dfp, mask):
+    def visualize_on_ccf(self, dfp, mask, prefix='temp'):
         shape3d = mask.shape
         zdim2, ydim2, xdim2 = shape3d[0]//2, shape3d[1]//2, shape3d[2]//2
 
@@ -157,11 +157,11 @@ class BrainParcellation:
             print(f'--> Processing section: {sec}')
             cur_map = pmap.copy()
             cur_map[:,:,:isec*2*thickX2] = 0
-            cur_map[:,:,(isec*2+2)*thickX2] = 0
+            cur_map[:,:,(isec*2+2)*thickX2:] = 0
             print(cur_map.mean(), cur_map.std())
 
             mip = get_mip_image(cur_map, axid)
-            figname = os.path.join(self.out_vis_dir, f'temp_mip{axid}_{isec:02d}.png')
+            figname = os.path.join(self.out_vis_dir, f'{prefix}_mip{axid}_{isec:02d}.png')
             process_mip(mip, mask, axis=axid, figname=figname, mode='composite', sectionX=sec, with_outline=False)
             # load and remove the zero-alpha block
             img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
@@ -329,7 +329,11 @@ class BrainParcellation:
 
         # using CP to debug
         # CP: 672; MOB:507, CA1: 382, AOB:151
-        cp_mask = self.df['region_id_r316'] == regid
+        if self.r314_mask:
+            cp_mask = self.df['region_id_r316'] == regid
+        else:
+            cp_mask = self.df['region_id_r671'] == regid
+
         # Artificial cases for debugging
         #nz_tmp = cp_mask.values.nonzero()[0]
         #cp_mask = self.df.index.isin([self.df.iloc[nz_tmp[0]].name, self.df.iloc[nz_tmp[1]].name])
@@ -345,6 +349,7 @@ class BrainParcellation:
             return self.insufficient_data(reg_mask, out_image_file, save_mask)
 
         coords = coords_all[cp_mask]
+        coords_int = np.floor(coords).astype('int')
         feats = feats_all[cp_mask]
 
         if reg_mask.sum() == 0:
@@ -359,12 +364,11 @@ class BrainParcellation:
         nzcoords_t = np.array(nzcoords).transpose()
 
         communities, comms = self.community_detection(coords, feats, n_jobs=1)
-        if debug:
+        if self.debug:
             dfp = self.df[cp_mask].copy()
             dfp['parc'] = comms
             self.visualize_on_ccf(dfp, self.mask)
     
-
         min_pts_per_comm = np.sqrt(coords.shape[0])
 
         # estimate the weighted center of each community
@@ -406,7 +410,7 @@ class BrainParcellation:
             sub_mask = cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
             if self.debug:
                 print(f'[Initial No. of CCs]: {len(np.unique(cc3d.connected_components(sub_mask, connectivity=26)))-1}')
-            
+
             # median filtering
             # Python version on CPU. GPU implementation using PyTorch should be much faster, 
             # we can refer to https://gist.github.com/rwightman/f2d3849281624be7c0f11c85c87c1598 
@@ -445,9 +449,15 @@ class BrainParcellation:
             reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask)
             
             cur_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1] = sub_mask
-            
+
             if self.debug: 
                 cmask = random_colorize(nzcoords_t, cur_mask[nzcoords], self.mask.shape, int(predv.max()))
+
+        if self.debug:
+            dfp = self.df[cp_mask].copy()
+            cur_comms = cur_mask[coords_int.values[:,2], coords_int.values[:,1], coords_int.values[:,0]]
+            dfp['parc'] = cur_comms
+            self.visualize_on_ccf(dfp, self.mask, prefix='final')
 
         if self.debug:
             self.save_colorized_images(cmask, self.mask, out_image_file)
@@ -514,9 +524,9 @@ class BrainParcellation:
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
-    feat_type = 'PCA'  # mRMR, PCA, full
-    debug = False
-    regid = 843
+    feat_type = 'full'  # mRMR, PCA, full
+    debug = True
+    regid = 382
     r314_mask = True
     
     if r314_mask:
@@ -525,12 +535,12 @@ if __name__ == '__main__':
     else:
         parc_dir = f'./output_{feat_type.lower()}_r671'
         parc_file = f'intermediate_data/parc_r671_{feat_type.lower()}.nrrd'
-    #parc_dir = 'Tmp'
+    parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    #bp.parcellate_region(regid=regid)
-    bp.parcellate_brain()
-    bp.merge_parcs(parc_file=parc_file)
+    bp.parcellate_region(regid=regid)
+    #bp.parcellate_brain()
+    #bp.merge_parcs(parc_file=parc_file)
     
 
 
