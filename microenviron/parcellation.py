@@ -149,7 +149,8 @@ class BrainParcellation:
 
         crds = dfp[['soma_z', 'soma_y', 'soma_x']]
         values = dfp['parc']
-        pmap = random_colorize(crds.to_numpy(), values, shape3d, 5120)
+        ncolors = values.max()
+        pmap = random_colorize(crds.to_numpy(), values, shape3d, ncolors)
         
         thickX2 = 20
         axid = 2
@@ -260,7 +261,7 @@ class BrainParcellation:
         sources, targets = A_csr.nonzero()
         # estimate the edge weights
         dists = A_csr[sources, targets]
-        wd = np.squeeze(np.asarray(np.exp(-dists/radius_th)))
+        wd = np.squeeze(np.asarray(np.exp(-dists/dist_th)))
 
         if self.debug:
             print(f'wd[mean/max/min]: {wd.mean():.2f}, {wd.max():.2f}, {wd.min():.2f}')
@@ -291,7 +292,20 @@ class BrainParcellation:
             print(f'[Partition]: {time.time() - t0: .2f} seconds')
 
 
-        community_memberships = [i+1 for i in partition.membership] # re-indexing starting from 1, to differentiate with background
+        community_memberships = np.array([i+1 for i in partition.membership]) # re-indexing starting from 1, to differentiate with background
+
+        # denoising at the neuron level
+        # remove nodes with nearest nodes are not the same class
+        topk = 5
+        # the nearest neighboring selection would be non-deterministic, so we add a random deltas to
+        # avoid it
+        new_coords = coords + np.random.random((coords.shape)) * 1e-3
+        A1 = kneighbors_graph(new_coords, n_neighbors=topk-1, include_self=False, mode='distance', metric='euclidean')
+        yc, xc = A1.nonzero()
+        Ab = community_memberships[xc].reshape(-1, topk-1)
+        Ab = np.hstack((community_memberships.reshape(-1,1), Ab))
+        community_memberships = np.array([np.bincount(row).argmax() for row in Ab])
+
 
         community_sizes = np.array([len(community) for community in partition])
         comms, counts = np.unique(community_sizes, return_counts=True)
@@ -308,7 +322,7 @@ class BrainParcellation:
         for node_index, community_index in enumerate(community_memberships):
             communities[community_index].append(node_index)
         
-        return communities, community_memberships
+        return communities, np.array(community_memberships)
 
     def insufficient_data(self, reg_mask, out_image_file, save_mask):
         mask_u16 = reg_mask.astype(np.uint16)
@@ -319,7 +333,7 @@ class BrainParcellation:
     def parcellate_region(self, regid, save_mask=True):
         print(f'---> Processing for region={regid}')
         t0 = time.time()
-        min_pts_per_parc = 4**3 # (0.25*x)^6 um^3
+        min_pts_per_parc = 8**3 # (0.25*x)^6 um^3
         out_image_file = os.path.join(self.out_mask_dir, f'parc_region{regid}.nrrd')
 
         # Compute the sparse nearest neighbors graph
@@ -364,6 +378,7 @@ class BrainParcellation:
         nzcoords_t = np.array(nzcoords).transpose()
 
         communities, comms = self.community_detection(coords, feats, n_jobs=1)
+
         if self.debug:
             dfp = self.df[cp_mask].copy()
             dfp['parc'] = comms
@@ -376,14 +391,16 @@ class BrainParcellation:
         mnodes = []     # filtered nodes
         mcomms = []     # community index for each node
         for icomm, inodes in communities.items():
-            if len(inodes) < min_pts_per_comm:
-                continue
+            #if len(inodes) < min_pts_per_comm:
+            #    continue
             cur_coords = coords.iloc[inodes]
             mnodes.extend(inodes)
             mcomms.extend([icomm]*len(inodes))
             mcoord = cur_coords.mean(axis=0).values
             mcoords.append(mcoord)
         mcoords = np.array(mcoords)
+
+
         if mcoords.shape[0] == 0:
             print(f'[Warning] Insufficient data to detect sub-regions for regid={regid}!')
             return self.insufficient_data(reg_mask, out_image_file, save_mask)
@@ -526,7 +543,7 @@ if __name__ == '__main__':
     scale = 25.
     feat_type = 'full'  # mRMR, PCA, full
     debug = True
-    regid = 382
+    regid = 507
     r314_mask = True
     
     if r314_mask:
