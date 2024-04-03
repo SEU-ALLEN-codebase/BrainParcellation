@@ -106,8 +106,11 @@ def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='comp
 
     #if axis==1: cv2.imwrite('temp.png', mip); sys.exit()
     im = np.ones((mip.shape[0], mip.shape[1], 4), dtype=np.uint8) * 255
-    
-    fig, ax = plt.subplots()
+    # default size is 6.4 x 4.8
+    scale = np.sqrt(np.prod(mip.shape[:2]) / 456 / 320)
+    wi, hi = np.round(6.4 * scale, 2), np.round(4.8 * scale, 2)
+
+    fig, ax = plt.subplots(figsize=(wi, hi))
     width, height = fig.get_size_inches() * fig.get_dpi()
     width = int(width)
     height = int(height)
@@ -582,9 +585,9 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
 
         mip = get_mip_image(cur_memap, axid)
         
-        figname = f'{rname}_section{sid}.png'
+        figname = f'{out_prefix}_section{sid:03d}.png'
         print(mip.shape, sub_mask.shape)
-        process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5, b_scale=2)
+        process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5, b_scale=0.5)
         # load and remove the zero-alpha block
         img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
         wnz = np.nonzero(img[img.shape[0]//2,:,-1])[0]
@@ -608,7 +611,6 @@ def plot_parcellations(parc_file, ccf_tree_file=ANATOMY_TREE_FILE, ccf_atlas_fil
     # flip
     zdim2 = parc.shape[0] // 2 
     parc[:zdim2] = parc[zdim2:][::-1]
-    import ipdb; ipdb.set_trace()
     ana_tree = parse_ana_tree(ccf_tree_file)
     ccf25 = load_image(ccf_atlas_file)
     shape3d = parc.shape
@@ -673,9 +675,10 @@ if __name__ == '__main__':
         #find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
         #plot_inter_regional_features(mefile)
         rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
+        rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
         #plot_MOB_features(mefile, rname)
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
-        plot_region_feature_sections(mefile, 'ENTl6a')
+        plot_region_feature_sections(mefile, rname)
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'

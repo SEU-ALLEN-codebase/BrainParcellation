@@ -189,7 +189,7 @@ class BrainParcellation:
 
             mip = get_mip_image(cur_map, axid)
             figname = os.path.join(self.out_vis_dir, f'{prefix}_mip{axid}_{isec:02d}.png')
-            process_mip(mip, mask, axis=axid, figname=figname, mode='composite', sectionX=sec, with_outline=False, pt_scale=5, b_scale=2)
+            process_mip(mip, mask, axis=axid, figname=figname, mode='composite', sectionX=sec, with_outline=False, pt_scale=5, b_scale=0.5)
             # load and remove the zero-alpha block
             img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
             wnz = np.nonzero(img[img.shape[0]//2,:,-1])[0]
@@ -281,12 +281,14 @@ class BrainParcellation:
         t0 = time.time()
         coords = coords.values.astype(np.float64)
         n_neighbors = min(80, coords.shape[0])
-        A = kneighbors_graph(coords, n_neighbors=n_neighbors, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
+        A = kneighbors_graph(coords+np.random.random(coords.shape)*1e-3, 
+                             n_neighbors=n_neighbors, include_self=True, 
+                             mode='distance', metric='euclidean', n_jobs=n_jobs)
         dist_th = A[A>0].max() + 1e-5   # to ensure all included
         if self.debug:
             print(f'Threshold for graph construction: {dist_th:.4f} <<-- {time.time() - t0:.2f} seconds')
         
-        A = radius_neighbors_graph(coords, radius=dist_th, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
+        #A = radius_neighbors_graph(coords, radius=dist_th, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
         A.setdiag(0)
         if self.debug:
             print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
@@ -312,7 +314,8 @@ class BrainParcellation:
             print(f'wf[mean/max/min]: {wf.mean():.2f}, {wf.max():.2f}, {wf.min():.2g}')
             print(f'[weights estimation]: {time.time() - t0:.2f} seconds')
 
-        weights = wd * wf
+        #weights = wd * wf
+        weights = wf
         
 
         g = ig.Graph(list(zip(sources, targets)), directed=False)
@@ -368,7 +371,13 @@ class BrainParcellation:
         print(f'---> Processing for region={regid}')
         t0 = time.time()
         min_pts_per_parc = 8**3 # (0.25*x)^6 um^3
-        out_image_file = os.path.join(self.out_mask_dir, f'parc_region{regid}.nrrd')
+        if type(regid) is list:
+            rprefix = 9999
+        else:
+            rprefix = regid
+
+
+        out_image_file = os.path.join(self.out_mask_dir, f'parc_region{rprefix}.nrrd')
 
         # Compute the sparse nearest neighbors graph
         # Adjust n_neighbors based on your dataset and memory constraints
@@ -378,9 +387,15 @@ class BrainParcellation:
         # using CP to debug
         # CP: 672; MOB:507, CA1: 382, AOB:151
         if self.r314_mask:
-            cp_mask = self.df['region_id_r316'] == regid
+            if type(regid) is list:
+                cp_mask = self.df['region_id_r316'].isin(regid)
+            else:
+                cp_mask = self.df['region_id_r316'] == regid
         else:
-            cp_mask = self.df['region_id_r671'] == regid
+            if type(regid) is list:
+                cp_mask = self.df['region_id_r671'].isin(regid)
+            else:
+                cp_mask = self.df['region_id_r671'] == regid
 
         # Artificial cases for debugging
         #nz_tmp = cp_mask.values.nonzero()[0]
@@ -388,9 +403,15 @@ class BrainParcellation:
 
         # assign the current region into Voronoi cells
         if self.flipLR:
-            reg_mask = (self.lmask == regid)
+            __tmp_mask__ = self.lmask
         else:
-            reg_mask = (self.mask == regid)
+            __tmp_mask__ = self.mask
+        if type(regid) is list:
+            reg_mask = __tmp_mask__ == -1
+            for rid in regid:
+                reg_mask = reg_mask | (__tmp_mask__ == rid)
+        else:
+            reg_mask = __tmp_mask__ == regid
         
         if cp_mask.sum() == 0:
             print(f'[Warning] No samples are found in regid={regid}')
@@ -423,7 +444,7 @@ class BrainParcellation:
             dfp['soma_z'] -= zmin
             dfp['soma_y'] -= ymin
             dfp['soma_x'] -= xmin
-            self.visualize_on_ccf(dfp, reg_sub_mask, prefix=f'temp_r{regid}')
+            self.visualize_on_ccf(dfp, reg_sub_mask, prefix=f'temp_r{rprefix}')
     
         min_pts_per_comm = np.sqrt(coords.shape[0])
 
@@ -526,7 +547,7 @@ class BrainParcellation:
                 nzi = nz_parc.values.nonzero()[0]
                 dfp.loc[dfp.index[nzi], 'parc'] = dfp[dfp['parc'] != 0]['parc'][nn1_indices].values
             
-            self.visualize_on_ccf(dfp, reg_sub_mask, prefix=f'final_r{regid}')
+            self.visualize_on_ccf(dfp, reg_sub_mask, prefix=f'final_r{rprefix}')
 
         if self.debug:
             self.save_colorized_images(cmask, self.mask, out_image_file)
@@ -594,8 +615,9 @@ if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
     feat_type = 'full'  # mRMR, PCA, full
-    debug = False
-    regid = 28
+    debug = True
+    #regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
+    regid = 382
     r314_mask = False
     
     if r314_mask:
@@ -604,12 +626,12 @@ if __name__ == '__main__':
     else:
         parc_dir = f'./output_{feat_type.lower()}_r671'
         parc_file = f'intermediate_data/parc_r671_{feat_type.lower()}.nrrd'
-    #parc_dir = 'Tmp'
+    parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    #bp.parcellate_region(regid=regid)
-    bp.parcellate_brain()
-    bp.merge_parcs(parc_file=parc_file)
+    bp.parcellate_region(regid=regid)
+    #bp.parcellate_brain()
+    #bp.merge_parcs(parc_file=parc_file)
     
 
 
