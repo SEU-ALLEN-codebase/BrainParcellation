@@ -280,8 +280,9 @@ class BrainParcellation:
 
         t0 = time.time()
         coords = coords.values.astype(np.float64)
-        n_neighbors = min(80, coords.shape[0])
-        A = kneighbors_graph(coords+np.random.random(coords.shape)*1e-3, 
+        n_neighbors = min(150, coords.shape[0])
+        fused = np.hstack((coords/320, feats))
+        A = kneighbors_graph(coords, 
                              n_neighbors=n_neighbors, include_self=True, 
                              mode='distance', metric='euclidean', n_jobs=n_jobs)
         dist_th = A[A>0].max() + 1e-5   # to ensure all included
@@ -616,8 +617,8 @@ if __name__ == '__main__':
     scale = 25.
     feat_type = 'full'  # mRMR, PCA, full
     debug = True
-    #regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 382
+    regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
+    #regid = 382
     r314_mask = False
     
     if r314_mask:
