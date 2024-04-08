@@ -245,14 +245,13 @@ class BrainParcellation:
 
         return sub_mask, cc_mask, cc_ids, cc_cnts
         
-    def save_colorized_images(self, cmask, mask, out_image_file):
+    def save_colorized_images(self, cmask, mask, out_image_file, thickX2=10):
         zdim, ydim, xdim = mask.shape
         zdim2, ydim2, xdim2 = zdim // 2, ydim // 2, xdim // 2
         # visualize
         prefix = os.path.splitext(os.path.split(out_image_file)[-1])[0]
         fprefix = os.path.join(self.out_vis_dir, prefix)
 
-        thickX2 = 20
         for i, dim in zip(range(3), (zdim, ydim, xdim)):
             if i != 2: continue
 
@@ -265,6 +264,7 @@ class BrainParcellation:
                 p1 = m2d0.copy()
                 p1[edges] = np.array([0,0,0,255])
                 outfile = f'{fprefix}_axid{i}_{isec:02d}.png'
+                p1 = cv2.flip(p1, 0)
                 cv2.imwrite(outfile, p1)
                 if i != 0:
                     #print(f'Rotate by 90 degree')
@@ -548,7 +548,8 @@ class BrainParcellation:
             self.visualize_on_ccf(dfp, reg_sub_mask, prefix=f'final_r{rprefix}')
 
         if self.debug:
-            self.save_colorized_images(cmask, self.mask, out_image_file)
+            cmask = cmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+            self.save_colorized_images(cmask, reg_sub_mask, out_image_file)
         
         if save_mask:
             save_image(out_image_file, cur_mask, useCompression=True)
@@ -615,7 +616,7 @@ if __name__ == '__main__':
     feat_type = 'full'  # mRMR, PCA, full
     debug = True
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 9
+    regid = 672
     r314_mask = False
     
     if r314_mask:
@@ -627,8 +628,8 @@ if __name__ == '__main__':
     parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    #bp.parcellate_region(regid=regid)
-    bp.parcellate_brain()
+    bp.parcellate_region(regid=regid)
+    #bp.parcellate_brain()
     #bp.merge_parcs(parc_file=parc_file)
     
 
