@@ -281,11 +281,10 @@ class BrainParcellation:
         t0 = time.time()
         coords = coords.values.astype(np.float64)
         n_neighbors = min(150, coords.shape[0])
-        fused = np.hstack((coords/320, feats))
         A = kneighbors_graph(coords, 
                              n_neighbors=n_neighbors, include_self=True, 
                              mode='distance', metric='euclidean', n_jobs=n_jobs)
-        dist_th = A[A>0].max() + 1e-5   # to ensure all included
+        dist_th = A[A>0].max()# + 1e-5   # to ensure all included
         if self.debug:
             print(f'Threshold for graph construction: {dist_th:.4f} <<-- {time.time() - t0:.2f} seconds')
         
@@ -335,9 +334,7 @@ class BrainParcellation:
         # denoising at the neuron level
         # remove nodes with nearest nodes are not the same class
         topk = 5
-        # the nearest neighboring selection would be non-deterministic, so we add a random deltas to
-        # avoid it
-        new_coords = coords + np.random.random((coords.shape)) * 1e-3
+        new_coords = coords
         A1 = kneighbors_graph(new_coords, n_neighbors=topk-1, include_self=False, mode='distance', metric='euclidean')
         yc, xc = A1.nonzero()
         Ab = community_memberships[xc].reshape(-1, topk-1)
@@ -579,7 +576,7 @@ class BrainParcellation:
             #if rid in regions:
             if not os.path.exists(os.path.join(self.out_mask_dir, f'parc_region{rid}.nrrd')):
                 args_list.append((rid, save_mask))
-                #self.parcellate_region(rid, save_mask)#; sys.exit()
+                self.parcellate_region(rid, save_mask)#; sys.exit()
         print(f'No. of regions to calculate: {len(args_list)}')
         
         #self.parcellate_region(206, save_mask); sys.exit() # debug
@@ -618,7 +615,7 @@ if __name__ == '__main__':
     feat_type = 'full'  # mRMR, PCA, full
     debug = True
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    #regid = 382
+    regid = 9
     r314_mask = False
     
     if r314_mask:
@@ -630,8 +627,8 @@ if __name__ == '__main__':
     parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    bp.parcellate_region(regid=regid)
-    #bp.parcellate_brain()
+    #bp.parcellate_region(regid=regid)
+    bp.parcellate_brain()
     #bp.merge_parcs(parc_file=parc_file)
     
 

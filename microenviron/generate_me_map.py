@@ -573,7 +573,6 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
     memap[coords_s[:,2]-zmin, coords_s[:,1]-ymin, coords_s[:,0]-xmin] = dfc.values
 
     mips = []
-    thickX2 = 10
     shape3d = mask.shape
     axid = 2
     for sid in range(0, xmax-xmin-thickX2-1, thickX2*2):

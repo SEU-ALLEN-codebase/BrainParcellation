@@ -31,7 +31,7 @@ from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE, ANATOM
 from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_outline, \
                                 get_brain_mask2d, get_section_boundary, detect_edges2d
 from anatomy.anatomy_core import parse_ana_tree
-from global_features import calc_global_features_from_folder
+from global_features import calc_global_features_from_folder, __FEAT_NAMES22__
 
 
 # plot the top 3 features on
@@ -228,7 +228,7 @@ def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,),
         mips.append(cur_mips)
     return mips
 
-def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, flipLR=True, thickX2=10, feat_names=None):
+def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, flipLR=True, thickX2=10, step=20, feat_names=None):
     df = pd.read_csv(mefile, comment='#', index_col=0)
     if feat_names is None:
         feat_names = __MAP_FEATS__
@@ -284,11 +284,10 @@ def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, f
     memap[coords_s[:,2]-zmin, coords_s[:,1]-ymin, coords_s[:,0]-xmin] = dfc.values
 
     mips = []
-    thickX2 = 10
     shape3d = mask.shape
     axid = 2
-    for sid in range(0, xmax-xmin-thickX2-1, thickX2*2):
-        sid = sid + thickX2
+    for sid in range(0, xmax-xmin-thickX2-1, step):
+        sid = sid + step//2
         cur_memap = memap.copy()
         cur_memap[:,:,:sid-thickX2] = 0
         cur_memap[:,:,sid+thickX2:] = 0
@@ -314,6 +313,87 @@ def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, f
         cv2.imwrite(figname, img)
 
 
+def estimate_similarity(parc_file, gf_file, is_axon=False):
+    zdim = 456
+        
+    parc = load_image(parc_file)
+    df = pd.read_csv(gf_file, index_col=0)
+
+    coords = np.floor(df[['soma_z', 'soma_y', 'soma_x']].values / 25.).astype(int)
+    regions = parc[coords[:,0], coords[:,1], coords[:,2]]
+
+    coords_l = coords.copy()
+    right_m = coords_l[:,0] < zdim/2
+    right_ids = np.nonzero(right_m)[0]
+    coords_l[right_ids, 0] = 456 - coords_l[right_ids, 0]
+    regions = parc[coords_l[:,0], coords_l[:,1], coords_l[:,2]]
+    
+    nzi = np.nonzero(regions == 0)  # out-of-boundary caused by neumeric reason
+    coords_l[nzi, 0] -= 1
+    regions = parc[coords_l[:,0], coords_l[:,1], coords_l[:,2]]
+    df['region'] = regions
+    
+    if is_axon:
+        feat_names = __FEAT_NAMES22__
+        dfc = df[feat_names + ['region']]
+        # normalize
+        fvalues = dfc[feat_names]
+        fvalues = (fvalues - fvalues.mean()) / (fvalues.std() + 1e-8)
+        dfc[feat_names] = fvalues.values
+
+        '''
+        from sklearn.decomposition import PCA
+        pca = PCA(3)
+        pca_tf = pca.fit_transform(dfc[feat_names])
+        dfc['pca1'] = pca_tf[:,0]
+        dfc['pca2'] = pca_tf[:,1]
+        dfc['pca3'] = pca_tf[:,2]
+
+        feat_names = ['pca1', 'pca2', 'pca3']
+        dfc = dfc[feat_names + ['region']]
+        '''
+
+    else:
+        feat_names = [*__MAP_FEATS__]
+        dfc = df[feat_names + ['region']]
+        # normalize
+        fvalues = dfc[feat_names]
+        fvalues = (fvalues - fvalues.mean()) / fvalues.std()
+        dfc[feat_names] = fvalues.values
+
+    # using the region as index
+    dfc.set_index('region', inplace=True)
+    rs = np.unique(dfc.index)
+    corr = dfc.transpose().corr()
+
+    reg_corrs = np.zeros((len(rs), len(rs)))
+    for ir, ri in enumerate(rs[:-1]):
+        ids1 = np.nonzero(dfc.index == ri)[0]
+        for jr in range(ir, len(rs)):
+            rj = rs[jr]
+            ids2 = np.nonzero(dfc.index == rj)[0]
+            cur_corr = corr.iloc[ids1, ids2]
+            if ir == jr:
+                k = 1
+            else:
+                k = 0
+            i_trius = np.triu_indices_from(cur_corr)
+            vs = cur_corr.iloc[i_trius[0], i_trius[1]].values.mean()
+            reg_corrs[ir, jr] = vs
+            reg_corrs[jr, ir] = vs
+
+    reg_corrs = pd.DataFrame(np.array(reg_corrs))
+    i_trius = np.triu_indices_from(reg_corrs)
+    trius = reg_corrs.iloc[i_trius[0], i_trius[1]]
+
+    #corr1 = corr.groupby(corr.index).mean()
+    #mean_corrs = corr1.transpose().groupby(dfc.index).mean()
+    #i_trius = np.triu_indices_from(mean_corrs)
+    #trius = mean_corrs.iloc[i_trius[0], i_trius[1]]
+    
+    print(np.diagonal(reg_corrs).mean(), trius.values.mean())
+
+
 
 #----------- Section I ------------#
 # get the global features of local morphologies
@@ -326,17 +406,19 @@ if 0:
     aggregate_meta_information(swc_dir, gf_file, out_file)
     
 #-------------- Section II --------------#
-if 0:
+if 1:
     # plotting
-    using_auto = False
+    using_auto = True
     if using_auto:
         ffile = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
         name = 'auto'
+        thickX2 = 10
     else:
         ffile = 'cp_1876_local_features.csv'
         name = 'single_morphology'
+        thickX2 = 10
     
-    plot_region_feature_sections(ffile, rname='CP', name=name, r316=False, flipLR=True, thickX2=10)
+    plot_region_feature_sections(ffile, rname='CP', name=name, r316=False, flipLR=True, thickX2=thickX2, step=20)
 
 
 #--------------- Section III ---------------#
@@ -371,9 +453,15 @@ if 1:
         #feat_names = ['Bifurcations', 'Length', 'AverageFragmentation']
         plot_region_feature_sections(ffile, rname='CP', name='axon', r316=False, flipLR=True, thickX2=10)
 
-    if 1:
+    if 0:
         # quantitative analyses
-        parc_file = ''
+        parc_file = '../../output_full_r671/parc_region672.nrrd'
+        gf_file = 'cp_1876_local_features.csv'
+        #gf_file = 'cp_1876_axonal_features.csv'
+        
+        estimate_similarity(parc_file, gf_file, is_axon=True)
+        
+        print()
         
 
 
