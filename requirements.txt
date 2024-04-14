@@ -5,3 +5,5 @@ pylib
 opencv-python
 leidenalg
 igraph
+plotly
+kaleido

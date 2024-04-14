@@ -614,7 +614,7 @@ if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
     feat_type = 'full'  # mRMR, PCA, full
-    debug = True
+    debug = False
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
     regid = 672
     r314_mask = False
@@ -625,12 +625,12 @@ if __name__ == '__main__':
     else:
         parc_dir = f'./output_{feat_type.lower()}_r671'
         parc_file = f'intermediate_data/parc_r671_{feat_type.lower()}.nrrd'
-    parc_dir = 'Tmp'
+    #parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    bp.parcellate_region(regid=regid)
-    #bp.parcellate_brain()
-    #bp.merge_parcs(parc_file=parc_file)
+    #bp.parcellate_region(regid=regid)
+    bp.parcellate_brain()
+    bp.merge_parcs(parc_file=parc_file)
     
 
 

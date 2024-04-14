@@ -17,6 +17,7 @@ from skimage import morphology
 from scipy.interpolate import NearestNDInterpolator, LinearNDInterpolator
 from scipy.optimize import curve_fit
 from scipy.spatial import distance_matrix
+from scipy import stats
 import matplotlib
 import matplotlib.cm as cm
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -26,6 +27,7 @@ import matplotlib.pyplot as plt
 
 from swc_handler import parse_swc, write_swc, get_specific_neurite
 from image_utils import get_mip_image, image_histeq
+from math_utils import get_exponent_and_mantissa
 from file_io import load_image, save_image
 from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE, ANATOMY_TREE_FILE
 from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_outline, \
@@ -37,6 +39,16 @@ from global_features import calc_global_features_from_folder, __FEAT_NAMES22__
 # plot the top 3 features on
 # features selected by mRMR
 __MAP_FEATS__ = ('Length', 'AverageFragmentation', 'AverageContraction')
+
+def standardize_features(dfc, feat_names, epsilon=1e-8):
+    fvalues = dfc[feat_names]
+    fvalues = (fvalues - fvalues.mean()) / (fvalues.std() + epsilon)
+    dfc[feat_names] = fvalues.values
+
+def normalize_features(dfc, feat_names, epsilon=1e-8):
+    fvalues = dfc[feat_names]
+    fvalues = (fvalues - fvalues.min()) / (fvalues.max() - fvalues.min() + epsilon)
+    dfc[feat_names] = fvalues.values
 
 def aggregate_meta_information(swc_dir, gf_file, out_file):
     atlas = load_image(MASK_CCF25_FILE)
@@ -313,7 +325,7 @@ def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, f
         cv2.imwrite(figname, img)
 
 
-def estimate_similarity(parc_file, gf_file, is_axon=False):
+def estimate_similarity(parc_file, gf_file, is_axon=True):
     zdim = 456
         
     parc = load_image(parc_file)
@@ -332,42 +344,21 @@ def estimate_similarity(parc_file, gf_file, is_axon=False):
     coords_l[nzi, 0] -= 1
     regions = parc[coords_l[:,0], coords_l[:,1], coords_l[:,2]]
     df['region'] = regions
+
+    feat_names = __FEAT_NAMES22__
     
-    if is_axon:
-        feat_names = __FEAT_NAMES22__
-        dfc = df[feat_names + ['region']]
-        # normalize
-        fvalues = dfc[feat_names]
-        fvalues = (fvalues - fvalues.mean()) / (fvalues.std() + 1e-8)
-        dfc[feat_names] = fvalues.values
-
-        '''
-        from sklearn.decomposition import PCA
-        pca = PCA(3)
-        pca_tf = pca.fit_transform(dfc[feat_names])
-        dfc['pca1'] = pca_tf[:,0]
-        dfc['pca2'] = pca_tf[:,1]
-        dfc['pca3'] = pca_tf[:,2]
-
-        feat_names = ['pca1', 'pca2', 'pca3']
-        dfc = dfc[feat_names + ['region']]
-        '''
-
-    else:
-        feat_names = [*__MAP_FEATS__]
-        dfc = df[feat_names + ['region']]
-        # normalize
-        fvalues = dfc[feat_names]
-        fvalues = (fvalues - fvalues.mean()) / fvalues.std()
-        dfc[feat_names] = fvalues.values
+    dfc = df[feat_names + ['region']]
+    standardize_features(dfc, feat_names)
 
     # using the region as index
     dfc.set_index('region', inplace=True)
-    rs = np.unique(dfc.index)
-    corr = dfc.transpose().corr()
+    rs, cs = np.unique(dfc.index, return_counts=True)
+    print(rs, cs)
+    dfcv = dfc / np.linalg.norm(dfc, axis=1).reshape(-1,1)
+    corr = pd.DataFrame(np.dot(dfcv, dfcv.transpose()), index=dfc.index, columns=dfc.index)
 
     reg_corrs = np.zeros((len(rs), len(rs)))
-    for ir, ri in enumerate(rs[:-1]):
+    for ir, ri in enumerate(rs):
         ids1 = np.nonzero(dfc.index == ri)[0]
         for jr in range(ir, len(rs)):
             rj = rs[jr]
@@ -378,20 +369,163 @@ def estimate_similarity(parc_file, gf_file, is_axon=False):
             else:
                 k = 0
             i_trius = np.triu_indices_from(cur_corr)
-            vs = cur_corr.iloc[i_trius[0], i_trius[1]].values.mean()
-            reg_corrs[ir, jr] = vs
-            reg_corrs[jr, ir] = vs
-
+            vs = cur_corr.values[i_trius[0], i_trius[1]]
+            #sns.violinplot(data=vs)
+            #plt.ylim(-1, 1); plt.savefig(f'{ir}_{jr}.png'); plt.close()
+            vsm = vs.mean()
+            reg_corrs[ir, jr] = vsm
+            reg_corrs[jr, ir] = vsm
+        
     reg_corrs = pd.DataFrame(np.array(reg_corrs))
     i_trius = np.triu_indices_from(reg_corrs)
-    trius = reg_corrs.iloc[i_trius[0], i_trius[1]]
-
-    #corr1 = corr.groupby(corr.index).mean()
-    #mean_corrs = corr1.transpose().groupby(dfc.index).mean()
-    #i_trius = np.triu_indices_from(mean_corrs)
-    #trius = mean_corrs.iloc[i_trius[0], i_trius[1]]
+    trius = reg_corrs.values[i_trius[0], i_trius[1]]
     
-    print(np.diagonal(reg_corrs).mean(), trius.values.mean())
+    cols = np.array([(i, j) for i in range(len(rs)) for j in range(len(rs))])
+    reg_values = reg_corrs.values.reshape(-1)
+    #reg_values[reg_values < 0] = 0
+    df = pd.DataFrame(reg_values, columns=['Similarity'])
+    df['Parc1'] = cols[:,0]
+    df['Parc2'] = cols[:,1]
+    sns.set_theme(style="ticks", font_scale=1.4)
+    g = sns.relplot(df, x='Parc1', y='Parc2', hue='Similarity', 
+                size='Similarity', palette="afmhot_r", edgecolor="1.",
+                sizes=(0, 200), size_norm=(0, 0.6), hue_norm=(0, 0.6))
+    g.set(xlabel="Sub-region", ylabel="Sub-region", aspect="equal")
+    g.set(xticks=list(range(len(rs))), yticks=list(range(len(rs))))
+    for label in g.ax.get_xticklabels():
+        label.set_rotation(90)
+    
+    if is_axon:
+        figname = 'parc_vs_axon.png'
+        plt.title('Axon')
+    else:
+        figname = 'parc_vs_local.png'
+        plt.title('Local')
+    plt.savefig(figname, dpi=300); plt.close()
+
+    print(np.diagonal(reg_corrs).mean(), trius.mean())
+    print(reg_corrs)
+
+
+def local_to_axon_manual(local_file, axon_file):
+    dfl = pd.read_csv(local_file, index_col=0)
+    dfa = pd.read_csv(axon_file, index_col=0)
+    feat_names = ['AverageContraction', 'AverageBifurcationAngleRemote', 
+                  'HausdorffDimension', 'Bifurcations']
+
+    dfl = dfl[feat_names]
+    dfa = dfa[feat_names]
+    #standardize_features(dfl, feat_names)
+    #standardize_features(dfa, feat_names)
+
+    df = []
+    for irow, row1 in dfl.iterrows():
+        row2 = dfa.loc[irow]
+        for ifeat, fname in enumerate(feat_names):
+            df.append([row1.iloc[ifeat], row2.iloc[ifeat], fname])
+
+    col1, col2 = 'Local', 'Axon'
+    df = pd.DataFrame(df, columns=[col1, col2, 'Feature'])
+    
+    sns.set_theme(style="ticks", font_scale=1.7)
+    g = sns.lmplot(data=df, x=col1, y=col2, col='Feature',
+                   facet_kws={'sharex': False, 'sharey': False},
+                   scatter_kws={'color': 'black'}, 
+                   line_kws={'color': 'red'})
+
+    # add annotate
+    def annotate(data, **kws):
+        gg = data['Feature'].unique()[0]
+
+        r, p = stats.pearsonr(data[col1], data[col2])
+        ax = plt.gca()
+        ax.text(0.65, 0.16, r'$R={:.2f}$'.format(r),
+                transform=ax.transAxes)
+        e, m = get_exponent_and_mantissa(p)
+        ax.text(0.65, 0.06, r'$P={%.1f}x10^{%d}$' % (m, e),
+                transform=ax.transAxes)
+
+        ax.set_title(gg)
+
+    g.map_dataframe(annotate)
+    plt.savefig('local_axon_features_cp.png', dpi=300)
+    plt.close()
+
+
+def comp_parc_and_ptype(parc_file, meta_file):
+    np.random.seed(1024)
+    random.seed(1024)
+
+    parc = load_image(parc_file)
+    meta = pd.read_excel(meta_file)
+    # keep only the manual annotated CP neurons
+    cp_neurons = meta[meta['Projection class'].isin(['CP_SNr', 'CP_GPe', 'CP_others'])]
+    # get the parcellations
+    coords = cp_neurons[['Soma_Z(CCFv3_1𝜇𝑚)', 'Soma_Y(CCFv3_1𝜇𝑚)', 'Soma_X(CCFv3_1𝜇𝑚)']] / 25.  # 25um
+    # in parcellation
+    zyx = np.floor(coords).astype(int).values
+    # mirroring to left
+    zdim = 456
+    r_nz = np.nonzero(zyx[:,0] <= zdim/2)
+    zyx[r_nz,0] = zdim - zyx[r_nz,0]
+    # get the parcellations
+    in_indices = np.nonzero(parc[zyx[:,0], zyx[:,1], zyx[:,2]] > 0)[0]
+    # re-select the neurons
+    in_zyx = zyx[in_indices]
+    cp_parc = parc[in_zyx[:,0], in_zyx[:,1], in_zyx[:,2]] - 1 # start from 0
+    ptypes = cp_neurons.iloc[in_indices]['Projection class']
+    # sankey plot
+    labels = [f'R{i}' for i in range(16)] + ['CP_GPe', 'CP_SNr', 'CP_others']
+    # node colors
+    lut = dict(zip(np.unique(labels), sns.hls_palette(len(np.unique(labels)), l=0.5, s=0.8)))
+    node_color_vs = pd.Series(labels, name='label').map(lut).values
+    np.random.shuffle(node_color_vs)
+    node_colors = []
+    for color in node_color_vs:
+        r,g,b = color
+        r = int(255* r)
+        g = int(255 * g)
+        b = int(255 * b)
+        node_colors.append(f'rgb({r},{g},{b})')
+    
+    lmap = {'CP_GPe': len(labels)-3, 'CP_SNr': len(labels)-2, 'CP_others': len(labels)-1}
+    ptypes_np = ptypes.map(lmap).values
+
+    import plotly.graph_objects as go
+    pairs = np.vstack((cp_parc, ptypes_np)).transpose()
+    pindices, pcounts = np.unique(pairs, axis=0, return_counts=True)
+    sources = pindices[:,0]
+    targets = pindices[:,1]
+    values = pcounts
+
+    # Customize the link color
+    link_colors = []
+    for target in targets:
+        rgb = node_colors[target]
+        rgba = 'rgba' + rgb[3:-1] + f',{160})'
+        link_colors.append(rgba)
+
+    fig = go.Figure(data=[go.Sankey(
+        node = dict(
+            pad = 15,
+            thickness = 20,
+            line = dict(color = "black", width = 0.5),
+            label = labels,
+            color = node_colors
+            ),
+        link = dict(
+            source = sources, # indices correspond to labels, eg A1, A2, A1, B1, ...
+            target = targets,
+            value = values,
+            color = link_colors
+    ))])
+
+    fig.update_layout(title_text="", font_size=14)
+    fig.write_image('parc_vs_ptypes.png')
+
+    print()
+
+
 
 
 
@@ -406,7 +540,7 @@ if 0:
     aggregate_meta_information(swc_dir, gf_file, out_file)
     
 #-------------- Section II --------------#
-if 1:
+if 0:
     # plotting
     using_auto = True
     if using_auto:
@@ -456,13 +590,26 @@ if 1:
     if 0:
         # quantitative analyses
         parc_file = '../../output_full_r671/parc_region672.nrrd'
-        gf_file = 'cp_1876_local_features.csv'
-        #gf_file = 'cp_1876_axonal_features.csv'
-        
-        estimate_similarity(parc_file, gf_file, is_axon=True)
-        
-        print()
-        
+        is_axon = False
 
+        if is_axon:
+            gf_file = 'cp_1876_axonal_features.csv'
+        else:
+            gf_file = 'cp_1876_local_features.csv'
+        
+        estimate_similarity(parc_file, gf_file, is_axon=is_axon)
+        
+        
+    if 0:
+        # plot the dendrite vs axon relationship for manually annotated CP neurons
+        local_file = 'cp_1876_local_features.csv'
+        axon_file = 'cp_1876_axonal_features.csv'
+        local_to_axon_manual(local_file, axon_file)
 
+# ---------------- Section IV --------------#
+# compare with existing neuron types
+if 1:
+    parc_file = '../../output_full_r671/parc_region672.nrrd'
+    meta_file = 'TableS6_Full_morphometry_1222.xlsx'
+    comp_parc_and_ptype(parc_file, meta_file)
 
