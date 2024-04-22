@@ -15,6 +15,7 @@ import networkx as nx
 from skan.csr import skeleton_to_csgraph
 from skan import Skeleton, summarize
 from tps import ThinPlateSpline
+from scipy.spatial.transform import Rotation as R
 
 from image_utils import get_mip_image
 from file_io import load_image
@@ -106,6 +107,36 @@ def get_longest_skeleton(skel):
     
     return new_skel, pcoords
 
+def best_fit_plane(points):
+    centroid = np.mean(points, axis=0)
+    translated_points = points - centroid
+    #SVD decomposition
+    U, S, Vt = np.linalg.svd(translated_points)
+    normal = Vt[-1]
+    return centroid, normal
+
+def get_rotated_anchors(pcoords):
+    # estimate the rotation plane
+    centroid, Vt = best_fit_plane(pcoords)
+    # map all points to the plane
+    projs = pcoords - np.dot(pcoords - centroid, Vt.reshape((3,1))) * Vt
+    # calculate the angles to rotate
+    vinp = projs[1:] - projs[0]
+    vinp_n = vinp / np.linalg.norm(vinp, axis=1).reshape((-1, 1))
+    cos_angs = vinp_n.dot(vinp_n[0])
+    angs = np.arccos(cos_angs)
+    mag = np.tan(-angs / 4)
+    # get all rodrigue vectors
+    rodrigues = mag.reshape((-1,1)) * Vt
+    # rotate the original points
+    rots = R.from_mrp(rodrigues)
+    # relative coordinates
+    prcoords = pcoords[1:] - pcoords[0]
+    rcoords = rots.apply(prcoords)
+    rcoords += pcoords[0]
+    rcoords = np.vstack((pcoords[0], rcoords))
+    return rcoords
+
 def skeletonize_region(rname, visualize=True):
     """
     @args mask: binary mask to get the skeleton
@@ -154,27 +185,30 @@ def skeletonize_region(rname, visualize=True):
         cv2.imwrite('mip2.png', m2)
         cv2.imwrite('mip3.png', m3)
 
-    # Straighten using thin-plate-spline
-    ddists = np.linalg.norm(pcoords[1:] - pcoords[:-1], axis=1)
-    cumdists = np.hstack(([0], np.cumsum(ddists)))
-    v = (pcoords[1] - pcoords[0]).astype(float)
-    v /= np.linalg.norm(v)
-    X_t = v * cumdists.reshape((-1,1))
-    #X_t = np.vstack((cumdists, np.zeros(len(cumdists)), np.zeros(len(cumdists)))).transpose()
+    # stretch using thin-plate-spline
+    rcoords = get_rotated_anchors(pcoords)
+
+    init_dist = np.linalg.norm(pcoords[-1] - pcoords[0])
+    final_dist = np.linalg.norm(rcoords[-1] - rcoords[0])
+    import ipdb; ipdb.set_trace()
+    print(f'Initial and Final distances between start-end points: {init_dist:.2f} and {final_dist:.2f}')
+    
     # to avoid computation overwhelmming, use only the boundary points
     edges = detect_edges3d(sub_mask)
     ecoords = np.array(edges.nonzero()).transpose()
     tps = ThinPlateSpline(alpha=0.0)
-    tps.fit(pcoords, X_t)
+    tps.fit(pcoords, rcoords)
     ecoords_t = tps.transform(ecoords)
     if visualize:
         fig = plt.figure()
         ax = fig.add_subplot(projection='3d')
-        ax.scatter(ecoords_t[:,0], ecoords_t[:,1], ecoords_t[:,2])
+        #ax.scatter(ecoords[:,0], ecoords[:,1], ecoords[:,2], alpha=0.5, color='blue')
+        #ax.scatter(ecoords_t[:,0], ecoords_t[:,1], ecoords_t[:,2], alpha=0.5, color='orange')
+        ax.scatter(rcoords[:,0], rcoords[:,1], rcoords[:,2], alpha=0.8, color='red')
+        #ax.view_init(-60, -60)
         plt.savefig('temp.png')
         plt.close()
     
-    import ipdb; ipdb.set_trace()
     
 
     return skel
