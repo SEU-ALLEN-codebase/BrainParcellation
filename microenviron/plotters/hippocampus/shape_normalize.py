@@ -9,13 +9,12 @@ from skimage.morphology import skeletonize
 from sklearn.decomposition import PCA
 from scipy.ndimage import convolve
 from scipy.sparse.csgraph import dijkstra
+from sklearn.neighbors import KDTree
 
 import cv2
 import cc3d
-import networkx as nx
 from skan.csr import skeleton_to_csgraph
 from skan import Skeleton, summarize
-from tps import ThinPlateSpline
 from scipy.spatial.transform import Rotation as R
 
 from image_utils import get_mip_image
@@ -116,64 +115,143 @@ def best_fit_plane(points):
     normal = Vt[-1]
     return centroid, normal
 
-def get_rotated_anchors_bak(pcoords):
-    # estimate the rotation plane
-    centroid, Vt = best_fit_plane(pcoords)
-    # map all points to the plane
-    projs = pcoords - np.dot(pcoords - centroid, Vt.reshape((3,1))) * Vt
-    # calculate the angles to rotate
-    vinp = projs - centroid
-    vcentroid = centroid / np.linalg.norm(centroid)
-    vinp_n = vinp / np.linalg.norm(vinp, axis=1).reshape((-1, 1))
-    cos_angs = np.clip(vinp_n.dot(vcentroid), -1., 1.)
-    angs = np.arccos(cos_angs)
-        
-    mag = np.tan(angs / 4)
-    # get all rodrigue vectors
-    rodrigues = mag.reshape((-1,1)) * Vt
-    # rotate the original points
-    rots = R.from_mrp(rodrigues)
-    # relative coordinates
-    prcoords = pcoords - centroid
-    rcoords = rots.apply(prcoords)
-    rcoords += centroid
-    return rcoords
+def stretching(pcoords, ecoords, coords):
+    '''
+    pcoords: coordinates of medial axis points
+    ecoords: coordinates of boundary points
+    coords:  coordinates of neuronal points
+    '''
+    pcoords = pcoords.copy()
+    ecoords = ecoords.copy()
+    coords = coords.copy()
+    # get the correspondence between points and ecoords
+    kdt = KDTree(pcoords, metric='euclidean')
+    top1 = kdt.query(ecoords, k=1, return_distance=False)
+    top1_dict = {}
+    for vt in np.unique(top1):
+        top1_dict[vt] = np.nonzero(top1 == vt)[0]
 
-def get_rotated_anchors(pcoords):
+    # for the neurons
+    top1a = kdt.query(coords, k=1, return_distance=False)
+    top1a_dict = {}
+    for vt in np.unique(top1a):
+        top1a_dict[vt] = np.nonzero(top1a == vt)[0]
+
+    import ipdb; ipdb.set_trace()
+
     # estimate the rotation plane
     centroid, Vt = best_fit_plane(pcoords)
     # map all points to the plane
     projs = pcoords - np.dot(pcoords - centroid, Vt.reshape((3,1))) * Vt
-    # find the a proper anchor point
+    # find the a proper anchor point, along the main axis, but outside the current range
     pca = PCA()
     pca.fit(projs)
     projs_x = np.dot(projs, pca.components_[0])
     maxid = projs_x.argmax()
     pa = 1.2 * (projs[maxid] - centroid) + centroid
 
-    # calculate the angles to rotate
-    vinp = projs - pa
-    vcentroid = pa / np.linalg.norm(pa)
-    vinp_n = vinp / np.linalg.norm(vinp, axis=1).reshape((-1, 1))
+    # iteratively rotate to a line
+    va = centroid - pa
+    van = va / np.linalg.norm(va)
+    output = []
+    rbs = np.zeros_like(ecoords)
+    rs = np.zeros_like(coords)
+    for i in range(pcoords.shape[0]):
+        pji = projs[i]
+        pdi = pcoords[i]
+        if i == 0:
+            prev_cj = pa
+            prev_cp = pa
+        else:
+            prev_cj = projs[i-1]
+            prev_cp = pcoords[i-1]
+        vji = projs[i] - prev_cj
+        # get the rotation matrix
+        a = vji / np.linalg.norm(vji)
+        b = van
+        v = np.cross(a,b)
+        c = np.dot(a, b)
+        vx = np.array([[0, -v[2], v[1]],
+                       [v[2], 0, -v[0]],
+                       [-v[1], v[0], 0]])
+        rmat = np.eye(3) + vx + np.dot(vx, vx) * ((1-c)/np.linalg.norm(v)**2)
+        rots = R.from_matrix(rmat)
+        
+        prcoords = pcoords - prev_cp
+        prrojs = projs - prev_cj
+        pcoords = rots.apply(prcoords) + prev_cp
+        projs = rots.apply(prrojs) + prev_cj
 
-    # get rotation matrix
-    vc = np.cross(vinp_n, vcentroid)
-    vd = np.dot(vinp_n, vcentroid)
-    vn = np.linalg.norm(vc, axis=1)
-    kmat = np.zeros((vc.shape[0], 3, 3))
-    kmat[:,0,1] = -vc[:,2]
-    kmat[:,0,2] = vc[:,1]
-    kmat[:,1,0] = vc[:,2]
-    kmat[:,1,2] = -vc[:,0]
-    kmat[:,2,0] = -vc[:,1]
-    kmat[:,2,1] = vc[:,0]
-    rmat = np.eye(3) + kmat + np.matmul(kmat, kmat) * ((1-vd)/vn**2).reshape((-1,1,1))
-    rots = R.from_matrix(rmat)
-    # relative coordinates
-    prcoords = pcoords - pa
-    rcoords = rots.apply(prcoords)
-    rcoords += pa
-    return rcoords
+        output.append(pcoords[i])
+        if i in top1_dict:
+            ercoords = ecoords - prev_cp
+            ecoords = rots.apply(ercoords) + prev_cp
+            rbs[top1_dict[i]] = ecoords[top1_dict[i]]
+
+        if i in top1a_dict:
+            rcoords = coords - prev_cp
+            coords = rots.apply(rcoords) + prev_cp
+            rs[top1a_dict[i]] = coords[top1a_dict[i]]
+
+    return np.array(output), rbs, rs
+
+def get_skeletons(reg_mask, visualize=False):
+    print('===> get the skeleton')
+    skel = skeletonize(reg_mask, method='lee')
+    skel[skel > 0] = 1
+
+    skel, pcoords = get_longest_skeleton(skel)
+
+    if visualize:
+        print('Saving images for visualization: ')
+        orig_mip1 = get_mip_image(reg_mask, axis=0)
+        orig_mip2 = get_mip_image(reg_mask, axis=1)
+        orig_mip3 = get_mip_image(reg_mask, axis=2)
+
+        mip1 = get_mip_image(skel, axis=0)
+        mip2 = get_mip_image(skel, axis=1)
+        mip3 = get_mip_image(skel, axis=2)
+
+        m1 = np.hstack((orig_mip1, mip1)) * 255
+        m2 = np.hstack((orig_mip2, mip2)) * 255
+        m3 = np.hstack((orig_mip3, mip3)) * 255
+        cv2.imwrite('mip1.png', m1)
+        cv2.imwrite('mip2.png', m2)
+        cv2.imwrite('mip3.png', m3)
+
+    
+    # to avoid computation overwhelmming, use only the boundary points
+    edges = detect_edges3d(reg_mask)
+    ecoords = np.array(edges.nonzero()).transpose()
+
+    return pcoords, ecoords
+
+def shape_normalized_scaling(reg_mask, coords=None, visualize=False):
+    pcoords, ecoords = get_skeletons(reg_mask, visualize=visualize)
+
+    if coords is None:
+        coords = ecoords
+    rcoords, ecoords_t, coords_t = stretching(pcoords, ecoords, coords)
+    # scaling
+    pca = PCA()
+    ecoords_t = pca.fit_transform(ecoords_t)
+    coords_t = pca.transform(coords_t)
+    stds = np.sqrt(pca.explained_variance_)
+    scales = stds.sum() / stds
+    print(f'Scales are: {scales}')
+    # scaling 
+    coords_t = scales * coords_t
+    if visualize:
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        #ax.scatter(ecoords[:,0], ecoords[:,1], ecoords[:,2], alpha=0.5, color='blue')
+        ax.scatter(coords_t[:,0], coords_t[:,1], coords_t[:,2], alpha=0.5, color='orange')
+        #ax.scatter(rcoords[:,0], rcoords[:,1], rcoords[:,2], alpha=0.8, color='red')
+        ax.view_init(-60, -60)
+        plt.savefig('temp.png')
+        plt.close()
+
+    return coords_t
 
 def skeletonize_region(rname, visualize=True):
     """
@@ -198,57 +276,13 @@ def skeletonize_region(rname, visualize=True):
     # crop the mask for faster computing
     sub_mask, (zs,ze,ys,ye,xs,xe) = crop_nonzero_mask(mask, pad=1)
     
-    print('===> get the skeleton')
-    skel = skeletonize(sub_mask, method='lee')
-    skel[skel > 0] = 1
+    coords_t = shape_normalized_scaling(sub_mask, visualize=visualize)
 
-    # iteratively prune the short leaves
+    #init_dist = np.linalg.norm(pcoords[-1] - pcoords[0])
+    #final_dist = np.linalg.norm(rcoords[-1] - rcoords[0])
+    #print(f'Initial and Final distances between start-end points: {init_dist:.2f} and {final_dist:.2f}')
     
-    skel, pcoords = get_longest_skeleton(skel)
-
-    if visualize:
-        print('Saving images for visualization: ')
-        orig_mip1 = get_mip_image(sub_mask, axis=0)
-        orig_mip2 = get_mip_image(sub_mask, axis=1)
-        orig_mip3 = get_mip_image(sub_mask, axis=2)
-
-        mip1 = get_mip_image(skel, axis=0)
-        mip2 = get_mip_image(skel, axis=1)
-        mip3 = get_mip_image(skel, axis=2)
-
-        m1 = np.hstack((orig_mip1, mip1)) * 255
-        m2 = np.hstack((orig_mip2, mip2)) * 255
-        m3 = np.hstack((orig_mip3, mip3)) * 255
-        cv2.imwrite('mip1.png', m1)
-        cv2.imwrite('mip2.png', m2)
-        cv2.imwrite('mip3.png', m3)
-
-    # stretch using thin-plate-spline
-    rcoords = get_rotated_anchors(pcoords)
-
-    init_dist = np.linalg.norm(pcoords[-1] - pcoords[0])
-    final_dist = np.linalg.norm(rcoords[-1] - rcoords[0])
-    print(f'Initial and Final distances between start-end points: {init_dist:.2f} and {final_dist:.2f}')
-    
-    # to avoid computation overwhelmming, use only the boundary points
-    edges = detect_edges3d(sub_mask)
-    ecoords = np.array(edges.nonzero()).transpose()
-    tps = ThinPlateSpline(alpha=0.0)
-    tps.fit(pcoords, rcoords)
-    ecoords_t = tps.transform(ecoords)
-    if visualize:
-        fig = plt.figure()
-        ax = fig.add_subplot(projection='3d')
-        #ax.scatter(ecoords[:,0], ecoords[:,1], ecoords[:,2], alpha=0.5, color='blue')
-        #ax.scatter(ecoords_t[:,0], ecoords_t[:,1], ecoords_t[:,2], alpha=0.5, color='orange')
-        ax.scatter(rcoords[:,0], rcoords[:,1], rcoords[:,2], alpha=0.8, color='red')
-        ax.view_init(-60, -60)
-        plt.savefig('temp.png')
-        plt.close()
-    
-    
-
-    return skel
+    return 
 
     
 

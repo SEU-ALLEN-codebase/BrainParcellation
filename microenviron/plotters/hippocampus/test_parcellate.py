@@ -37,6 +37,7 @@ from math_utils import min_distances_between_two_sets
 import sys
 sys.path.append('../..')
 from generate_me_map import process_mip
+from shape_normalize import shape_normalized_scaling
 
 
 def reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask, min_pts_per_parc):
@@ -138,7 +139,7 @@ def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True):
 
 class BrainParcellation:
     def __init__(self, mefile, scale=25., feat_type='mRMR', flipLR=True, seed=1024, r314_mask=True, 
-                 debug=False, out_mask_dir='./output', out_vis_dir='./vis'):
+                 debug=False, out_mask_dir='./output', out_vis_dir='./vis', shape_normalize=True):
         """
         @args feat_type: 
                     - "full": complete set of L-Measure features
@@ -151,6 +152,7 @@ class BrainParcellation:
         np.random.seed(seed)
         self.flipLR = flipLR
         self.debug = debug
+        self.shape_normalize = shape_normalize
 
         self.r314_mask = r314_mask
         if self.r314_mask:
@@ -274,7 +276,7 @@ class BrainParcellation:
 
         print()
 
-    def community_detection(self, coords, feats, n_jobs=2):
+    def community_detection(self, coords, feats, reg_mask, n_jobs=2):
         # or try to use radius_neighbors_graph
         # the radius are in 25um space
         radius_th = 4.  # 4x25=100um
@@ -282,8 +284,12 @@ class BrainParcellation:
 
         t0 = time.time()
         coords = coords.values.astype(np.float64)
-        n_neighbors = min(500, coords.shape[0])
-        A = kneighbors_graph(coords, 
+        n_neighbors = min(150, coords.shape[0])
+        if self.shape_normalize:
+            coords_t = shape_normalized_scaling(reg_mask, coords, visualize=self.debug)
+        else:
+            coords_t = coords
+        A = kneighbors_graph(coords_t, 
                              n_neighbors=n_neighbors, include_self=True, 
                              mode='distance', metric='euclidean', n_jobs=n_jobs)
 
@@ -291,7 +297,6 @@ class BrainParcellation:
         if self.debug:
             print(f'Threshold for graph construction: {dist_th:.4f} <<-- {time.time() - t0:.2f} seconds')
         
-        #A = radius_neighbors_graph(coords, radius=dist_th, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
         A.setdiag(0)
         if self.debug:
             print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
@@ -319,11 +324,11 @@ class BrainParcellation:
 
         #weights = wd * wf
         weights = wf
-        wavg = np.median(weights)
-        wmask = weights > wavg
-        weights = weights[wmask]
-        sources = sources[wmask]
-        targets = targets[wmask]
+        #wavg = np.median(weights)
+        #wmask = weights > wavg
+        #weights = weights[wmask]
+        #sources = sources[wmask]
+        #targets = targets[wmask]
         
 
         g = ig.Graph(list(zip(sources, targets)), directed=False)
@@ -448,7 +453,7 @@ class BrainParcellation:
         zmax, ymax, xmax = nzcoords_t.max(axis=0)
         reg_sub_mask = reg_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
 
-        communities, comms = self.community_detection(coords, feats, n_jobs=1)
+        communities, comms = self.community_detection(coords, feats, reg_sub_mask, n_jobs=1)
 
         if self.debug:
             dfp = self.df[cp_mask].copy()
@@ -627,10 +632,10 @@ class BrainParcellation:
 if __name__ == '__main__':
     mefile = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
-    feat_type = 'full'  # mRMR, PCA, full
+    feat_type = 'mRMR'  # mRMR, PCA, full
     debug = True
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    #regid = 382
+    regid = 382
     r314_mask = False
     
     if r314_mask:
