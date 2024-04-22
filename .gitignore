@@ -8,3 +8,12 @@ microenviron/output_*/
 microenviron/vis/
 microenviron/plotters/feature_sets/
 */**/__pycache__
+*/**/tmp*png
+microenviron/plotters/ds*csv
+microenviron/plotters/CP_single_morphologies/*csv
+microenviron/plotters/CP_single_morphologies/*/
+microenviron/*png
+microenviron/plotters/feature_separability/
+microenviron/plotters/data/
+*/**/*.swp
+*/**/vis/

@@ -6,6 +6,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.morphology import skeletonize
+from sklearn.decomposition import PCA
 from scipy.ndimage import convolve
 from scipy.sparse.csgraph import dijkstra
 
@@ -115,26 +116,63 @@ def best_fit_plane(points):
     normal = Vt[-1]
     return centroid, normal
 
-def get_rotated_anchors(pcoords):
+def get_rotated_anchors_bak(pcoords):
     # estimate the rotation plane
     centroid, Vt = best_fit_plane(pcoords)
     # map all points to the plane
     projs = pcoords - np.dot(pcoords - centroid, Vt.reshape((3,1))) * Vt
     # calculate the angles to rotate
-    vinp = projs[1:] - projs[0]
+    vinp = projs - centroid
+    vcentroid = centroid / np.linalg.norm(centroid)
     vinp_n = vinp / np.linalg.norm(vinp, axis=1).reshape((-1, 1))
-    cos_angs = vinp_n.dot(vinp_n[0])
+    cos_angs = np.clip(vinp_n.dot(vcentroid), -1., 1.)
     angs = np.arccos(cos_angs)
-    mag = np.tan(-angs / 4)
+        
+    mag = np.tan(angs / 4)
     # get all rodrigue vectors
     rodrigues = mag.reshape((-1,1)) * Vt
     # rotate the original points
     rots = R.from_mrp(rodrigues)
     # relative coordinates
-    prcoords = pcoords[1:] - pcoords[0]
+    prcoords = pcoords - centroid
     rcoords = rots.apply(prcoords)
-    rcoords += pcoords[0]
-    rcoords = np.vstack((pcoords[0], rcoords))
+    rcoords += centroid
+    return rcoords
+
+def get_rotated_anchors(pcoords):
+    # estimate the rotation plane
+    centroid, Vt = best_fit_plane(pcoords)
+    # map all points to the plane
+    projs = pcoords - np.dot(pcoords - centroid, Vt.reshape((3,1))) * Vt
+    # find the a proper anchor point
+    pca = PCA()
+    pca.fit(projs)
+    projs_x = np.dot(projs, pca.components_[0])
+    maxid = projs_x.argmax()
+    pa = 1.2 * (projs[maxid] - centroid) + centroid
+
+    # calculate the angles to rotate
+    vinp = projs - pa
+    vcentroid = pa / np.linalg.norm(pa)
+    vinp_n = vinp / np.linalg.norm(vinp, axis=1).reshape((-1, 1))
+
+    # get rotation matrix
+    vc = np.cross(vinp_n, vcentroid)
+    vd = np.dot(vinp_n, vcentroid)
+    vn = np.linalg.norm(vc, axis=1)
+    kmat = np.zeros((vc.shape[0], 3, 3))
+    kmat[:,0,1] = -vc[:,2]
+    kmat[:,0,2] = vc[:,1]
+    kmat[:,1,0] = vc[:,2]
+    kmat[:,1,2] = -vc[:,0]
+    kmat[:,2,0] = -vc[:,1]
+    kmat[:,2,1] = vc[:,0]
+    rmat = np.eye(3) + kmat + np.matmul(kmat, kmat) * ((1-vd)/vn**2).reshape((-1,1,1))
+    rots = R.from_matrix(rmat)
+    # relative coordinates
+    prcoords = pcoords - pa
+    rcoords = rots.apply(prcoords)
+    rcoords += pa
     return rcoords
 
 def skeletonize_region(rname, visualize=True):
@@ -190,7 +228,6 @@ def skeletonize_region(rname, visualize=True):
 
     init_dist = np.linalg.norm(pcoords[-1] - pcoords[0])
     final_dist = np.linalg.norm(rcoords[-1] - rcoords[0])
-    import ipdb; ipdb.set_trace()
     print(f'Initial and Final distances between start-end points: {init_dist:.2f} and {final_dist:.2f}')
     
     # to avoid computation overwhelmming, use only the boundary points
@@ -205,7 +242,7 @@ def skeletonize_region(rname, visualize=True):
         #ax.scatter(ecoords[:,0], ecoords[:,1], ecoords[:,2], alpha=0.5, color='blue')
         #ax.scatter(ecoords_t[:,0], ecoords_t[:,1], ecoords_t[:,2], alpha=0.5, color='orange')
         ax.scatter(rcoords[:,0], rcoords[:,1], rcoords[:,2], alpha=0.8, color='red')
-        #ax.view_init(-60, -60)
+        ax.view_init(-60, -60)
         plt.savefig('temp.png')
         plt.close()
     
