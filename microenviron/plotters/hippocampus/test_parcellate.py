@@ -129,7 +129,7 @@ def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True):
     if flipLR:
         # mirror right hemispheric points to left hemisphere
         zdim2 = zdim // 2
-        nzi = np.nonzero(df['soma_z'] > zdim2)
+        nzi = np.nonzero(df['soma_z'] < zdim2)
         loci = df.index[nzi]
         df.loc[loci, 'soma_z'] = zdim - df.loc[loci, 'soma_z']
 
@@ -161,7 +161,7 @@ class BrainParcellation:
             mask_file = MASK_CCF25_FILE
         self.mask = load_image(mask_file)  # z,y,x order!
         lmask = self.mask.copy() # left mask
-        lmask[self.mask.shape[0]//2:] = 0
+        lmask[:self.mask.shape[0]//2] = 0
         self.lmask = lmask
 
         if not os.path.exists(out_mask_dir):
