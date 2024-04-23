@@ -23,6 +23,7 @@ import cv2
 import cc3d
 from skimage.morphology import ball as morphology_ball
 from skimage.morphology import cube as morphology_cube
+from skimage.morphology import erosion
 from skimage.filters.rank import median as rank_median_filter
 
 import leidenalg as lg
@@ -34,7 +35,9 @@ from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE, REGION
 from anatomy.anatomy_vis import detect_edges2d
 from math_utils import min_distances_between_two_sets
 
+import sys
 from generate_me_map import process_mip
+from shape_normalize import shape_normalized_scaling
 
 
 def reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask, min_pts_per_parc):
@@ -136,7 +139,8 @@ def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True):
 
 class BrainParcellation:
     def __init__(self, mefile, scale=25., feat_type='mRMR', flipLR=True, seed=1024, r314_mask=True, 
-                 debug=False, out_mask_dir='./output', out_vis_dir='./vis'):
+                 debug=False, out_mask_dir='./output', out_vis_dir='./vis', shape_normalize=True,
+                 min_neurons_per_region=10, min_max_width=9):
         """
         @args feat_type: 
                     - "full": complete set of L-Measure features
@@ -149,6 +153,9 @@ class BrainParcellation:
         np.random.seed(seed)
         self.flipLR = flipLR
         self.debug = debug
+        self.shape_normalize = shape_normalize
+        self.min_neurons_per_region = min_neurons_per_region
+        self.min_max_width = min_max_width
 
         self.r314_mask = r314_mask
         if self.r314_mask:
@@ -272,7 +279,7 @@ class BrainParcellation:
 
         print()
 
-    def community_detection(self, coords, feats, n_jobs=2):
+    def community_detection(self, coords, feats, reg_mask, n_jobs=2):
         # or try to use radius_neighbors_graph
         # the radius are in 25um space
         radius_th = 4.  # 4x25=100um
@@ -281,14 +288,18 @@ class BrainParcellation:
         t0 = time.time()
         coords = coords.values.astype(np.float64)
         n_neighbors = min(150, coords.shape[0])
-        A = kneighbors_graph(coords, 
+        if self.shape_normalize:
+            coords_t = shape_normalized_scaling(reg_mask, coords, visualize=self.debug)
+        else:
+            coords_t = coords
+        A = kneighbors_graph(coords_t, 
                              n_neighbors=n_neighbors, include_self=True, 
                              mode='distance', metric='euclidean', n_jobs=n_jobs)
+
         dist_th = A[A>0].max()# + 1e-5   # to ensure all included
         if self.debug:
             print(f'Threshold for graph construction: {dist_th:.4f} <<-- {time.time() - t0:.2f} seconds')
         
-        #A = radius_neighbors_graph(coords, radius=dist_th, include_self=True, mode='distance', metric='euclidean', n_jobs=n_jobs)
         A.setdiag(0)
         if self.debug:
             print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
@@ -316,6 +327,11 @@ class BrainParcellation:
 
         #weights = wd * wf
         weights = wf
+        #wavg = np.median(weights)
+        #wmask = weights > wavg
+        #weights = weights[wmask]
+        #sources = sources[wmask]
+        #targets = targets[wmask]
         
 
         g = ig.Graph(list(zip(sources, targets)), directed=False)
@@ -328,14 +344,19 @@ class BrainParcellation:
         if self.debug:
             print(f'[Partition]: {time.time() - t0: .2f} seconds')
 
-
-        community_memberships = np.array([i+1 for i in partition.membership]) # re-indexing starting from 1, to differentiate with background
+        # in case of isolated points
+        cm = [i for i in partition.membership]
+        nii = max(partition.membership)
+        for ii in range(len(cm), coords.shape[0]):
+            nii += 1
+            cm.append(nii)
+        
+        community_memberships = np.array([i+1 for i in cm]) # re-indexing starting from 1, to differentiate with background
 
         # denoising at the neuron level
         # remove nodes with nearest nodes are not the same class
-        topk = 5
-        new_coords = coords
-        A1 = kneighbors_graph(new_coords, n_neighbors=topk-1, include_self=False, mode='distance', metric='euclidean')
+        topk = 6
+        A1 = kneighbors_graph(coords_t, n_neighbors=topk-1, include_self=False, mode='distance', metric='euclidean')
         yc, xc = A1.nonzero()
         Ab = community_memberships[xc].reshape(-1, topk-1)
         Ab = np.hstack((community_memberships.reshape(-1,1), Ab))
@@ -374,7 +395,6 @@ class BrainParcellation:
         else:
             rprefix = regid
 
-
         out_image_file = os.path.join(self.out_mask_dir, f'parc_region{rprefix}.nrrd')
 
         # Compute the sparse nearest neighbors graph
@@ -411,21 +431,18 @@ class BrainParcellation:
         else:
             reg_mask = __tmp_mask__ == regid
         
-        if cp_mask.sum() == 0:
-            print(f'[Warning] No samples are found in regid={regid}')
+        # [CHECK]: number of neurons within each region
+        if cp_mask.sum() < self.min_neurons_per_region:
+            print(f'[Warning] Insufficient samples ({cp_mask.sum()}) are found in regid={regid}')
             return self.insufficient_data(reg_mask, out_image_file, save_mask)
-
-        coords = coords_all[cp_mask]
-        coords_int = np.floor(coords).astype('int')
-        feats = feats_all[cp_mask]
-
+        # [CHECK]: region dimensionality
         if reg_mask.sum() == 0:
             print(f'[Error] The mask and the region is inconsistent')
             return
 
-        if cp_mask.sum() < 5:
-            print(f'[Warning] Only {cp_mask.sum()} sample is found in regid={regid}! No need to parcellation!')
-            return self.insufficient_data(reg_mask, out_image_file, save_mask)
+        coords = coords_all[cp_mask]
+        coords_int = np.floor(coords).astype('int')
+        feats = feats_all[cp_mask]
 
         nzcoords = reg_mask.nonzero()
         nzcoords_t = np.array(nzcoords).transpose()
@@ -434,7 +451,15 @@ class BrainParcellation:
         zmax, ymax, xmax = nzcoords_t.max(axis=0)
         reg_sub_mask = reg_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
 
-        communities, comms = self.community_detection(coords, feats, n_jobs=1)
+        # [CHECK]: region dimensionality:
+        # if a region is very thin in one direction, it should be ignored as 
+        # the data points could be erroneously registered
+        ero = erosion(reg_sub_mask, morphology_cube(self.min_max_width))
+        if ero.sum() <= 0:
+            print(f'[Warning] The mask of region={regid} is two smaller, we could not rely on it, just skip')
+            return self.insufficient_data(reg_mask, out_image_file, save_mask)
+
+        communities, comms = self.community_detection(coords, feats, reg_sub_mask, n_jobs=1)
 
         if self.debug:
             dfp = self.df[cp_mask].copy()
@@ -616,14 +641,14 @@ if __name__ == '__main__':
     feat_type = 'full'  # mRMR, PCA, full
     debug = False
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 672
+    regid = 962
     r314_mask = False
     
     if r314_mask:
-        parc_dir = f'./output_{feat_type.lower()}_r314'
+        parc_dir = f'output_{feat_type.lower()}_r314'
         parc_file = f'intermediate_data/parc_r314_{feat_type.lower()}.nrrd'
     else:
-        parc_dir = f'./output_{feat_type.lower()}_r671'
+        parc_dir = f'output_{feat_type.lower()}_r671'
         parc_file = f'intermediate_data/parc_r671_{feat_type.lower()}.nrrd'
     #parc_dir = 'Tmp'
     

@@ -228,7 +228,7 @@ def get_skeletons(reg_mask, visualize=False):
 
     return pcoords, ecoords
 
-def shape_normalized_scaling(reg_mask, coords=None, visualize=False):
+def shape_normalized_scaling_bak(reg_mask, coords=None, visualize=False):
     pcoords, ecoords = get_skeletons(reg_mask, visualize=visualize)
 
     if coords is None:
@@ -254,6 +254,31 @@ def shape_normalized_scaling(reg_mask, coords=None, visualize=False):
         plt.close()
 
     return coords_t
+
+def shape_normalized_scaling(reg_mask, coords=None, visualize=False):
+    edges = detect_edges3d(reg_mask)
+    ecoords = np.array(edges.nonzero()).transpose()
+    
+    pca = PCA()
+    pca.fit(ecoords)
+    if coords is None:
+        coords = ecoords
+    coords_t = pca.transform(coords)
+    stds = np.sqrt(pca.explained_variance_)
+    scales = stds.sum() / stds
+    print(f'Scales are: {scales}')
+    # scaling
+    coords_t = scales * coords_t
+    if visualize:
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(coords_t[:,0], coords_t[:,1], coords_t[:,2], alpha=0.5, color='orange')
+        #ax.view_init(-60, -60)
+        plt.savefig('temp.png')
+        plt.close()
+
+    return coords_t
+
 
 def skeletonize_region(rname, visualize=True):
     """
