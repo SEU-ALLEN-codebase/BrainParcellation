@@ -4,6 +4,7 @@
 #Description:               
 ##########################################################
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 from skimage.morphology import skeletonize
 from sklearn.decomposition import PCA
@@ -16,6 +17,7 @@ import cc3d
 from skan.csr import skeleton_to_csgraph
 from skan import Skeleton, summarize
 from scipy.spatial.transform import Rotation as R
+from tps import ThinPlateSpline
 
 from image_utils import get_mip_image
 from file_io import load_image
@@ -115,29 +117,21 @@ def best_fit_plane(points):
     normal = Vt[-1]
     return centroid, normal
 
-def stretching(pcoords, ecoords, coords):
+def stretching(pcoords_o, ecoords_o, coords_o):
     '''
     pcoords: coordinates of medial axis points
     ecoords: coordinates of boundary points
     coords:  coordinates of neuronal points
     '''
-    pcoords = pcoords.copy()
-    ecoords = ecoords.copy()
-    coords = coords.copy()
+    pcoords = pcoords_o.copy()
+    ecoords = ecoords_o.copy()
+    coords = coords_o.copy()
     # get the correspondence between points and ecoords
     kdt = KDTree(pcoords, metric='euclidean')
     top1 = kdt.query(ecoords, k=1, return_distance=False)
     top1_dict = {}
     for vt in np.unique(top1):
         top1_dict[vt] = np.nonzero(top1 == vt)[0]
-
-    # for the neurons
-    top1a = kdt.query(coords, k=1, return_distance=False)
-    top1a_dict = {}
-    for vt in np.unique(top1a):
-        top1a_dict[vt] = np.nonzero(top1a == vt)[0]
-
-    import ipdb; ipdb.set_trace()
 
     # estimate the rotation plane
     centroid, Vt = best_fit_plane(pcoords)
@@ -155,7 +149,6 @@ def stretching(pcoords, ecoords, coords):
     van = va / np.linalg.norm(va)
     output = []
     rbs = np.zeros_like(ecoords)
-    rs = np.zeros_like(coords)
     for i in range(pcoords.shape[0]):
         pji = projs[i]
         pdi = pcoords[i]
@@ -188,12 +181,21 @@ def stretching(pcoords, ecoords, coords):
             ecoords = rots.apply(ercoords) + prev_cp
             rbs[top1_dict[i]] = ecoords[top1_dict[i]]
 
-        if i in top1a_dict:
-            rcoords = coords - prev_cp
-            coords = rots.apply(rcoords) + prev_cp
-            rs[top1a_dict[i]] = coords[top1a_dict[i]]
+    # Do TPS interpolation
+    np.random.seed(1024)
+    random.seed(1024)
+    # only using randomly selected 1000 points for fast interpolation
+    ninter = 1000
+    if ecoords_o.shape[0] > ninter:
+        ids = np.arange(ecoords_o.shape[0])
+        random.shuffle(ids)
+        ids = ids[:ninter]
 
-    return np.array(output), rbs, rs
+    tps = ThinPlateSpline(alpha=0.0)
+    tps.fit(ecoords_o[ids], rbs[ids])
+    rs = tps.transform(coords_o)
+
+    return np.array(output), rbs,rs
 
 def get_skeletons(reg_mask, visualize=False):
     print('===> get the skeleton')
@@ -244,8 +246,8 @@ def shape_normalized_scaling(reg_mask, coords=None, visualize=False):
     if visualize:
         fig = plt.figure()
         ax = fig.add_subplot(projection='3d')
-        #ax.scatter(ecoords[:,0], ecoords[:,1], ecoords[:,2], alpha=0.5, color='blue')
-        ax.scatter(coords_t[:,0], coords_t[:,1], coords_t[:,2], alpha=0.5, color='orange')
+        ax.scatter(ecoords_t[:,0], ecoords_t[:,1], ecoords_t[:,2], alpha=0.5, color='blue')
+        #ax.scatter(coords_t[:,0], coords_t[:,1], coords_t[:,2], alpha=0.5, color='orange')
         #ax.scatter(rcoords[:,0], rcoords[:,1], rcoords[:,2], alpha=0.8, color='red')
         ax.view_init(-60, -60)
         plt.savefig('temp.png')
@@ -272,9 +274,9 @@ def skeletonize_region(rname, visualize=True):
     
     # keep only right hemisphere
     zdim = mask.shape[0]
-    mask[zdim//2:] = 0
+    mask[:zdim//2] = 0
     # crop the mask for faster computing
-    sub_mask, (zs,ze,ys,ye,xs,xe) = crop_nonzero_mask(mask, pad=1)
+    sub_mask, (zs,ze,ys,ye,xs,xe) = crop_nonzero_mask(mask, pad=0)
     
     coords_t = shape_normalized_scaling(sub_mask, visualize=visualize)
 
