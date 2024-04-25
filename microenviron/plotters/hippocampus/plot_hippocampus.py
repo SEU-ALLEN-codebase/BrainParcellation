@@ -37,7 +37,7 @@ from sklearn.metrics import r2_score
 from skimage.morphology import skeletonize
 from skan import Skeleton, summarize
 
-from image_utils import get_mip_image, image_histeq
+from image_utils import get_mip_image, image_histeq, get_longest_skeleton
 from file_io import load_image, save_image
 from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE, ANATOMY_TREE_FILE
 from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_outline, \
@@ -45,8 +45,6 @@ from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_o
 from anatomy.anatomy_core import parse_ana_tree
 from image_utils import crop_nonzero_mask
 
-sys.path.append('../..')
-from shape_normalize import get_longest_skeleton
 
 
 # features selected by mRMR
