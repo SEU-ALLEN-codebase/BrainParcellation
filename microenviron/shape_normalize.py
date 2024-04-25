@@ -11,6 +11,8 @@ from sklearn.decomposition import PCA
 from scipy.ndimage import convolve
 from scipy.sparse.csgraph import dijkstra
 from sklearn.neighbors import KDTree
+from skimage import morphology
+from skimage.draw import line_nd
 
 import cv2
 import cc3d
@@ -23,11 +25,51 @@ from image_utils import get_mip_image
 from file_io import load_image
 from anatomy.anatomy_config import MASK_CCF25_FILE
 from anatomy.anatomy_core import parse_ana_tree
-from anatomy.anatomy_vis import detect_edges3d
+from anatomy.anatomy_vis import detect_edges3d, detect_edges2d
 from image_utils import crop_nonzero_mask
 
 
-def get_longest_skeleton(skel):
+def extend_skel_to_boundary(boundaries, pcoords, is_start=True):
+    if is_start:
+        pt = pcoords[0]
+        pts_neighbor = pcoords[:10]
+        vref = pts_neighbor[-1] - pts_neighbor[0]
+    else:
+        pt = pcoords[-1]
+        pts_neighbor = pcoords[-10:]
+        vref = pts_neighbor[0] - pts_neighbor[-1]
+
+    # find the boundary point align well with the principal axis of skelenton
+    pca = PCA()
+    pca.fit(pts_neighbor)
+    pc1 = pca.components_[0]
+    if vref.dot(pc1) < 0:
+        pc1 = -pc1
+    
+    # estimate the direction matchness
+    vb = (pt - boundaries).astype(np.float64)
+    vb /= (np.linalg.norm(vb, axis=1).reshape((-1,1)) + 1e-10)
+    cos_dist = pc1.dot(vb.transpose())
+    max_id = np.argmax(cos_dist)
+    pta = boundaries[max_id]
+    
+    lpts = np.array(line_nd(pt, pta, endpoint=True)).transpose()[1:]
+    if is_start:
+        pcoords = np.vstack((lpts[::-1], pcoords))
+    else:
+        pcoords = np.vstack((pcoords, lpts))
+
+    return pcoords
+
+def get_longest_skeleton(mask, is_3D=True, extend_to_boundary=True, smoothing=True):
+    mask = mask > 0 # only binary mask supported
+    if smoothing:
+        mask = morphology.closing(mask, morphology.square(5), mode='constant')
+
+    # get the skeleton
+    skel = skeletonize(mask, method='lee')
+    skel[skel > 0] = 1
+    
     # get the critical points: tip and multi-furcations
     summ = summarize(Skeleton(skel))
     summ_bak = summ.copy()
@@ -39,10 +81,34 @@ def get_longest_skeleton(skel):
         dcnts = dict(zip(*np.unique(summ[['node-id-src', 'node-id-dst']], return_counts = True)))
         for nid, cnt in dcnts.items():
             if cnt == 1: continue
+
+            # remove possible circles
+            ids, cnts = np.unique(summ[nid_keys].values, axis=0, return_counts=True)
+            if (cnts > 1).sum() != 0:
+                lcnts = cnts > 1
+                for lids in ids[lcnts]:
+                    dup_ones = (summ[nid_keys] == lids).sum(axis=1) == 2
+                    nzi = np.nonzero(dup_ones)[0]
+                    sub_summ = summ[dup_ones]
+                    max_d_id = np.argmax(sub_summ['branch-distance'])
+                    max_d_index = sub_summ.index[max_d_id]
+                    to_drop = []
+                    for idx in range(len(nzi)):
+                        if idx != max_d_id:
+                            to_drop.append(sub_summ.index[idx])
+                    summ.drop(index=to_drop, inplace=True)
+                    # check the type of current branch
+                    nc_dict = dict(zip(*np.unique(summ[nid_keys], return_counts=True)))
+                    if (nc_dict[lids[0]] != 1) and (nc_dict[lids[1]] != 1): 
+                        summ.loc[max_d_index, 3] = 2
+                    else:
+                        summ.loc[max_d_index, 3] = 1
+                    
+
             con0 = (summ['node-id-src']==nid) | (summ['node-id-dst']==nid)
             con = con0 & (summ['branch-type']==1)
             con1 = con0 & (summ['branch-type'] != 1)
-            if con.sum() <= 1: continue # process only
+            #if con.sum() <= 1: continue # process only
 
             if con1.sum() == 0:
                 # keep the top two branches
@@ -79,9 +145,20 @@ def get_longest_skeleton(skel):
                 elif con0.sum() - con.sum() == 0:
                     print('WARNING: ')
             
+
     # get the original information
-    p1 = summ_bak[['node-id-src', 'image-coord-src-0', 'image-coord-src-1', 'image-coord-src-2']].values
-    p2 = summ_bak[['node-id-dst', 'image-coord-dst-0', 'image-coord-dst-1', 'image-coord-dst-2']].values
+    if is_3D:
+        src_key = ['node-id-src', 'image-coord-src-0', 'image-coord-src-1', 'image-coord-src-2']
+        dst_key = ['node-id-dst', 'image-coord-dst-0', 'image-coord-dst-1', 'image-coord-dst-2']
+        vm = 3
+    else:
+        src_key = ['node-id-src', 'image-coord-src-0', 'image-coord-src-1']
+        dst_key = ['node-id-dst', 'image-coord-dst-0', 'image-coord-dst-1']
+        vm = 2
+
+    # the two terminal points
+    p1 = summ_bak[src_key].values
+    p2 = summ_bak[dst_key].values
     pts_all = np.vstack((p1, p2))
     node1, node2 = summ[nid_keys].values[0]
     coords1 = pts_all[pts_all[:,0] == node1][0][1:]
@@ -90,10 +167,10 @@ def get_longest_skeleton(skel):
     # get the path
     pgraph, coordinates = skeleton_to_csgraph(skel)
     coordinates = np.array(coordinates).transpose()
-    id1 = np.nonzero((coordinates == coords1).sum(axis=1) == 3)[0][0]
-    id2 = np.nonzero((coordinates == coords2).sum(axis=1) == 3)[0][0]
-    # 
-    dij = dijkstra(pgraph, directed=False, indices=[id1], return_predecessors=True)
+    id1 = np.nonzero((coordinates == coords1).sum(axis=1) == vm)[0][0]
+    id2 = np.nonzero((coordinates == coords2).sum(axis=1) == vm)[0][0]
+    # The skeletonization may result small circular points!
+    dij = dijkstra(pgraph, directed=True, indices=[id1], return_predecessors=True)
     parents = dij[1][0]
     # transverse to the full path
     pids = []
@@ -105,7 +182,26 @@ def get_longest_skeleton(skel):
 
     new_skel = skel.copy()
     new_skel.fill(0)
-    new_skel[pcoords[:,0], pcoords[:,1], pcoords[:,2]] = 1
+    if is_3D:
+        new_skel[pcoords[:,0], pcoords[:,1], pcoords[:,2]] = 1
+    else:
+        new_skel[pcoords[:,0], pcoords[:,1]] = 1
+
+    if extend_to_boundary:
+        #---- extend the skeleton to boundary of image ----#
+        if is_3D:
+            edges = detect_edges3d(mask)
+        else:
+            edges = detect_edges2d(mask)
+        ecoords = np.array(edges.nonzero()).transpose()
+
+        pcoords = extend_skel_to_boundary(ecoords, pcoords, is_start=True)
+        pcoords = extend_skel_to_boundary(ecoords, pcoords, is_start=False)
+        # udate skeleton
+        if is_3D:
+            new_skel[pcoords[:,0], pcoords[:,1], pcoords[:,2]] = 1
+        else:
+            new_skel[pcoords[:,0], pcoords[:,1]] = 1       
     
     return new_skel, pcoords
 

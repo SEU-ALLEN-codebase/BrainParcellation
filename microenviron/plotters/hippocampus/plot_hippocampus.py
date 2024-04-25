@@ -27,12 +27,15 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import cv2
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib import colors
 from mpl_toolkits.mplot3d import Axes3D
 from fil_finder import FilFinder2D
 import astropy.units as u
 from sklearn.neighbors import KDTree
 from sklearn.cluster import KMeans
 from sklearn.metrics import r2_score
+from skimage.morphology import skeletonize
+from skan import Skeleton, summarize
 
 from image_utils import get_mip_image, image_histeq
 from file_io import load_image, save_image
@@ -40,10 +43,10 @@ from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE, ANATOM
 from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_outline, \
                                 get_brain_mask2d, get_section_boundary, detect_edges2d
 from anatomy.anatomy_core import parse_ana_tree
+from image_utils import crop_nonzero_mask
 
-if __name__ == '__main__':
-    sys.path.append('../../../full-spectrum/neurite_arbors')
-    from neurite_arbors import NeuriteArbors
+sys.path.append('../..')
+from shape_normalize import get_longest_skeleton
 
 
 # features selected by mRMR
@@ -336,191 +339,35 @@ def colorize_atlas2d_cv2(axid=2, sectionX=420, outscale=3, annot=False, fmt='svg
     
     return out
 
-def find_regional_representative(mefile, region='IC', swcdir='', color='magenta'):
-    random.seed(1024)
-    df = pd.read_csv(mefile, comment='#', index_col=0)
-    keys = [f'{key}_me' for key in __MAP_FEATS__]
-    #import ipdb; ipdb.set_trace()
-    tmp = df[keys]
-    dfr = df.copy()
-    dfr[keys] = (tmp - tmp.mean()) / tmp.std()
-    # keep only neurons from the target region
-    rmask = dfr.region_name_r316 == region
-    dfr = dfr[rmask][keys]
-    print(f'Number of neurons in region {region}: {dfr.shape[0]}')
-    medians = dfr.median()
-    # find out the neurons with closest features
-    dists2m = np.linalg.norm(dfr - medians, axis=1)
-    min_id = dists2m.argmin()
-    min_dist = dists2m[min_id]
-    min_name = dfr.index[min_id]
-    min_brain = df.loc[min_name, 'brain_id']
-    print(f'The neuron {min_name} has distance {min_dist:.4f} to the median of the region {region}')
-    print(df[rmask][keys].iloc[min_id], min_brain)
-    
-    plot_morphology = True
-    if plot_morphology:
-        # plot the neurons
-        nsamples = 50
-        for swc_name in random.sample(list(df[rmask].index), nsamples):
-            brain_id = df.loc[swc_name, 'brain_id']
-            swcfile = os.path.join(swcdir, str(brain_id), f'{swc_name}_stps.swc')
-            na = NeuriteArbors(swcfile)
-            out_name = f'{region}_{brain_id}_{swc_name}'
-            na.plot_morph_mip(type_id=None, color=color, figname=out_name, out_dir='.', show_name=False)
+def get_longitudinal_line(mask, dist_coeff=250, branch_coeff=40, skel_coeff=10):
+    from skimage import morphology
+    from fil_finder import FilFinder2D
+    import astropy.units as u    
 
-def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
-    keys = ['region_name_r316'] + [f'{key}_me' for key in __MAP_FEATS__]
-    dfr = df[keys][df['region_name_r316'].isin(regions)]
-    # axes instance
-    fig = plt.figure(figsize=(6,6))
-    ax = Axes3D(fig, auto_add_to_figure=False)
-    fig.add_axes(ax)
+    # remove isolated points
+    mask = mask.copy()
+    m_conv = cv2.filter2D(mask.astype(np.uint8), ddepth=-1, kernel=np.ones((3,3),dtype=int))
+    mask[m_conv == 1] = 0
 
-    # plot
-    n1, n2, n3 = keys[-3:]
-    dfr1 = dfr[dfr['region_name_r316'] == regions[0]]
-    dfr2 = dfr[dfr['region_name_r316'] == regions[1]]
-    sc1 = ax.scatter(dfr1[n3], dfr1[n2], dfr1[n1]/1000, s=12, c='magenta', marker='o', alpha=.75, label=regions[0])
-    sc2 = ax.scatter(dfr2[n3], dfr2[n2], dfr2[n1]/1000, s=12, c='cyan', marker='o', alpha=1., label=regions[1])
+    # get the medial axis
+    skel = morphology.medial_axis(mask)
+    skel = skel.astype(np.uint8)
+    # find the longest one from multi-headed skeletons
+    fil = FilFinder2D(skel, distance=dist_coeff * u.pix, mask=skel)
+    fil.preprocess_image(flatten_percent=90)
+    fil.create_mask(border_masking=True, verbose=False, use_existing_mask=True)
+    fil.medskel(verbose=False)
+    fil.analyze_skeletons(branch_thresh=branch_coeff* u.pix, skel_thresh=skel_coeff * u.pix, prune_criteria='length')
+    # we should extend the skeleteon until outside of the region
+    ma_pts_sum = cv2.filter2D(fil.skeleton_longpath, ddepth=-1, kernel=np.ones((3,3),dtype=int))
+    ep_mask = (ma_pts_sum == 2) & (fil.skeleton_longpath > 0)
+    ep_pts = np.nonzero(ep_mask)
 
-    label_size = 22
-    ax.set_xlabel('Straightness', fontsize=label_size, labelpad=10)
-    ax.set_ylabel('Fragmentation', fontsize=label_size)
-    ax.set_zlabel('Total Length (mm)', fontsize=label_size, labelpad=10)
+    # not yet finished!
 
-    ax.tick_params(axis='both', which='major', labelsize=14)
+    return 
 
-    # legend
-    plt.legend(bbox_to_anchor=(0.6,0.6), fontsize=label_size, markerscale=3., handletextpad=0.2)
-    fig.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
-            hspace = 0, wspace = 0)
-    ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
-    #hide the gridline
-    ax.grid(False)
-    #ax.view_init(30, 75)
-    # save
-    plt.savefig("IC_SIM_features.png", bbox_inches='tight')
-    plt.close()
-
-def plot_MOB_features(mefile, rname='MOB', r316=False):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
-    keys = [f'{key}_me' for key in __MAP_FEATS__]
-    if r316:
-        rkey = 'region_name_r316'
-    else:
-        rkey = 'region_name_r671'
-
-    if type(rname) is list:
-        dfr = df[keys][df[rkey].isin(rname)]
-        out_prefix = 'tmp'
-    else:
-        dfr = df[keys][df[rkey] == rname]
-        out_prefix = rname
-
-    # We handling the coloring
-    dfc = dfr.copy()
-    for i in range(3):
-        tmp = dfc.iloc[:,i]
-        dfc.iloc[:,i] = image_histeq(tmp.values)[0] / 255.
-    dfc[dfc > 1] = 1.
-        
-    # axes instance
-    fig = plt.figure(figsize=(6,6))
-    ax = Axes3D(fig, auto_add_to_figure=False)
-    fig.add_axes(ax)
-
-    # plot
-    n1, n2, n3 = keys[-3:]
-    print(n1, n2, n3)
-    sc = ax.scatter(dfr[n2], dfr[n3], dfr[n1]/1000, s=10, c=dfc.values, marker='o', alpha=.75)
-    label_size = 22
-    ax.set_xlabel('Fragmentation', fontsize=label_size, labelpad=10)
-    ax.set_ylabel('Straightness', fontsize=label_size, labelpad=10)
-    ax.set_zlabel('Total Length (mm)', fontsize=label_size, labelpad=10)
-
-    ax.tick_params(axis='both', which='major', labelsize=14)
-
-    # legend
-    plt.legend(bbox_to_anchor=(0.6,0.6), fontsize=label_size, markerscale=3., handletextpad=0.2)
-    fig.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
-            hspace = 0, wspace = 0)
-    ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
-    if rname in ['MOB', 'ACB']:
-        ax.set_zlim3d(0.5, 2)
-    ax.get_legend().remove()
-    # Hide grid lines
-    ax.grid(False)
-    if rname == 'ACB':
-        ax.view_init(30, 30)
-
-    # save
-    if '/' in rname:
-        rname = rname.replace('/', '_')
-    plt.savefig(f"{out_prefix}_features.png", bbox_inches='tight')
-    plt.close()
-
-def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=True):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
-    keys = [f'{key}_me' for key in __MAP_FEATS__]
-    if r316:
-        rkey = 'region_name_r316'
-    else:
-        rkey = 'region_name_r671'
-
-    if type(rname) is list:
-        sel_mask = df[rkey].isin(rname)
-        out_prefix = 'tmp'
-    else:
-        sel_mask = df[rkey] == rname
-        out_prefix = rname
-    
-    dfr = df[keys][sel_mask]
-    coords = df[['soma_x', 'soma_y', 'soma_z']][sel_mask].values / 1000
-    if flipLR:
-        zdim = 456 * 25. / 1000
-        right = np.nonzero(coords[:,2] > zdim/2)[0]
-        coords[right, 2] = zdim - coords[right, 2]
-
-    # We handling the coloring
-    dfc = dfr.copy()
-    for i in range(3):
-        tmp = dfc.iloc[:,i]
-        dfc.iloc[:,i] = image_histeq(tmp.values)[0] / 255.
-    dfc[dfc > 1] = 1.
-        
-    # axes instance
-    fig = plt.figure(figsize=(6,6))
-    ax = Axes3D(fig, auto_add_to_figure=False)
-    fig.add_axes(ax)
-
-    # plot
-    sc = ax.scatter(coords[:,0], coords[:,1], coords[:,2], s=10, c=dfc.values, marker='o', alpha=.75)
-    label_size = 22
-    ax.set_xlabel('AP axis (mm)', fontsize=label_size, labelpad=10)
-    ax.set_ylabel('LR axis (mm)', fontsize=label_size, labelpad=10)
-    ax.set_zlabel('DV axis (mm)', fontsize=label_size, labelpad=10)
-
-    ax.tick_params(axis='both', which='major', labelsize=14)
-
-    # legend
-    plt.legend(bbox_to_anchor=(0.6,0.6), fontsize=label_size, markerscale=3., handletextpad=0.2)
-    fig.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
-            hspace = 0, wspace = 0)
-    ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
-    ax.get_legend().remove()
-    # Hide grid lines
-    ax.grid(False)
-    ax.view_init(0, 30)
-
-    # save
-    if '/' in out_prefix:
-        out_prefix = out_prefix.replace('/', '_')
-    plt.savefig(f"{out_prefix}_features_ccf.png", bbox_inches='tight')
-    plt.close()
-
-def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10):
+def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10, debug=True):
     df = pd.read_csv(mefile, comment='#', index_col=0)
     keys = [f'{key}_me' for key in __MAP_FEATS__]
     if r316:
@@ -544,7 +391,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         idx = ana_tree[rname]['id']
         rmask = mask == idx
         out_prefix = rname
-    
+
     dfr = df[keys][sel_mask]
     coords = df[['soma_x', 'soma_y', 'soma_z']][sel_mask].values / 1000
     if flipLR:
@@ -554,6 +401,11 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         coords[right, 2] = zcoord - coords[right, 2]
         rmask[zdim//2:] = 0
 
+    if 1:
+        mm = mask.copy()
+        mm[rmask == 0] = 0
+        rmask = mm
+
     # We handling the coloring
     dfc = dfr.copy()
     for i in range(3):
@@ -562,11 +414,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
     dfc[dfc > 255] = 255
 
     # get the boundary of region
-    nzcoords = rmask.nonzero()
-    nzcoords_t = np.array(nzcoords).transpose()
-    zmin, ymin, xmin = nzcoords_t.min(axis=0)
-    zmax, ymax, xmax = nzcoords_t.max(axis=0)
-    sub_mask = rmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+    sub_mask, (zmin, zmax, ymin, ymax, xmin, xmax) = crop_nonzero_mask(rmask, pad=0)
     memap = np.zeros((*sub_mask.shape, 3), dtype=np.uint8)
     
     coords_s = np.floor(coords * 40).astype(int)
@@ -575,6 +423,16 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
     mips = []
     shape3d = mask.shape
     axid = 2
+    cmap = {
+        382: ('brown', 'CA1'),
+        423: ('olive', 'CA2'),
+        463: ('crimson', 'CA3'),
+        502: ('navy', 'SUB'),
+        484682470: ('purple', 'ProS'),
+        10703: ('green', 'DG-mo'),
+        10704: ('orange', 'DG-po'),
+        632: ('blue', 'DG-sg'),
+    }
     for sid in range(0, xmax-xmin-thickX2-1, thickX2*2):
         sid = sid + thickX2
         cur_memap = memap.copy()
@@ -585,8 +443,40 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         mip = get_mip_image(cur_memap, axid)
         
         figname = f'{out_prefix}_section{sid:03d}.png'
-        print(mip.shape, sub_mask.shape)
         process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5, b_scale=0.5)
+
+        section_mask = sub_mask[:,:,sid]
+        
+        if 0:
+            # also save the mask
+            img_mask = np.zeros((*section_mask.shape, 4), dtype=np.uint8)
+            for rid, cname in cmap.items():
+                rgba = [int(c*255) for c in colors.to_rgba(cname[0])]
+                #import ipdb; ipdb.set_trace()
+                rgba[:3] = rgba[:3][::-1]
+                img_mask[section_mask == rid] = rgba
+            if axid != 0:
+                img_mask = cv2.rotate(img_mask, cv2.ROTATE_90_CLOCKWISE)
+            cv2.imwrite(f'mask_{figname}', img_mask)
+
+            # generate the color legend
+            xa = np.random.random((5))
+            xb = np.random.random((5))
+            for rid, rcolor in cmap.items():
+                plt.scatter(xa, xb, c=rcolor[0], label=rcolor[-1])
+            plt.legend(frameon=False, ncol=4, handletextpad=0.2)
+            plt.savefig('color_legend.png', dpi=300)
+            plt.close()
+
+
+        # principal axis for each section
+        main_axis = get_longest_skeleton(section_mask, is_3D=False)[0]
+        #main_axis = get_longitudinal_line(section_mask)
+        if debug:
+            mm = np.hstack(((section_mask > 0).astype(np.uint8), main_axis)) * 255
+            cv2.imwrite(f'temp_{figname}', mm)
+
+
         # load and remove the zero-alpha block
         img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
         wnz = np.nonzero(img[img.shape[0]//2,:,-1])[0]
@@ -602,45 +492,6 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         cv2.imwrite(figname, img)
  
     
-
-def plot_parcellations(parc_file, ccf_tree_file=ANATOMY_TREE_FILE, ccf_atlas_file=MASK_CCF25_FILE):
-    thickX2 = 20
-    axid = 2
-    parc = load_image(parc_file)
-    # flip
-    zdim2 = parc.shape[0] // 2 
-    parc[:zdim2] = parc[zdim2:][::-1]
-    ana_tree = parse_ana_tree(ccf_tree_file)
-    ccf25 = load_image(ccf_atlas_file)
-    shape3d = parc.shape
-    prefix = os.path.splitext(os.path.split(parc_file)[-1])[0]
-    for isid, sid in enumerate(range(thickX2, shape3d[axid], 2*thickX2)):
-        figname = f'{prefix}_{isid:02d}.png'
-        section = np.take(parc, sid, 2)
-        ccf25s = np.take(ccf25, sid, 2)
-        vuniq = np.unique(ccf25s)
-        # coloring with CCF color scheme
-        out = np.ones((*section.shape, 4), dtype=np.uint8) * 255
-        out3 = out[:,:,:3]
-        for vi in vuniq:
-            if vi == 0: continue
-            rmask = ccf25s == vi
-            #print(rmask.sum())
-            out3[rmask] = ana_tree[vi]['rgb_triplet']
-
-        # draw the sub-parcellation
-        parc_edges = detect_edges2d(section)
-        ccf25_edges = detect_edges2d(ccf25s)
-        extra_edges = parc_edges ^ ccf25_edges
-        extra_edges[:zdim2] = extra_edges[zdim2:][::-1]
-        out[extra_edges] = (0,0,255,255)
-        # draw the original ccf outline
-        out[ccf25_edges] = (0,0,0,128)
-        # zeroing the background
-        # rotate
-        out = cv2.rotate(out, cv2.ROTATE_90_CLOCKWISE)
-        cv2.imwrite(figname, out)
-        print()
 
 
     
@@ -663,22 +514,10 @@ if __name__ == '__main__':
             colorize_atlas2d_cv2(annot=True, fmt=fmt, sectionX=sectionX)
 
     if 1:
-        mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
+        mefile = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
         swcdir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/cropped_100um/'
-        region = 'SIM'
-        if region == 'IC':
-            color = 'black' #'magenta'
-        elif region == 'SIM':
-            color = 'black' #'cyan'
 
-        #find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
-        #plot_inter_regional_features(mefile)
-        rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
-        #rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
-        #plot_MOB_features(mefile, rname)
-        #plot_region_feature_in_ccf_space(mefile, 'CA1')
-        plot_region_feature_sections(mefile, 'CA1')
+        #rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
+        rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
+        plot_region_feature_sections(mefile, rname)
    
-    if 0:
-        parc_file = 'intermediate_data/parc_r671_full.nrrd'
-        plot_parcellations(parc_file)

@@ -638,7 +638,7 @@ class BrainParcellation:
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
-    feat_type = 'full'  # mRMR, PCA, full
+    feat_type = 'PCA'  # mRMR, PCA, full
     debug = False
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
     regid = 962
