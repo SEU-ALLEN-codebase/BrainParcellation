@@ -269,7 +269,10 @@ def map_to_longitudinal_space(mask, pcoords, coords):
     
     # estimate their distance
     kdt = KDTree(pcoords, metric='euclidean')
+    # pixel to physical space
     lcoords = np.hstack(kdt.query(coords, k=1, return_distance=True))
+    phy_coords = np.hstack(([0], np.cumsum(np.linalg.norm(pcoords[1:] - pcoords[:-1], axis=1))))
+    lcoords[:,1] = phy_coords[lcoords[:,1].astype(int)]
     vs = labeled_mask[coords[:,0], coords[:,1]]
     # for those outside the mask, we should interpolate their type
     fgm = vs > 0

@@ -338,6 +338,7 @@ def colorize_atlas2d_cv2(axid=2, sectionX=420, outscale=3, annot=False, fmt='svg
     
     return out
 
+# deprecated
 def get_longitudinal_line(mask, dist_coeff=250, branch_coeff=40, skel_coeff=10):
     from skimage import morphology
     from fil_finder import FilFinder2D
@@ -365,6 +366,48 @@ def get_longitudinal_line(mask, dist_coeff=250, branch_coeff=40, skel_coeff=10):
     # not yet finished!
 
     return 
+
+def scatter_hist(x, y, colors, ax, ax_histx, ax_histy):
+
+    def get_values(xy, cs, bins):
+        bw = (xy.max() - xy.min()) / bins
+        data = []
+        xys = []
+        for xyi in np.arange(xy.min(), xy.max(), bw):
+            xym = (xy >= xyi) & (xy < xyi+bw)
+            if xym.sum() < 2: continue
+            vs = cs[xym].mean()
+            xys.append(xyi + bw/2)
+            data.append(vs)
+        return xys, data
+            
+
+    # no labels
+    ax_histx.tick_params(axis="x", labelbottom=False)
+    ax_histy.tick_params(axis="y", labelleft=False)
+
+    # the scatter plot:
+    xmin, xmax = x.min(), x.max()
+    ax.scatter(x, y, c=colors, s=9)
+    ax.set_xlim(x.min(), x.max())
+    ax.set_xlabel('Longitudinal distance (mm)')
+
+    nbins = 15
+    ax_histx.plot(*get_values(x, colors[:,0], nbins), c='red')
+    ax_histx.plot(*get_values(x, colors[:,1], nbins), c='green')
+    ax_histx.plot(*get_values(x, colors[:,2], nbins), c='blue')
+    ax_histy.plot(*get_values(y, colors[:,0], nbins)[::-1], c='red')
+    ax_histy.plot(*get_values(y, colors[:,1], nbins)[::-1], c='green')
+    ax_histy.plot(*get_values(y, colors[:,2], nbins)[::-1], c='blue')
+    
+    ax_histx.set_ylabel('Feature')
+    ax_histx.yaxis.set_label_position('right') 
+    ax_histx.set_ylim(0, 1)
+    ax_histx.set_yticks([0,1])
+    
+    ax_histy.set_xlabel('Feature')
+    ax_histy.set_xlim(0, 1)
+    ax_histy.set_xticks([0,1])
 
 
 def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10, debug=True):
@@ -494,8 +537,28 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         lcoords = map_to_longitudinal_space(section_mask, pcoords, coords)
         
         if debug:
-            plt.scatter(lcoords[:,1], lcoords[:,0], c=colors)
-            plt.savefig(f'{out_prefix}_section{sid:03d}_stretched.png')
+            # Create a Figure, which doesn't have to be square.
+            sns.set_theme(style="ticks", font_scale=1.4)
+            fig = plt.figure(layout='constrained')
+            # Create the main axes, leaving 25% of the figure space at the top and on the
+            # right to position marginals.
+            ax = fig.add_gridspec(top=0.75, right=0.75).subplots()
+            # The main axes' aspect can be fixed.
+            ax.set(aspect=1)
+            # Create marginal axes, which have 25% of the size of the main axes.  Note that
+            # the inset axes are positioned *outside* (on the right and the top) of the
+            # main axes, by specifying axes coordinates greater than 1.  Axes coordinates
+            # less than 0 would likewise specify positions on the left and the bottom of
+            # the main axes.
+            ax_histx = ax.inset_axes([0, 1.05, 1, 0.25], sharex=ax)
+            ax_histy = ax.inset_axes([1.05, 0, 0.25, 1], sharey=ax)
+            # Draw the scatter plot and marginals.
+            # transform the coordinates from pixel space to physical space
+            lcoords *= 0.04 # in mm
+            scatter_hist(lcoords[:,1], lcoords[:,0], colors, ax, ax_histx, ax_histy)
+            plt.savefig(f'{out_prefix}_section{sid:03d}_stretched.png', dpi=300)
+            plt.close()
+            
 
         # load and remove the zero-alpha block
         img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
@@ -511,7 +574,6 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
             #
         cv2.imwrite(figname, img)
  
-    
 
 
     
