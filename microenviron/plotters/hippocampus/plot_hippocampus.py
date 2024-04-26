@@ -45,7 +45,8 @@ from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_o
 from anatomy.anatomy_core import parse_ana_tree
 from image_utils import crop_nonzero_mask
 
-
+sys.path.append('../..')
+from shape_normalize import stretching2d, map_to_longitudinal_space
 
 # features selected by mRMR
 __MAP_FEATS__ = ('Length', 'AverageFragmentation', 'AverageContraction')
@@ -365,6 +366,7 @@ def get_longitudinal_line(mask, dist_coeff=250, branch_coeff=40, skel_coeff=10):
 
     return 
 
+
 def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10, debug=True):
     df = pd.read_csv(mefile, comment='#', index_col=0)
     keys = [f'{key}_me' for key in __MAP_FEATS__]
@@ -400,6 +402,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         rmask[zdim//2:] = 0
 
     if 1:
+        # keep the orginal multiple regions
         mm = mask.copy()
         mm[rmask == 0] = 0
         rmask = mm
@@ -468,12 +471,31 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
 
 
         # principal axis for each section
-        main_axis = get_longest_skeleton(section_mask, is_3D=False)[0]
-        #main_axis = get_longitudinal_line(section_mask)
+        main_axis, pcoords = get_longest_skeleton(section_mask, is_3D=False, smoothing=True)
+        # We would like to unify the definition of left right
+        anchor_pt = np.array([main_axis.shape[0], 0])
+        anchor2p1 = np.linalg.norm(pcoords[0] - anchor_pt)
+        anchor2p2 = np.linalg.norm(pcoords[-1] - anchor_pt)
+        if anchor2p1 > anchor2p2:
+            pcoords = pcoords[::-1]
+
         if debug:
             mm = np.hstack(((section_mask > 0).astype(np.uint8), main_axis)) * 255
             cv2.imwrite(f'temp_{figname}', mm)
-
+        # map the points to longitudinal space
+        edges = detect_edges2d(section_mask > 0)
+        ecoords = np.array(edges.nonzero()).transpose()
+        #stretching2d(pcoords, ecoords, ecoords, visualize=True)
+        
+        # get the coordinates and colors of the current section
+        neuron_mask = cur_memap.sum(axis=-1) > 0
+        coords = np.array(neuron_mask.nonzero()[:2]).transpose()
+        colors = cur_memap[neuron_mask] / 255.
+        lcoords = map_to_longitudinal_space(section_mask, pcoords, coords)
+        
+        if debug:
+            plt.scatter(lcoords[:,1], lcoords[:,0], c=colors)
+            plt.savefig(f'{out_prefix}_section{sid:03d}_stretched.png')
 
         # load and remove the zero-alpha block
         img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
