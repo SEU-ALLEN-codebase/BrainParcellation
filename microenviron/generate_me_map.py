@@ -49,8 +49,11 @@ if __name__ == '__main__':
 # features selected by mRMR
 __MAP_FEATS__ = ('Length', 'AverageFragmentation', 'AverageContraction')
 
-def process_features(mefile, scale=25.):
-    df = pd.read_csv(mefile, index_col=0)
+def process_features(mefile, scale=25., with_comment=False):
+    if with_comment:
+        df = pd.read_csv(mefile, index_col=0, comment='#')
+    else:
+        df = pd.read_csv(mefile, index_col=0)
     df.drop(list(__MAP_FEATS__), axis=1, inplace=True)
 
     mapper = {}

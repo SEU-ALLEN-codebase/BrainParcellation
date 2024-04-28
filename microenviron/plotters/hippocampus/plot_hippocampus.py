@@ -47,13 +47,13 @@ from image_utils import crop_nonzero_mask
 
 sys.path.append('../..')
 from shape_normalize import stretching2d, map_to_longitudinal_space
-from generate_me_map import generate_me_maps, colorize_atlas2d_cv2
+from generate_me_map import process_mip, generate_me_maps, colorize_atlas2d_cv2
 
 # features selected by mRMR
 __MAP_FEATS__ = ('Length', 'AverageFragmentation', 'AverageContraction')
 
 
-def scatter_hist(x, y, colors, ax, ax_histx, ax_histy):
+def scatter_hist(x, y, colors, ax, ax_histx, ax_histy, xylims):
 
     def get_values(xy, cs, bins):
         bw = (xy.max() - xy.min()) / bins
@@ -75,7 +75,8 @@ def scatter_hist(x, y, colors, ax, ax_histx, ax_histy):
     # the scatter plot:
     xmin, xmax = x.min(), x.max()
     ax.scatter(x, y, c=colors, s=9)
-    ax.set_xlim(x.min(), x.max())
+    ax.set_xlim(*(xylims[0]))
+    ax.set_ylim(*(xylims[1]))
     ax.set_xlabel('Longitudinal distance (mm)')
 
     nbins = 15
@@ -163,7 +164,17 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         10704: ('orange', 'DG-po'),
         632: ('blue', 'DG-sg'),
     }
-    for sid in range(0, xmax-xmin-thickX2-1, thickX2*2):
+    lims = {
+        0: ((0,2.6), (-1,1)),
+        1: ((0,4.2), (-1,1.2)),
+        2: ((0,4.8), (-1,1.6)),
+        3: ((0,12.4), (-1, 1.2)),
+        4: ((0,11), (-1.5, 1.5)),
+        5: ((0,8), (-1.5, 1.6)),
+        6: ((0,6), (-1.5, 1))
+    }
+
+    for isid, sid in enumerate(range(0, xmax-xmin-thickX2-1, thickX2*2)):
         sid = sid + thickX2
         cur_memap = memap.copy()
         cur_memap[:,:,:sid-thickX2] = 0
@@ -177,28 +188,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
 
         section_mask = sub_mask[:,:,sid]
         
-        if 0:
-            # also save the mask
-            img_mask = np.zeros((*section_mask.shape, 4), dtype=np.uint8)
-            for rid, cname in cmap.items():
-                rgba = [int(c*255) for c in colors.to_rgba(cname[0])]
-                #import ipdb; ipdb.set_trace()
-                rgba[:3] = rgba[:3][::-1]
-                img_mask[section_mask == rid] = rgba
-            if axid != 0:
-                img_mask = cv2.rotate(img_mask, cv2.ROTATE_90_CLOCKWISE)
-            cv2.imwrite(f'mask_{figname}', img_mask)
-
-            # generate the color legend
-            xa = np.random.random((5))
-            xb = np.random.random((5))
-            for rid, rcolor in cmap.items():
-                plt.scatter(xa, xb, c=rcolor[0], label=rcolor[-1])
-            plt.legend(frameon=False, ncol=4, handletextpad=0.2)
-            plt.savefig('color_legend.png', dpi=300)
-            plt.close()
-
-
+        
         # principal axis for each section
         main_axis, pcoords = get_longest_skeleton(section_mask, is_3D=False, smoothing=True)
         # We would like to unify the definition of left right
@@ -219,8 +209,35 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         # get the coordinates and colors of the current section
         neuron_mask = cur_memap.sum(axis=-1) > 0
         coords = np.array(neuron_mask.nonzero()[:2]).transpose()
-        colors = cur_memap[neuron_mask] / 255.
+        me_colors = cur_memap[neuron_mask] / 255.
         lcoords = map_to_longitudinal_space(section_mask, pcoords, coords)
+        
+
+        if 1:
+            # also save the mask
+            img_mask = np.zeros((*section_mask.shape, 4), dtype=np.uint8)
+            for rid, cname in cmap.items():
+                rgba = [int(c*255) for c in colors.to_rgba(cname[0])]
+                #import ipdb; ipdb.set_trace()
+                rgba[:3] = rgba[:3][::-1]
+                img_mask[section_mask == rid] = rgba
+            # we would like to show the longitudinal path for each section
+            img_mask[main_axis] = (0,255,255,255)   # yellow
+
+            if axid != 0:
+                img_mask = cv2.rotate(img_mask, cv2.ROTATE_90_CLOCKWISE)
+            cv2.imwrite(f'mask_{figname}', img_mask)
+
+            # generate the color legend for mask
+            xa = np.random.random((5))
+            xb = np.random.random((5))
+            for rid, rcolor in cmap.items():
+                plt.scatter(xa, xb, c=rcolor[0], label=rcolor[-1])
+            plt.legend(frameon=False, ncol=4, handletextpad=0.2)
+            plt.savefig('color_legend.png', dpi=300)
+            plt.close()
+
+
         
         if debug:
             # Create a Figure, which doesn't have to be square.
@@ -241,7 +258,8 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
             # Draw the scatter plot and marginals.
             # transform the coordinates from pixel space to physical space
             lcoords *= 0.04 # in mm
-            scatter_hist(lcoords[:,1], lcoords[:,0], colors, ax, ax_histx, ax_histy)
+
+            scatter_hist(lcoords[:,1], lcoords[:,0], me_colors, ax, ax_histx, ax_histy, lims[isid])
             plt.savefig(f'{out_prefix}_section{sid:03d}_stretched.png', dpi=300)
             plt.close()
             

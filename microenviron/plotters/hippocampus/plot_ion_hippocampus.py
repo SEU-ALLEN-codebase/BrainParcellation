@@ -55,14 +55,6 @@ __MAP_FEATS__ = ('Length', 'AverageFragmentation', 'AverageContraction')
 
 def process_features(mefile, scale=25.):
     df = pd.read_csv(mefile, index_col=0)
-    df.drop(list(__MAP_FEATS__), axis=1, inplace=True)
-
-    mapper = {}
-    for mf in __MAP_FEATS__:
-        mapper[f'{mf}_me'] = mf
-    df.rename(columns=mapper, inplace=True)
-    # We would like to use tortuosity, which is  opposite of contraction
-    #df.loc[:, 'AverageContraction'] = 1 - df['AverageContraction']
 
     feat_names = [fn for fn in __MAP_FEATS__]
     # scaling the coordinates to CCFv3-25um space
@@ -339,7 +331,7 @@ def colorize_atlas2d_cv2(axid=2, sectionX=420, outscale=3, annot=False, fmt='svg
 
     return out
 
-def scatter_hist(x, y, colors, ax, ax_histx, ax_histy):
+def scatter_hist(x, y, colors, ax, ax_histx, ax_histy, xylims):
 
     def get_values(xy, cs, bins):
         bw = (xy.max() - xy.min()) / bins
@@ -361,7 +353,8 @@ def scatter_hist(x, y, colors, ax, ax_histx, ax_histy):
     # the scatter plot:
     xmin, xmax = x.min(), x.max()
     ax.scatter(x, y, c=colors, s=9)
-    ax.set_xlim(x.min(), x.max())
+    ax.set_xlim(*(xylims[0]))
+    ax.set_ylim(*(xylims[1]))
     ax.set_xlabel('Longitudinal distance (mm)')
 
     nbins = 15
@@ -384,13 +377,9 @@ def scatter_hist(x, y, colors, ax, ax_histx, ax_histy):
 
 def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10, debug=True):
     df = pd.read_csv(mefile, comment='#', index_col=0)
-    keys = [f'{key}_me' for key in __MAP_FEATS__]
-    if r316:
-        rkey = 'region_name_r316'
-        mask = load_image(MASK_CCF25_R314_FILE)
-    else:
-        rkey = 'region_name_r671'
-        mask = load_image(MASK_CCF25_FILE)
+    keys = [f'{key}' for key in __MAP_FEATS__]
+    rkey = 'region_name'
+    mask = load_image(MASK_CCF25_FILE)
     ana_tree = parse_ana_tree(keyname='name')
 
     if type(rname) is list:
@@ -449,7 +438,18 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         10704: ('orange', 'DG-po'),
         632: ('blue', 'DG-sg'),
     }
-    for sid in range(0, xmax-xmin-thickX2-1, thickX2*2):
+    
+    lims = {
+        0: ((0,2.6), (-1,1)),
+        1: ((0,4.2), (-1,1.2)),
+        2: ((0,4.8), (-1,1.6)),
+        3: ((0,12.4), (-1, 1.2)),
+        4: ((0,11), (-1.5, 1.5)),
+        5: ((0,8), (-1.5, 1.6)),
+        6: ((0,6), (-1.5, 1))
+    }
+
+    for isid, sid in enumerate(range(0, xmax-xmin-thickX2-1, thickX2*2)):
         sid = sid + thickX2
         cur_memap = memap.copy()
         cur_memap[:,:,:sid-thickX2] = 0
@@ -458,7 +458,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
 
         mip = get_mip_image(cur_memap, axid)
         
-        figname = f'{out_prefix}_section{sid:03d}.png'
+        figname = f'{out_prefix}_section{sid:03d}_ion.png'
         process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5, b_scale=0.5)
 
         section_mask = sub_mask[:,:,sid]
@@ -505,7 +505,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         # get the coordinates and colors of the current section
         neuron_mask = cur_memap.sum(axis=-1) > 0
         coords = np.array(neuron_mask.nonzero()[:2]).transpose()
-        colors = cur_memap[neuron_mask] / 255.
+        me_colors = cur_memap[neuron_mask] / 255.
         lcoords = map_to_longitudinal_space(section_mask, pcoords, coords)
         
         if debug:
@@ -527,7 +527,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
             # Draw the scatter plot and marginals.
             # transform the coordinates from pixel space to physical space
             lcoords *= 0.04 # in mm
-            scatter_hist(lcoords[:,1], lcoords[:,0], colors, ax, ax_histx, ax_histy)
+            scatter_hist(lcoords[:,1], lcoords[:,0], me_colors, ax, ax_histx, ax_histy, lims[isid])
             plt.savefig(f'{out_prefix}_section{sid:03d}_stretched.png', dpi=300)
             plt.close()
             
@@ -551,7 +551,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
     
 
 if __name__ == '__main__':
-    mefile = './ION_HIP/gf_ion_hip.csv'
+    mefile = './ION_HIP/lm_features_d28.csv'
     mapfile = 'ion_local'
     scale = 25.
     flip_to_left = True
@@ -560,15 +560,9 @@ if __name__ == '__main__':
     findex = 0
     fmt = 'png'
 
-    if 0:
-        generate_me_maps(mefile, outfile=mapfile, flip_to_left=flip_to_left, mode=mode, findex=findex, fmt=fmt, axids=axids)
 
-    if 0:
-        for sectionX in range(20, 528, 40):
-            colorize_atlas2d_cv2(annot=True, fmt=fmt, sectionX=sectionX)
 
     if 1:
-        mefile = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
         swcdir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/cropped_100um/'
 
         #rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
