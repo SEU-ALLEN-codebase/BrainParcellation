@@ -334,7 +334,7 @@ def colorize_atlas2d_cv2(axid=2, sectionX=420, outscale=3, annot=False, fmt='svg
     return out
 
 def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=True, savefig=True, elev=30, azim=-60):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     keys = [f'{key}_me' for key in __MAP_FEATS__]
     if r316:
         rkey = 'region_name_r316'
@@ -402,7 +402,7 @@ def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=Tru
         plt.show()
 
 def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10, axid=2):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     keys = [f'{key}_me' for key in __MAP_FEATS__]
     if r316:
         rkey = 'region_name_r316'

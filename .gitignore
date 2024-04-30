@@ -13,7 +13,7 @@ microenviron/plotters/ds*csv
 microenviron/plotters/CP_single_morphologies/*csv
 microenviron/plotters/CP_single_morphologies/*/
 microenviron/*png
-microenviron/plotters/feature_separability/
+microenviron/plotters/feature_separability/*png
 microenviron/plotters/data/
 */**/*.swp
 */**/vis/

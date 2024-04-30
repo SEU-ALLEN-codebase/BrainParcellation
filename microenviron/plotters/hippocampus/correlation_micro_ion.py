@@ -44,7 +44,7 @@ norm_type = 'normalize'
 pairing_dist = 3 # in 25um space
 
 # Load the neurons
-df_me, keys = process_features_me(me_file, with_comment=True)
+df_me, keys = process_features_me(me_file, with_comment=False)
 df_ion, _ = process_features_ion(ion_file)
 
 # extract only neurons in target regions

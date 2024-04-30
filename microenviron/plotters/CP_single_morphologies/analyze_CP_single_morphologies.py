@@ -241,7 +241,7 @@ def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,),
     return mips
 
 def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, flipLR=True, thickX2=10, step=20, feat_names=None):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     if feat_names is None:
         feat_names = __MAP_FEATS__
 

@@ -376,7 +376,7 @@ def scatter_hist(x, y, colors, ax, ax_histx, ax_histy, xylims):
 
 
 def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10, debug=True):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     keys = [f'{key}' for key in __MAP_FEATS__]
     rkey = 'region_name'
     mask = load_image(MASK_CCF25_FILE)

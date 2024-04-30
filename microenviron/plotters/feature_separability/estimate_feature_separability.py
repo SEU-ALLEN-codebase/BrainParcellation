@@ -32,7 +32,7 @@ def cortical_separability(mefile, regions, sname, disp_type, cnt_thres=20):
 
     t0 = time.time()
     # load the microenvironment features and their affiliated meta informations
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     dfc = df[df.region_name_r671.isin(sregions)]
 
     rnames, rcnts = np.unique(dfc.region_name_r671, return_counts=True)
@@ -95,7 +95,7 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
 
     # helper functions
     def dsmatrix(mefile, ds_file1, ds_file2, cnt_thres, feat_names, metric):
-        df = pd.read_csv(mefile, comment='#', index_col=0)
+        df = pd.read_csv(mefile, index_col=0)
         na_mask = df.region_name_r671.isna()
         # get the salient regions
         ana_tree = parse_ana_tree(keyname='id')
@@ -236,7 +236,7 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
     
 
     # plot the correlation between distance and similarity
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     tmp = df[feat_names].copy()
     tmp = (tmp - tmp.mean()) / tmp.std()
     dfc = df.copy()
@@ -326,7 +326,7 @@ def analyze_dsmatrix_vs_parcellations(dsmean_file, parc_file, atlas_file=None):
 
 
 if __name__ == '__main__':
-    mefile = '../data/mefeatures_100K_with_PCAfeatures3.csv'
+    mefile = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
 
     if 0:
         region_dict = {
@@ -351,13 +351,13 @@ if __name__ == '__main__':
         regions = ['SSp-n']
         cortical_separability(mefile, regions, sname='r671', disp_type='r671')
 
-    if 0:
+    if 1:
         metric = 'euclidean'
         ds_file1 = f'dsmean_{metric}.csv'
         ds_file2 = f'dsstd_{metric}.csv'
         dsmatrix_of_all(mefile, ds_file1, ds_file2, metric=metric)
 
-    if 1:
+    if 0:
         dsmean_file = 'dsmean_euclidean.csv'
         parc_file = '../intermediate_data/parc_r671_full.nrrd'
         analyze_dsmatrix_vs_parcellations(dsmean_file, parc_file)

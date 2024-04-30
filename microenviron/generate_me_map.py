@@ -40,10 +40,12 @@ from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE, ANATOM
 from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_outline, \
                                 get_brain_mask2d, get_section_boundary, detect_edges2d
 from anatomy.anatomy_core import parse_ana_tree
+from plotters.neurite_arbors import NeuriteArbors
 
 if __name__ == '__main__':
-    sys.path.append('../../../full-spectrum/neurite_arbors')
-    from neurite_arbors import NeuriteArbors
+    # customize the fonts
+    plt.rcParams['font.family'] = 'Helvetica'
+    plt.rcParams['font.weight'] = 'light'
 
 
 # features selected by mRMR
@@ -341,7 +343,7 @@ def colorize_atlas2d_cv2(axid=2, sectionX=420, outscale=3, annot=False, fmt='svg
 
 def find_regional_representative(mefile, region='IC', swcdir='', color='magenta'):
     random.seed(1024)
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     keys = [f'{key}_me' for key in __MAP_FEATS__]
     #import ipdb; ipdb.set_trace()
     tmp = df[keys]
@@ -373,7 +375,7 @@ def find_regional_representative(mefile, region='IC', swcdir='', color='magenta'
             na.plot_morph_mip(type_id=None, color=color, figname=out_name, out_dir='.', show_name=False)
 
 def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     keys = ['region_name_r316'] + [f'{key}_me' for key in __MAP_FEATS__]
     dfr = df[keys][df['region_name_r316'].isin(regions)]
     # axes instance
@@ -390,13 +392,14 @@ def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
 
     label_size = 22
     ax.set_xlabel('Straightness', fontsize=label_size, labelpad=10)
-    ax.set_ylabel('Fragmentation', fontsize=label_size)
+    ax.set_ylabel('Fragmentation', fontsize=label_size, labelpad=8)
     ax.set_zlabel('Total Length (mm)', fontsize=label_size, labelpad=10)
 
     ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.set_xticks([0.76,0.8,0.84,0.88,0.92,0.96])
 
     # legend
-    plt.legend(bbox_to_anchor=(0.6,0.6), fontsize=label_size, markerscale=3., handletextpad=0.2)
+    plt.legend(bbox_to_anchor=(0.6,0.6), fontsize=label_size, markerscale=3., handletextpad=0.2, frameon=False)
     fig.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
             hspace = 0, wspace = 0)
     ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
@@ -404,11 +407,11 @@ def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
     ax.grid(False)
     #ax.view_init(30, 75)
     # save
-    plt.savefig("IC_SIM_features.png", bbox_inches='tight')
+    plt.savefig("IC_SIM_features.png", bbox_inches='tight', dpi=300)
     plt.close()
 
 def plot_MOB_features(mefile, rname='MOB', r316=False):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     keys = [f'{key}_me' for key in __MAP_FEATS__]
     if r316:
         rkey = 'region_name_r316'
@@ -465,7 +468,7 @@ def plot_MOB_features(mefile, rname='MOB', r316=False):
     plt.close()
 
 def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=True):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     keys = [f'{key}_me' for key in __MAP_FEATS__]
     if r316:
         rkey = 'region_name_r316'
@@ -524,7 +527,7 @@ def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=Tru
     plt.close()
 
 def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10):
-    df = pd.read_csv(mefile, comment='#', index_col=0)
+    df = pd.read_csv(mefile, index_col=0)
     keys = [f'{key}_me' for key in __MAP_FEATS__]
     if r316:
         rkey = 'region_name_r316'
@@ -668,19 +671,19 @@ if __name__ == '__main__':
     if 1:
         mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
         swcdir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/cropped_100um/'
-        region = 'SIM'
+        region = 'IC'
         if region == 'IC':
             color = 'black' #'magenta'
         elif region == 'SIM':
             color = 'black' #'cyan'
 
-        #find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
+        find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
         #plot_inter_regional_features(mefile)
         rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
         #rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
         #plot_MOB_features(mefile, rname)
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
-        plot_region_feature_sections(mefile, 'CA1')
+        #plot_region_feature_sections(mefile, 'CA1')
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'
