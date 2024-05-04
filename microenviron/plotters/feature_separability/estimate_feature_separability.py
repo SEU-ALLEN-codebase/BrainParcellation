@@ -14,10 +14,13 @@ import time
 import random
 from sklearn.metrics import pairwise_distances
 from scipy.spatial.distance import pdist
+from scipy import stats
 
 from file_io import load_image
 from anatomy.anatomy_config import SALIENT_REGIONS, REGION314, MASK_CCF25_FILE
 from anatomy.anatomy_core import parse_ana_tree
+from math_utils import get_exponent_and_mantissa
+
 
 
 def cortical_separability(mefile, regions, sname, disp_type, cnt_thres=20):
@@ -179,123 +182,135 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
     }
     
 
-    keepr = []
-    ana_tree_n = parse_ana_tree(keyname='name')
-    struct_ids = bstructs.keys()
-    for region in d1.index:
-        id_path = ana_tree_n[region]['structure_id_path']
-        sid = get_struct(id_path, struct_ids)
-        if sid == 0:
-            keepr.append('')
-        else:
-            keepr.append(bstructs[sid])
-    keepr = np.array(keepr)
-    keepr_nz = (keepr!='').nonzero()[0]
-    keepr = keepr[keepr_nz]
-    d1 = d1.iloc[keepr_nz, keepr_nz]
-    d2 = d2.iloc[keepr_nz, keepr_nz]
+    if 1:
+        keepr = []
+        ana_tree_n = parse_ana_tree(keyname='name')
+        struct_ids = bstructs.keys()
+        for region in d1.index:
+            id_path = ana_tree_n[region]['structure_id_path']
+            sid = get_struct(id_path, struct_ids)
+            if sid == 0:
+                keepr.append('')
+            else:
+                keepr.append(bstructs[sid])
+        keepr = np.array(keepr)
+        keepr_nz = (keepr!='').nonzero()[0]
+        keepr = keepr[keepr_nz]
+        d1 = d1.iloc[keepr_nz, keepr_nz]
+        d2 = d2.iloc[keepr_nz, keepr_nz]
 
-    keepr_s = pd.Series(keepr, name='structure')
-    lut = dict(zip(np.unique(keepr_s), sns.hls_palette(len(np.unique(keepr_s)), l=0.5, s=0.8)))
-    col_colors = keepr_s.map(lut)
+        keepr_s = pd.Series(keepr, name='structure')
+        lut = dict(zip(np.unique(keepr_s), sns.hls_palette(len(np.unique(keepr_s)), l=0.5, s=0.8)))
+        col_colors = keepr_s.map(lut)
 
-    if metric == 'cosine':
-        vmin, vmax = 0, 1
-    elif metric == 'euclidean':
-        vmin, vmax = 1, 4
-    g = sns.clustermap(d1.reset_index(drop=True), cmap='hot_r', row_colors=col_colors, 
-                       vmin=vmin, vmax=vmax, metric='euclidean') 
-    for label in np.unique(keepr_s):
-        g.ax_col_dendrogram.bar(0, 0, color=lut[label],
-                                label=label, linewidth=0)
-    g.ax_col_dendrogram.legend(loc="center", ncol=2)
-    reordered_ind = g.dendrogram_col.reordered_ind
-    
-    plt.savefig('tmp.png')
-    plt.close()
+        '''
+        if metric == 'cosine':
+            vmin, vmax = 0, 1
+        elif metric == 'euclidean':
+            vmin, vmax = 1, 4
+        g = sns.clustermap(d1.reset_index(drop=True), cmap='hot_r', row_colors=col_colors, 
+                           vmin=vmin, vmax=vmax, metric='euclidean') 
+        for label in np.unique(keepr_s):
+            g.ax_col_dendrogram.bar(0, 0, color=lut[label],
+                                    label=label, linewidth=0)
+        g.ax_col_dendrogram.legend(loc="center", ncol=2)
+        reordered_ind = g.dendrogram_col.reordered_ind
+        
+        plt.savefig('tmp.png')
+        plt.close()
+        '''
+
+        sns.set_theme(style='ticks', font_scale=1.7)
+        # mean vs std
+        m_intra = np.diagonal(d1).astype(float)
+        s_intra = np.diagonal(d2).astype(float)
+        smr = s_intra / m_intra
+        df_mss = pd.DataFrame(np.array([m_intra, s_intra, smr, keepr]).transpose(), columns=('mean', 'std', 'sm ratio', 'struct')).astype({'mean': float, 'std': float, 'sm ratio': float, 'struct': str})
+        g1 = sns.lmplot(data=df_mss, x='mean', y='std', scatter_kws={'color': 'black'},
+                   line_kws={'color': 'red'})
+        r, p = stats.pearsonr(df_mss['mean'], df_mss['std'])
+        ax_g1 = plt.gca()
+        ax_g1.text(0.55, 0.16, r'$R={:.2f}$'.format(r), transform=ax_g1.transAxes)
+        e, m = get_exponent_and_mantissa(p)
+        ax_g1.text(0.55, 0.08, r'$P={%.1f}x10^{%d}$' % (m, e),
+                transform=ax_g1.transAxes)
+        plt.savefig('regional_mean_vs_std.png', dpi=300)
+        plt.close()
+
+        sns.boxplot(data=df_mss, x='struct', y='sm ratio')
+        plt.savefig('regional_CV.png', dpi=300)
+        plt.close()
+
+        sns.boxplot(data=df_mss, x='struct', y='std')
+        plt.savefig('regional_std.png', dpi=300)
+        plt.close()
+
+
 
     #---- Section 2: interareal similarity
-    d1c = d1.copy()
-    d1c.columns = keepr_s
-    d1c.index = keepr_s
-    # in case no area found
-    #import ipdb; ipdb.set_trace()
-    bst = np.unique(d1c.index)
-    interareal = np.zeros((len(bst), len(bst)))
-    for si, s1 in enumerate(bst):
-        for sj in range(si, len(bst)):
-            s2 = bst[sj]
-            vs = d1c.loc[s1, s2].values.mean()
-            interareal[si, sj] = vs
-            interareal[sj, si] = vs
-    dfi = pd.DataFrame(interareal, index=bst, columns=bst)
-    #sns.heatmap(dfi, cmap='afmhot')
-    sns.clustermap(dfi)
-    plt.savefig('tmp2.png')
-    plt.close()
-    
+    if 0:
+        # plot the correlation between distance and similarity
+        df = pd.read_csv(mefile, index_col=0)
+        tmp = df[feat_names].copy()
+        tmp = (tmp - tmp.mean()) / tmp.std()
+        dfc = df.copy()
+        dfc[feat_names] = tmp
+        nsel = 10000
+        sel_ids = random.sample(range(dfc.shape[0]), nsel)
+        df_sel = dfc.iloc[sel_ids]
+        pdists = pdist(df_sel[feat_names])
+        cdists = pdist(df_sel[['soma_x', 'soma_y', 'soma_z']]/1000.)
+        ## for debug
+        cm = cdists < 1
+        pdists = pdists[cm]
+        cdists = cdists[cm]
+        #
+        nsel2 = 50000 
+        sel_ids2 = random.sample(range(pdists.shape[0]), nsel2)
+        cdists_sel = cdists[sel_ids2]
+        pdists_sel = pdists[sel_ids2]
+        dfpd = pd.DataFrame(np.array([cdists_sel, pdists_sel]).transpose(), columns=['cdist', 'pdist'])
+        sns.kdeplot(data=dfpd, x='cdist', y='pdist', fill=True, levels=500, thresh=0.005)
+        stride = 0.05
 
-    # plot the correlation between distance and similarity
-    df = pd.read_csv(mefile, index_col=0)
-    tmp = df[feat_names].copy()
-    tmp = (tmp - tmp.mean()) / tmp.std()
-    dfc = df.copy()
-    dfc[feat_names] = tmp
-    nsel = 5000
-    sel_ids = random.sample(range(dfc.shape[0]), nsel)
-    df_sel = dfc.iloc[sel_ids]
-    pdists = pdist(df_sel[feat_names])
-    cdists = pdist(df_sel[['soma_x', 'soma_y', 'soma_z']]/1000.)
-    ## for debug
-    cm = cdists < 1
-    pdists = pdists[cm]
-    cdists = cdists[cm]
-    #
-    nsel2 = 20000 
-    sel_ids2 = random.sample(range(pdists.shape[0]), nsel2)
-    cdists_sel = cdists[sel_ids2]
-    pdists_sel = pdists[sel_ids2]
-    sns.scatterplot(x=cdists_sel, y=pdists_sel, marker='.')
-    stride = 0.05
-
-    p75s = []
-    for cs1 in np.arange(0, 1., stride):
-        cs2 = cs1 + stride
-        csm = (cdists_sel > cs1) & (cdists_sel <= cs2)
-        pts = pdists_sel[csm]
-        p75s.append(np.percentile(pts, 50))
-    #import ipdb; ipdb.set_trace()
-    plt.plot(np.arange(0, 1, stride)+stride//2, p75s, 'o-r')
-    
-    plt.savefig('tmp3.png')
-    plt.close()
+        p75s = []
+        for cs1 in np.arange(0, 1., stride):
+            cs2 = cs1 + stride
+            csm = (cdists_sel > cs1) & (cdists_sel <= cs2)
+            pts = pdists_sel[csm]
+            p75s.append(np.percentile(pts, 50))
+        #import ipdb; ipdb.set_trace()
+        plt.plot(np.arange(0, 1, stride)+stride//2, p75s, 'o-r')
+        
+        plt.savefig('tmp3.png')
+        plt.close()
 
 
     # ------ Section 4: comparison between ds_inter and ds_intra ------- #
-    ds_intra = np.diagonal(d1)
-    ds_inter = d1.values[np.triu_indices_from(d1, k=1)]
-    sns.kdeplot(ds_inter, label='inter-region', alpha=0.5, color='orange', fill=True)
-    sns.kdeplot(ds_intra, label='intra-region', alpha=0.5, color='blue', fill=True)
+    if 0:
+        ds_intra = np.diagonal(d1)
+        ds_inter = d1.values[np.triu_indices_from(d1, k=1)]
+        sns.kdeplot(ds_inter, label='inter-region', alpha=0.5, color='orange', fill=True)
+        sns.kdeplot(ds_intra, label='intra-region', alpha=0.5, color='blue', fill=True)
 
-    fig = plt.gcf()
-    fig.set_size_inches(6,6)
-    ax = plt.gca()
-    __LABEL_FONTS__ = 18
+        fig = plt.gcf()
+        fig.set_size_inches(6,6)
+        ax = plt.gca()
+        __LABEL_FONTS__ = 18
 
-    plt.xlabel(f'Distance in standardized feature space', fontsize=__LABEL_FONTS__)
-    plt.ylabel(f'Density', fontsize=__LABEL_FONTS__)
-    ax.spines['left'].set_linewidth(2)
-    ax.spines['bottom'].set_linewidth(2)
-    ax.spines['right'].set_linewidth(2)
-    ax.spines['top'].set_linewidth(2)
-    ax.xaxis.set_tick_params(width=2, direction='in', labelsize=__LABEL_FONTS__ - 4)
-    ax.yaxis.set_tick_params(width=2, direction='in', labelsize=__LABEL_FONTS__ - 4)
-    plt.legend(loc='upper right', frameon=False, fontsize=__LABEL_FONTS__)
-    plt.savefig('tmp4.png', dpi=300)
-    plt.close()
+        plt.xlabel(f'Distance in standardized feature space', fontsize=__LABEL_FONTS__)
+        plt.ylabel(f'Density', fontsize=__LABEL_FONTS__)
+        ax.spines['left'].set_linewidth(2)
+        ax.spines['bottom'].set_linewidth(2)
+        ax.spines['right'].set_linewidth(2)
+        ax.spines['top'].set_linewidth(2)
+        ax.xaxis.set_tick_params(width=2, direction='in', labelsize=__LABEL_FONTS__ - 4)
+        ax.yaxis.set_tick_params(width=2, direction='in', labelsize=__LABEL_FONTS__ - 4)
+        plt.legend(loc='upper right', frameon=False, fontsize=__LABEL_FONTS__)
+        plt.savefig('tmp4.png', dpi=300)
+        plt.close()
 
 
-    
 def analyze_dsmatrix_vs_parcellations(dsmean_file, parc_file, atlas_file=None):
     # load the ds matrix
     dsmean = pd.read_csv(dsmean_file, index_col=0)
