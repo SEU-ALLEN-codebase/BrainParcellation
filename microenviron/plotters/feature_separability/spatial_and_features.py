@@ -195,14 +195,22 @@ def spatial_randomness(feat_file):
 
         if len(ratios) % 10 == 0:
             print(irid)
+            #break
 
-    fig = plt.figure(figsize=(3,6))
-    sns.set_theme(style='ticks', font_scale=1.7)
+    fig = plt.figure(figsize=(6,6))
+    sns.set_theme(style='ticks', font_scale=2.1)
     dfr = pd.DataFrame(ratios, columns=['ratio'])
-    sns.boxplot(y=dfr['ratio'], fill=False, width=0.1, color='black')
-    plt.subplots_adjust(left=0.35)
-    plt.xticks([])
-    plt.ylabel('Randomness index')
+    sns.histplot(x=dfr['ratio'], fill=True, color='mediumpurple', bins=50)
+    plt.xlim(0, dfr['ratio'].max())
+    plt.xticks([0,1,2,3,4,5,6])
+    plt.xlabel('Spatial randomness')
+    ax = plt.gca()
+    lw = 2.5
+    ax.spines['left'].set_linewidth(lw)
+    ax.spines['bottom'].set_linewidth(lw)
+    ax.spines['right'].set_linewidth(lw)
+    ax.spines['top'].set_linewidth(lw)
+    plt.subplots_adjust(left=0.15, bottom=0.15)
     plt.savefig('non_randomness.png', dpi=300); plt.close()
 
 

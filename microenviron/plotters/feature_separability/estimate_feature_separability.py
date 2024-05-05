@@ -182,7 +182,7 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
     }
     
 
-    if 1:
+    if 0:
         keepr = []
         ana_tree_n = parse_ana_tree(keyname='name')
         struct_ids = bstructs.keys()
@@ -226,8 +226,9 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
         s_intra = np.diagonal(d2).astype(float)
         smr = s_intra / m_intra
         df_mss = pd.DataFrame(np.array([m_intra, s_intra, smr, keepr]).transpose(), columns=('mean', 'std', 'sm ratio', 'struct')).astype({'mean': float, 'std': float, 'sm ratio': float, 'struct': str})
-        g1 = sns.lmplot(data=df_mss, x='mean', y='std', scatter_kws={'color': 'black'},
-                   line_kws={'color': 'red'})
+        g1 = sns.lmplot(data=df_mss, x='mean', y='std', 
+                        scatter_kws={'color': 'black', 's': 12, 'alpha': 0.7},
+                        line_kws={'color': 'red'})
         r, p = stats.pearsonr(df_mss['mean'], df_mss['std'])
         ax_g1 = plt.gca()
         ax_g1.text(0.55, 0.16, r'$R={:.2f}$'.format(r), transform=ax_g1.transAxes)
@@ -237,7 +238,13 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
         plt.savefig('regional_mean_vs_std.png', dpi=300)
         plt.close()
 
-        sns.boxplot(data=df_mss, x='struct', y='sm ratio')
+        g2 = sns.boxplot(data=df_mss, x='struct', y='sm ratio', width=0.35, color='black', 
+                         fill=False, order=sorted(keepr))
+        plt.ylabel('Coefficient of Variance')
+        plt.xlabel('Brain area')
+        # rotate xticks
+        plt.xticks(rotation=45, rotation_mode='anchor', ha='right', va='top')
+        plt.subplots_adjust(left=0.15, bottom=0.3)
         plt.savefig('regional_CV.png', dpi=300)
         plt.close()
 
@@ -287,27 +294,67 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
 
 
     # ------ Section 4: comparison between ds_inter and ds_intra ------- #
-    if 0:
+    if 1:
+        from scipy.stats import ranksums
+
+        # Function to convert p-value to stars
+        def p_value_to_stars(p):
+            if p < 0.001:
+                return '***'
+            elif p < 0.01:
+                return '**'
+            elif p < 0.05:
+                return '*'
+            else:
+                return 'n.s.'  # not significant
+
         ds_intra = np.diagonal(d1)
         ds_inter = d1.values[np.triu_indices_from(d1, k=1)]
-        sns.kdeplot(ds_inter, label='inter-region', alpha=0.5, color='orange', fill=True)
-        sns.kdeplot(ds_intra, label='intra-region', alpha=0.5, color='blue', fill=True)
+        #sns.kdeplot(ds_inter, label='inter-region', alpha=0.5, color='orange', fill=True)
+        #sns.kdeplot(ds_intra, label='intra-region', alpha=0.5, color='blue', fill=True)
+        # Create a DataFrame
+        df_ds = pd.DataFrame({
+            "Values": np.hstack((ds_intra, ds_inter)),
+            "Category": ['Intra-region'] * len(ds_intra) + ['Inter-region'] * len(ds_inter)
+        })
+
+        g2 = sns.boxplot(data=df_ds, x='Category', y='Values', width=0.2, color='black',
+                         fill=False)
+        # Annotate test results
+        # Perform the Wilcoxon Rank Sum Test
+        stat, p_value = ranksums(ds_intra, ds_inter)
+        
+        y_max = df_ds['Values'].max()  # Adjust spacing for the annotation
+
+        # Drawing a line between categories
+        x_values = [0, 1]  # Adjust these based on the number of categories
+        line_height = y_max + 0.2  # Adjust the line height as needed
+        plt.plot(x_values, [line_height] * 2, 'k-')  # 'k-' is for black solid line
+        
+        # Annotate the plot with the significance level as stars
+        stars = p_value_to_stars(p_value)   # two-sided Wilcoxon rank sum test
+        print(f'p_value={p_value}')
+        e, m = get_exponent_and_mantissa(p_value)
+        plt.annotate(stars + r'$ (p={%.1f}x10^{%d})$' % (m, e), xy=(0.5, 0.995), xycoords='axes fraction', 
+                     ha='center', va='top', fontsize=12, color='black')
+        plt.xlim(-0.5, 1.5)
 
         fig = plt.gcf()
         fig.set_size_inches(6,6)
         ax = plt.gca()
-        __LABEL_FONTS__ = 18
+        __LABEL_FONTS__ = 25
 
-        plt.xlabel(f'Distance in standardized feature space', fontsize=__LABEL_FONTS__)
-        plt.ylabel(f'Density', fontsize=__LABEL_FONTS__)
-        ax.spines['left'].set_linewidth(2)
-        ax.spines['bottom'].set_linewidth(2)
-        ax.spines['right'].set_linewidth(2)
-        ax.spines['top'].set_linewidth(2)
-        ax.xaxis.set_tick_params(width=2, direction='in', labelsize=__LABEL_FONTS__ - 4)
-        ax.yaxis.set_tick_params(width=2, direction='in', labelsize=__LABEL_FONTS__ - 4)
+        plt.xlabel(f'', fontsize=__LABEL_FONTS__)
+        plt.ylabel(f'Distance of feature', fontsize=__LABEL_FONTS__)
+        lw = 2
+        ax.spines['left'].set_linewidth(lw)
+        ax.spines['bottom'].set_linewidth(lw)
+        ax.spines['right'].set_linewidth(lw)
+        ax.spines['top'].set_linewidth(lw)
+        ax.xaxis.set_tick_params(width=lw, direction='in', labelsize=__LABEL_FONTS__ - 4)
+        ax.yaxis.set_tick_params(width=lw, direction='in', labelsize=__LABEL_FONTS__ - 4)
         plt.legend(loc='upper right', frameon=False, fontsize=__LABEL_FONTS__)
-        plt.savefig('tmp4.png', dpi=300)
+        plt.savefig('inter-and-intra-region_distance.png', dpi=300)
         plt.close()
 
 
