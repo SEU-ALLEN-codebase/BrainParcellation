@@ -197,6 +197,9 @@ def spatial_randomness(feat_file):
             print(irid)
             #break
 
+    ratios = np.array(ratios)
+    print(f'Average and mean ratio: {ratios.mean()}, {np.median(ratios)}')
+
     fig = plt.figure(figsize=(6,6))
     sns.set_theme(style='ticks', font_scale=2.1)
     dfr = pd.DataFrame(ratios, columns=['ratio'])

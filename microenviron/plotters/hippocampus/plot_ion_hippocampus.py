@@ -397,6 +397,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         out_prefix = rname
 
     dfr = df[keys][sel_mask]
+    #print(dfr.shape); sys.exit()
     coords = df[['soma_x', 'soma_y', 'soma_z']][sel_mask].values / 1000
     if flipLR:
         zdim = 456

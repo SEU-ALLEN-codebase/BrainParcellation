@@ -299,7 +299,9 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
 
         # Function to convert p-value to stars
         def p_value_to_stars(p):
-            if p < 0.001:
+            if p < 0.0001:
+                return '****'
+            elif p < 0.001:
                 return '***'
             elif p < 0.01:
                 return '**'
@@ -310,8 +312,7 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
 
         ds_intra = np.diagonal(d1)
         ds_inter = d1.values[np.triu_indices_from(d1, k=1)]
-        #sns.kdeplot(ds_inter, label='inter-region', alpha=0.5, color='orange', fill=True)
-        #sns.kdeplot(ds_intra, label='intra-region', alpha=0.5, color='blue', fill=True)
+        print(ds_intra.mean(), ds_inter.mean())
         # Create a DataFrame
         df_ds = pd.DataFrame({
             "Values": np.hstack((ds_intra, ds_inter)),
@@ -319,7 +320,7 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
         })
 
         g2 = sns.boxplot(data=df_ds, x='Category', y='Values', width=0.2, color='black',
-                         fill=False)
+                         fill=False, order=['Inter-region', 'Intra-region'])
         # Annotate test results
         # Perform the Wilcoxon Rank Sum Test
         stat, p_value = ranksums(ds_intra, ds_inter)
