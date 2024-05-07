@@ -24,6 +24,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import cv2
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
 
 from swc_handler import parse_swc, write_swc, get_specific_neurite
 from image_utils import get_mip_image, image_histeq
@@ -269,6 +270,7 @@ def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, f
         out_prefix = rname
 
     dfr = df[keys][sel_mask]
+    #print(dfr.shape); sys.exit()
     coords = df[['soma_x', 'soma_y', 'soma_z']][sel_mask].values / 1000
     if flipLR:
         zdim = 456
@@ -386,14 +388,22 @@ def estimate_similarity(parc_file, gf_file, is_axon=True):
     df = pd.DataFrame(reg_values, columns=['Similarity'])
     df['Parc1'] = cols[:,0]
     df['Parc2'] = cols[:,1]
-    sns.set_theme(style="ticks", font_scale=1.4)
+    # to make sure the unique size legend for local and axon
+    in_mask1 = (df['Similarity'] < 0)
+    in_mask2 = (df['Similarity'] > 0.8)
+    df.loc[np.nonzero(in_mask1)[0], 'Similarity'] = 0
+    df.loc[np.nonzero(in_mask2)[0], 'Similarity'] = 0.8
+    sns.set_theme(style="ticks", font_scale=1.6)
     g = sns.relplot(df, x='Parc1', y='Parc2', hue='Similarity', 
                 size='Similarity', palette="afmhot_r", edgecolor="1.",
-                sizes=(0, 200), size_norm=(0, 0.6), hue_norm=(0, 0.6))
+                sizes=(0, 200), size_norm=(0, 1.), hue_norm=(0, 1.))
     g.set(xlabel="Sub-region", ylabel="Sub-region", aspect="equal")
     g.set(xticks=list(range(len(rs))), yticks=list(range(len(rs))))
     for label in g.ax.get_xticklabels():
         label.set_rotation(90)
+
+    # configuring the legend
+    
     
     if is_axon:
         figname = 'parc_vs_axon.png'
@@ -427,7 +437,7 @@ def local_to_axon_manual(local_file, axon_file):
     col1, col2 = 'Local', 'Axon'
     df = pd.DataFrame(df, columns=[col1, col2, 'Feature'])
     
-    sns.set_theme(style="ticks", font_scale=1.7)
+    sns.set_theme(style="ticks", font_scale=1.9)
     g = sns.lmplot(data=df, x=col1, y=col2, col='Feature',
                    facet_kws={'sharex': False, 'sharey': False},
                    scatter_kws={'color': 'black'}, 
@@ -437,15 +447,21 @@ def local_to_axon_manual(local_file, axon_file):
     def annotate(data, **kws):
         gg = data['Feature'].unique()[0]
 
+        # annotate the line fitting stats
         r, p = stats.pearsonr(data[col1], data[col2])
         ax = plt.gca()
-        ax.text(0.65, 0.16, r'$R={:.2f}$'.format(r),
+        ax.text(0.55, 0.16, r'$R={:.2f}$'.format(r),
                 transform=ax.transAxes)
         e, m = get_exponent_and_mantissa(p)
-        ax.text(0.65, 0.06, r'$P={%.1f}x10^{%d}$' % (m, e),
+        ax.text(0.55, 0.06, r'$P={%.1f}x10^{%d}$' % (m, e),
                 transform=ax.transAxes)
 
+        # Title
+        if gg.startswith('Average'):
+            gg = gg.replace('Average', 'Avg')
         ax.set_title(gg)
+        if gg == 'AvgBifurcationAngleRemote':
+            ax.set_xlabel('Local (degree)')
 
     g.map_dataframe(annotate)
     plt.savefig('local_axon_features_cp.png', dpi=300)
