@@ -536,7 +536,7 @@ def comp_parc_and_ptype(parc_file, meta_file):
             color = link_colors
     ))])
 
-    fig.update_layout(title_text="", font_size=14)
+    fig.update_layout(title_text="", font_size=16)
     fig.write_image('parc_vs_ptypes.png')
 
     print()
