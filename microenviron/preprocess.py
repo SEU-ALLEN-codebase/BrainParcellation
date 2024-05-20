@@ -84,8 +84,8 @@ def aggregate_information(swc_dir, gf_file, reg_file, soma_file, outfile):
 
 
 if __name__ == '__main__':
-    swc_dir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/cropped_100um/'
-    gf_file = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/analysis/gf_179k_crop.csv'
+    swc_dir = '/data/lyf/data/200k_v2/cropped_100um_resampled2um'
+    gf_file = 'data/gf_179k_crop_resampled.csv'
     reg_file = '../evaluation/data/179k_soma_region.csv'
     soma_file = '../evaluation/data/179k_somalist.txt'
     outfile = 'data/lm_features_d28.csv'

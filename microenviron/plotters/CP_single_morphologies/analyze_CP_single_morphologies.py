@@ -39,7 +39,8 @@ from global_features import calc_global_features_from_folder, __FEAT_NAMES22__
 
 # plot the top 3 features on
 # features selected by mRMR
-__MAP_FEATS__ = ('Length', 'AverageFragmentation', 'AverageContraction')
+sys.path.append('../..')
+from config import mRMR_f3 as __MAP_FEATS__
 
 def standardize_features(dfc, feat_names, epsilon=1e-8):
     fvalues = dfc[feat_names]
@@ -558,13 +559,13 @@ if 0:
 #-------------- Section II --------------#
 if 0:
     # plotting
-    using_auto = True
+    using_auto = False
     if using_auto:
         ffile = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
         name = 'auto'
         thickX2 = 10
     else:
-        ffile = 'cp_1876_local_features.csv'
+        #ffile = 'cp_1876_local_features.csv'
         name = 'single_morphology'
         thickX2 = 10
     
@@ -606,7 +607,7 @@ if 1:
     if 0:
         # quantitative analyses
         parc_file = '../../output_full_r671/parc_region672.nrrd'
-        is_axon = False
+        is_axon = True
 
         if is_axon:
             gf_file = 'cp_1876_axonal_features.csv'

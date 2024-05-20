@@ -198,15 +198,18 @@ def spatial_randomness(feat_file):
             #break
 
     ratios = np.array(ratios)
-    print(f'Average and mean ratio: {ratios.mean()}, {np.median(ratios)}')
+    print(f'Mean and median ratio: {ratios.mean()}, {np.median(ratios)}')
 
     fig = plt.figure(figsize=(6,6))
     sns.set_theme(style='ticks', font_scale=2.1)
     dfr = pd.DataFrame(ratios, columns=['ratio'])
-    sns.histplot(x=dfr['ratio'], fill=True, color='mediumpurple', bins=50)
+    sns.histplot(x=dfr['ratio'], fill=True, color='mediumpurple', bins=100)
+    
     plt.xlim(0, dfr['ratio'].max())
     plt.xticks([0,1,2,3,4,5,6])
     plt.xlabel('Spatial randomness')
+    plt.axvline(x=1, linewidth=2, linestyle='--', color='red')
+
     ax = plt.gca()
     lw = 2.5
     ax.spines['left'].set_linewidth(lw)
@@ -219,10 +222,10 @@ def spatial_randomness(feat_file):
 
 if __name__ == '__main__':
     feat_file = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
-    if 0:
+    if 1:
         structral_distribution(feat_file)
 
-    if 1:
+    if 0:
         spatial_randomness(feat_file)
 
 

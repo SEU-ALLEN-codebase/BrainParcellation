@@ -6,7 +6,7 @@
 #   Filename     : feat_sel.py
 #   Author       : Yufeng Liu
 #   Date         : 2023-02-11
-#   Description  : 
+#   Description  : pymrmr may could not compatitable with other packages, may require a new env
 #
 #================================================================
 import os
@@ -87,11 +87,11 @@ def exec_pca(ffile, fpca_file):
     dfo['region_id_r671'] = r671_ids
 
     # I would like to also correct the R314 region
-    r314_mask = load_image(MASK_CCF25_R314_FILE)
+    #r314_mask = load_image(MASK_CCF25_R314_FILE)
     
 
     with open(fpca_file, 'a') as fp:
-        fp.write(f'# explained_variance_ratios: {vr1:.4f}, {vr2:.4f}, {vr3:.4f}\n')
+        #fp.write(f'# explained_variance_ratios: {vr1:.4f}, {vr2:.4f}, {vr3:.4f}\n')
         dfo.to_csv(fp)
 
 if __name__ == '__main__':

@@ -30,7 +30,9 @@ def get_highquality_subset(feature_file, filter_file):
     df = df[df.index.isin(names)]
     print(f'Number of filtered recons: {df.shape[0]}')
 
-    assert df.isna().sum().sum() == 0
+    df = df[df.isna().sum(axis=1) == 0]
+    print(f'Number of non_na_recons: {df.shape[0]}')
+    #assert df.isna().sum().sum() == 0
     return df
 
 def estimate_radius(lmf, topk=5, percentile=50):
@@ -139,7 +141,7 @@ def calc_regional_mefeatures(mefeature_file, rmefeature_file, region_num=316):
 if __name__ == '__main__':
     if 1:
         feature_file = './data/lm_features_d28.csv'
-        filter_file = '../evaluation/data/final_filtered_swc0205.txt'
+        filter_file = '../evaluation/data/final_filtered_swc.txt'
         mefile = f'./data/mefeatures_100K.csv'
         topk = 5
         

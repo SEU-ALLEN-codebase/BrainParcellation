@@ -182,7 +182,7 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
     }
     
 
-    if 0:
+    if 1:
         keepr = []
         ana_tree_n = parse_ana_tree(keyname='name')
         struct_ids = bstructs.keys()

@@ -62,7 +62,7 @@ nids1, nids2 = narr.nonzero()
 # plotting
 mef = df_me.iloc[nids2][keys].stack().reset_index(1)
 ionf = df_ion.iloc[nids1][keys].stack().reset_index(1)
-k1, k2, k3 = 'Feature type', 'microenviron', 'Qiu'
+k1, k2, k3 = 'Feature type', 'microenviron', 'Qiu et al., 2024'
 df = pd.DataFrame(np.hstack((mef.values, ionf.iloc[:,1].values.reshape(-1,1))), columns=(k1,k2,k3)).astype(
         {k1: str, k2: float, k3: float}
     )

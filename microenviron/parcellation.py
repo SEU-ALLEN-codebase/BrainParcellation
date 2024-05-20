@@ -38,6 +38,7 @@ from math_utils import min_distances_between_two_sets
 import sys
 from generate_me_map import process_mip
 from shape_normalize import shape_normalized_scaling
+from config import mRMR_f3, mRMR_f3me
 
 
 def reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask, min_pts_per_parc):
@@ -103,7 +104,7 @@ def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True):
         fnames = [fname for fname in cols if fname[-3:] == '_me']
     elif feat_type == 'mRMR':
         # Features selected by mRMR
-        fnames = ['Length_me', 'AverageFragmentation_me', 'AverageContraction_me']
+        fnames = mRMR_f3me
     elif feat_type == 'PCA':
         fnames = ['pca_feat1', 'pca_feat2', 'pca_feat3']
     else:
@@ -639,7 +640,7 @@ if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
     feat_type = 'full'  # mRMR, PCA, full
-    debug = True
+    debug = False
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
     regid = 382
     r314_mask = False
@@ -653,9 +654,9 @@ if __name__ == '__main__':
     #parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    bp.parcellate_region(regid=regid)
+    #bp.parcellate_region(regid=regid)
     #bp.parcellate_brain()
-    #bp.merge_parcs(parc_file=parc_file)
+    bp.merge_parcs(parc_file=parc_file)
     
 
 
