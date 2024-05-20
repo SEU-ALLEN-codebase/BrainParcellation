@@ -367,13 +367,21 @@ def find_regional_representative(mefile, region='IC', swcdir='', color='magenta'
     
     plot_morphology = True
     if plot_morphology:
-        # plot the neurons
-        nsamples = 50
-        for swc_name in random.sample(list(df[rmask].index), nsamples):
-            brain_id = df.loc[swc_name, 'brain_id']
+        if 0:
+            # plot the neurons
+            nsamples = 50
+            for swc_name in random.sample(list(df[rmask].index), nsamples):
+                brain_id = df.loc[swc_name, 'brain_id']
+                swcfile = os.path.join(swcdir, str(brain_id), f'{swc_name}_stps.swc')
+                na = NeuriteArbors(swcfile)
+                out_name = f'{region}_{brain_id}_{swc_name}'
+                na.plot_morph_mip(type_id=None, color=color, figname=out_name, out_dir='.', show_name=False)
+        if 1:   # to match previous selection
+            #brain_id, swc_name = 191797, '6987_19683_7370'
+            brain_id, swc_name = 201584, '8378_11445_10616'
             swcfile = os.path.join(swcdir, str(brain_id), f'{swc_name}_stps.swc')
             na = NeuriteArbors(swcfile)
-            out_name = f'{region}_{brain_id}_{swc_name}'
+            out_name  = f'{region}_{brain_id}_{swc_name}'
             na.plot_morph_mip(type_id=None, color=color, figname=out_name, out_dir='.', show_name=False)
 
 def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
@@ -393,12 +401,12 @@ def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
     sc2 = ax.scatter(dfr2[n3], dfr2[n2], dfr2[n1]/1000, s=12, c='cyan', marker='o', alpha=1., label=regions[1])
 
     label_size = 22
-    ax.set_xlabel('Straightness', fontsize=label_size, labelpad=10)
-    ax.set_ylabel('Fragmentation', fontsize=label_size, labelpad=8)
+    ax.set_xlabel('Fragmentation', fontsize=label_size, labelpad=8)
+    ax.set_ylabel('Straightness', fontsize=label_size, labelpad=10)
     ax.set_zlabel('Total Length (mm)', fontsize=label_size, labelpad=10)
 
     ax.tick_params(axis='both', which='major', labelsize=14)
-    ax.set_xticks([0.76,0.8,0.84,0.88,0.92,0.96])
+    ax.set_yticks([0.8,0.84,0.88,0.92,0.96])
 
     # legend
     plt.legend(bbox_to_anchor=(0.6,0.6), fontsize=label_size, markerscale=3., handletextpad=0.2, frameon=False)
@@ -407,7 +415,8 @@ def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
     ax.set_box_aspect(None, zoom=0.85)  # to avoid Z label cutoff
     #hide the gridline
     ax.grid(False)
-    #ax.view_init(30, 75)
+    elev, azim = 30, -15
+    ax.view_init(elev, azim)
     # save
     plt.savefig("IC_SIM_features.png", bbox_inches='tight', dpi=300)
     plt.close()
@@ -442,7 +451,7 @@ def plot_MOB_features(mefile, rname='MOB', r316=False):
     # plot
     n1, n2, n3 = keys[-3:]
     print(n1, n2, n3)
-    sc = ax.scatter(dfr[n2], dfr[n3], dfr[n1]/1000, s=10, c=dfc.values, marker='o', alpha=.75)
+    sc = ax.scatter(dfr[n3], dfr[n2], dfr[n1]/1000, s=10, c=dfc.values, marker='o', alpha=.75)
     label_size = 22
     ax.set_xlabel('Fragmentation', fontsize=label_size, labelpad=10)
     ax.set_ylabel('Straightness', fontsize=label_size, labelpad=10)
@@ -520,7 +529,7 @@ def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=Tru
     ax.get_legend().remove()
     # Hide grid lines
     ax.grid(False)
-    ax.view_init(0, 30)
+    #ax.view_init(0, 30)
 
     # save
     if '/' in out_prefix:
@@ -663,27 +672,23 @@ if __name__ == '__main__':
     findex = 0
     fmt = 'png'
 
-    if 0:
+    if 1:
         generate_me_maps(mefile, outfile=mapfile, flip_to_left=flip_to_left, mode=mode, findex=findex, fmt=fmt, axids=axids)
 
     if 0:
-        for sectionX in range(20, 528, 40):
-            colorize_atlas2d_cv2(annot=True, fmt=fmt, sectionX=sectionX)
-
-    if 1:
         mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
         swcdir = '/data/lyf/data/200k_v2/cropped_100um_resampled2um/'
-        region = 'SIM'
+        region = 'IC'
         if region == 'IC':
             color = 'black' #'magenta'
         elif region == 'SIM':
             color = 'black' #'cyan'
 
-        find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
+        #find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
         #plot_inter_regional_features(mefile)
         rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
         #rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
-        #plot_MOB_features(mefile, rname)
+        #plot_MOB_features(mefile, 'MOB')
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
         #plot_region_feature_sections(mefile, 'CA1')
    

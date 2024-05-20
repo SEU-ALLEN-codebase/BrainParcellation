@@ -91,7 +91,7 @@ def exec_pca(ffile, fpca_file):
     
 
     with open(fpca_file, 'a') as fp:
-        fp.write(f'# explained_variance_ratios: {vr1:.4f}, {vr2:.4f}, {vr3:.4f}\n')
+        #fp.write(f'# explained_variance_ratios: {vr1:.4f}, {vr2:.4f}, {vr3:.4f}\n')
         dfo.to_csv(fp)
 
 if __name__ == '__main__':

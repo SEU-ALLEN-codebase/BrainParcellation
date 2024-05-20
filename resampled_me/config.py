@@ -3,8 +3,8 @@
 #Create time:     2024-04-30
 #Description:               
 ##########################################################
-mRMR_f3 = ['Tips', 'AverageContraction', 'HausdorffDimension']
-mRMR_f3me = ['Tips_me', 'AverageContraction_me', 'HausdorffDimension_me']
+mRMR_f3 = ['Length', 'AverageContraction', 'AverageFragmentation']
+mRMR_f3me = ['Length_me', 'AverageContraction_me', 'AverageFragmentation_me']
 
 def standardize_features(dfc, feat_names, epsilon=1e-8):
     fvalues = dfc[feat_names]
