@@ -24,7 +24,7 @@ def get_features_for_brains(swc_dir):
 
     # multiprocessing
     from multiprocessing import Pool
-    pool = Pool(processes=8)
+    pool = Pool(processes=16)
     pool.starmap(calc_global_features_from_folder, args_list)
     pool.close()
     pool.join()

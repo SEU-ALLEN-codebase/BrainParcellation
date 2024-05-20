@@ -59,7 +59,8 @@ if __name__ == '__main__':
 
     # multiprocessing
     from multiprocessing import Pool
-    pool = Pool(processes=12)
-    pool.starmap(resample_sort_swc, args_list)
+    pool = Pool(processes=16)
+    #pool.starmap(resample_sort_swc, args_list)
+    pool.starmap(resample_swc, args_list)
     pool.close()
     pool.join()

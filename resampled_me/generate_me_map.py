@@ -670,10 +670,10 @@ if __name__ == '__main__':
         for sectionX in range(20, 528, 40):
             colorize_atlas2d_cv2(annot=True, fmt=fmt, sectionX=sectionX)
 
-    if 0:
+    if 1:
         mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
         swcdir = '/data/lyf/data/200k_v2/cropped_100um_resampled2um/'
-        region = 'IC'
+        region = 'SIM'
         if region == 'IC':
             color = 'black' #'magenta'
         elif region == 'SIM':
