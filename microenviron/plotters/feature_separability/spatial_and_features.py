@@ -222,10 +222,10 @@ def spatial_randomness(feat_file):
 
 if __name__ == '__main__':
     feat_file = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
-    if 1:
+    if 0:
         structral_distribution(feat_file)
 
-    if 0:
+    if 1:
         spatial_randomness(feat_file)
 
 
