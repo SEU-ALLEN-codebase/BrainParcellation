@@ -55,40 +55,21 @@ class NeuronDistribution:
         return df
 
     def distribution_across_structures(self):
-        sns.set_theme(style="ticks", font_scale=1.6)
+        sns.set_theme(style="ticks", font_scale=1.2)
         
         ######## overall distribution among brain structures, using pie plot
         bstructs = self.df['bstruct']
         bnames, counts = np.unique(bstructs[bstructs != ''], return_counts=True)
         colors = [self.COLORS[bname] for bname in bnames]
+        explode = [0, 0, 0, 0.3, 0.3, 0, 0]
 
-        # Plot
-        fig1, ax1 = plt.subplots()
-        pcts = counts / counts.sum() * 100
-        wedges, texts = ax1.pie(pcts, colors=colors)
-
-        # Add percentage labels
-        autotexts = []
-        for i, wedge in enumerate(wedges):
-            ang = (wedge.theta2 - wedge.theta1) / 2. + wedge.theta1
-            y = np.sin(np.deg2rad(ang))
-            x = np.cos(np.deg2rad(ang))
-            horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
-            connectionstyle = "angle,angleA=0,angleB={}".format(ang)
-            text = ax1.annotate(f'{pcts[i]:.1f}%', xy=(x, y), xytext=(1.1 * np.sign(x), 1.2 * y),
-                               horizontalalignment=horizontalalignment,
-                               arrowprops=dict(arrowstyle="-", connectionstyle=connectionstyle))
-            autotexts.append(text)
-
-        # Adjust the texts to avoid overlap
-        adjust_text(autotexts, arrowprops=dict(arrowstyle="-", color='black'))
-
-        #plt.pie(counts, labels=bnames, colors=colors, autopct='%1.1f%%')
+        plt.pie(counts, labels=bnames, colors=colors, autopct='%1.1f%%', explode=explode)
         plt.axis('equal')
         plt.savefig('neuron_distr_among_structures.png', dpi=300)
         plt.close()
 
         ###### For each brain structure ##########
+        sns.set_theme(style="ticks", font_scale=1.6)
         # distribution for each brain structure
         for bname in bnames:
             dfb = self.df[self.df['bstruct'] == bname]
@@ -114,9 +95,31 @@ class NeuronDistribution:
             #sys.exit()
         print()
 
-if __name__ == '__main__':
-    mefile = '../../microenviron/data/mefeatures_100K_with_PCAfeatures3.csv'
+class QualityEstimation:
+    def __init__(self, match_file, gs_file, rec_file):
+        self.dfg, self.dfr = self.get_matched(match_file, gs_file, rec_file)
+        
+        
+    def get_matched(self, match_file, gs_file, rec_file):
+        import ipdb; ipdb.set_trace()
+        dfm = pd.read_csv(match_file, sep=' ')
+        dfg = pd.read_csv(gs_file)
+        dfr = pd.read_csv(rec_file, index_col=0)
+    
 
-    nd = NeuronDistribution(mefile)
-    nd.distribution_across_structures()
+if __name__ == '__main__':
+    if 0:
+        mefile = '../../microenviron/data/mefeatures_100K_with_PCAfeatures3.csv'
+
+        nd = NeuronDistribution(mefile)
+        nd.distribution_across_structures()
+
+    if 1:
+        match_file = '../evaluation/data/so_match_table.txt'
+        gs_file = '../evaluation/data/gf_1876_crop_2um.csv'
+        rec_file = '../../microenviron/data/gf_179k_crop_resampled.csv'
+
+        qe = QualityEstimation(match_file, gs_file, rec_file)
+        
+        
 

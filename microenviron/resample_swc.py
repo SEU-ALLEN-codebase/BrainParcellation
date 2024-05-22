@@ -39,20 +39,33 @@ def resample_sort_swc(swc_in, swc_out):
 
 
 if __name__ == '__main__':
-    indir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/cropped_100um'
-    outdir = '/data/lyf/data/200k_v2/cropped_100um_resampled2um'
+    if 0: 
+        # resample the auto-traced morphologies
+        indir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/cropped_100um'
+        outdir = '/data/lyf/data/200k_v2/cropped_100um_resampled2um'
 
-    
-    args_list = []
-    for bdir in glob.glob(os.path.join(indir, '[1-9]*[0-9]')):
-        bid = os.path.split(bdir)[-1]
-        obdir = os.path.join(outdir, bid)
-        if not os.path.exists(obdir):
-            os.mkdir(obdir)
-        # process each brain
-        for swcfile in glob.glob(os.path.join(bdir, '*.swc')):
+        
+        args_list = []
+        for bdir in glob.glob(os.path.join(indir, '[1-9]*[0-9]')):
+            bid = os.path.split(bdir)[-1]
+            obdir = os.path.join(outdir, bid)
+            if not os.path.exists(obdir):
+                os.mkdir(obdir)
+            # process each brain
+            for swcfile in glob.glob(os.path.join(bdir, '*.swc')):
+                fn = os.path.split(swcfile)[-1]
+                oswcfile = os.path.join(obdir, fn)
+                if not os.path.exists(oswcfile):
+                    args_list.append((swcfile, oswcfile))
+
+    if 1: 
+        # resample manual morphologies
+        indir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/1891_CCFv3_local_100um'#'./data/S3_1um_final'
+        outdir = '../evaluation/data/1891_100um_2um' #'./data/S3_2um_final'
+        args_list = []
+        for swcfile in glob.glob(os.path.join(indir, '*.swc')):
             fn = os.path.split(swcfile)[-1]
-            oswcfile = os.path.join(obdir, fn)
+            oswcfile = os.path.join(outdir, fn)
             if not os.path.exists(oswcfile):
                 args_list.append((swcfile, oswcfile))
 

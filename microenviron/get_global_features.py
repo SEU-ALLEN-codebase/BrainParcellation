@@ -46,5 +46,8 @@ def merge_all_brains(csv_dir):
 if __name__ == '__main__':
     #get_features_for_brains('/data/lyf/data/200k_v2/cropped_100um_resampled2um')
     
-    merge_all_brains('global_features')
+    #merge_all_brains('global_features')
+
+    # for gold standard
+    calc_global_features_from_folder('../evaluation/data/1891_100um_2um', '../evaluation/data/gf_1876_crop_2um.csv')
 
