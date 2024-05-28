@@ -620,6 +620,7 @@ class BrainParcellation:
         cur_id = 0
         cnt = 0
         t0 = time.time()
+        parcs2ccf = {}
         for pfile in glob.glob(os.path.join(self.out_mask_dir, '*nrrd')):
             prefix = os.path.splitext(os.path.split(pfile)[-1])[0]
             regid = prefix[11:]
@@ -627,6 +628,10 @@ class BrainParcellation:
             cur_mask = load_image(pfile)
             nzm = cur_mask != 0
             mask[nzm] = cur_mask[nzm] + cur_id
+            # update the correspondence from parcellation to ccf atlas
+            for pid in range(1, cur_mask.max()+1):
+                parcs2ccf[pid+cur_id] = int(regid)
+
             cur_id += cur_mask.max()
             print(regid, cur_mask.max(), mask.max())
 
@@ -635,6 +640,9 @@ class BrainParcellation:
                 print(f'===> Processed {cnt} regions in {time.time() - t0:.2f} seconds')
 
         save_image(parc_file, mask, useCompression=True)
+        # save the correspondence file
+        with open(f'{parc_file}.pkl', 'wb') as fp:
+            pickle.dump(parcs2ccf, fp)
     
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
