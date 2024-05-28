@@ -54,6 +54,15 @@ def cortical_separability(mefile, regions, sname, disp_type, cnt_thres=20):
     dfc['lamination'] = lams
     print(f'--> Time used in loading and processing data: {time.time() - t0:.2f} seconds')
 
+    # rename the columns 
+    sns.set_theme(style='ticks', font_scale=1.5)
+    rmapper = {
+        'Length_me': 'Length (µm)',
+        'AverageFragmentation_me': 'Avg. Fragmentation',
+        'AverageContraction_me': 'Straightness'
+    }
+    dfc.rename(columns=rmapper, inplace=True)
+
     # visualize using pairplot
     if disp_type == 'l':
         hue = 'lamination'
@@ -68,7 +77,7 @@ def cortical_separability(mefile, regions, sname, disp_type, cnt_thres=20):
         hue_order = rnames
         figname = f'sl_regions_{sname}.png'
 
-    g = sns.pairplot(dfc, vars=feat_names, hue=hue, plot_kws={'marker':'.'}, 
+    g = sns.pairplot(dfc, vars=['Length (µm)', 'Avg. Fragmentation', 'Straightness'], hue=hue, plot_kws={'marker':'.'}, 
                      kind='scatter', diag_kws={'common_norm':False},
                      hue_order=hue_order)
     handles = g._legend_data.values()
@@ -391,7 +400,7 @@ def analyze_dsmatrix_vs_parcellations(dsmean_file, parc_file, atlas_file=None):
 if __name__ == '__main__':
     mefile = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
 
-    if 0:
+    if 1:
         region_dict = {
             'all':['FRP', 'MOp', 'MOs', 'SSp-n', 'SSp-bfd', 'SSp-ll', 'SSp-m', 'SSp-ul', 'SSp-tr',
                    'SSp-un', 'SSs', 'GU', 'VISC', 'AUDd', 'AUDp', 'AUDpo', 'AUDv', 'VISal', 
@@ -414,7 +423,7 @@ if __name__ == '__main__':
         regions = ['SSp-n']
         cortical_separability(mefile, regions, sname='r671', disp_type='r671')
 
-    if 1:
+    if 0:
         metric = 'euclidean'
         ds_file1 = f'dsmean_{metric}.csv'
         ds_file2 = f'dsstd_{metric}.csv'

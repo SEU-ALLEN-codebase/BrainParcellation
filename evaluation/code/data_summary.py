@@ -101,10 +101,65 @@ class QualityEstimation:
         
         
     def get_matched(self, match_file, gs_file, rec_file):
-        import ipdb; ipdb.set_trace()
-        dfm = pd.read_csv(match_file, sep=' ')
-        dfg = pd.read_csv(gs_file)
+        dfm = pd.read_csv(match_file, sep=' ', index_col=0)
+        dfg = pd.read_csv(gs_file, index_col=0)
         dfr = pd.read_csv(rec_file, index_col=0)
+
+        dfri = dfr.loc[dfm.o_name]
+        dfgi = dfg.loc[dfm.index]
+
+        return dfgi, dfri
+
+    def compare_features(self):
+        ratios = self.dfr / self.dfg.values
+        pf2label = {
+            'AverageBifurcationAngleRemote': 'Bif angle remote',
+            'AverageBifurcationAngleLocal': 'Bif angle local',
+            'AverageContraction': 'Contraction',
+            'AverageFragmentation': 'Avg. Fragmentation',
+            'AverageParent-daughterRatio': 'Avg. PD ratio',
+            'Bifurcations': 'No. of bifs',
+            'Branches': 'No. of branches',
+            'HausdorffDimension': 'Hausdorff dimension',
+            'MaxBranchOrder': 'Max. branch order',
+            'Length': 'Total length',
+            'MaxEuclideanDistance': 'Max. Euc distance',
+            'MaxPathDistance': 'Max. path distance',
+            'Nodes': 'No. of nodes',
+            'OverallDepth': 'Overall z span',
+            'OverallHeight': 'Overall y span',
+            'OverallWidth': 'Overall x span',
+            'Tips': 'No. of tips',
+        }
+        
+        # select only the target features
+        df = ratios[pf2label.keys()].rename(columns=pf2label)
+        # plot
+        sns.set_theme(style='ticks', font_scale=1.6)
+        fig = plt.figure(figsize=(12,6))
+        rname = 'Relative to manual'
+        df = df.stack().reset_index().rename(columns={'level_0': 'neuron', 'level_1': 'Feature', 0: rname})
+        sns.boxplot(data=df, x='Feature', y=rname, hue='Feature')
+        plt.axhline(y=1.0, color='red', linestyle='--', linewidth=2)
+
+        axes = plt.gca()
+        #axes.set_title(pf, fontsize=font)
+        #axes.text(0,2,feature,va='top',ha='center',fontsize=font)
+        axes.spines['top'].set_visible(False)
+        axes.spines['right'].set_visible(False)
+        axes.spines['bottom'].set_linewidth(2)
+        axes.spines['left'].set_linewidth(2)
+        axes.xaxis.set_tick_params(width=2, direction='out')
+        axes.yaxis.set_tick_params(width=2, direction='out')
+        plt.setp(axes.get_xticklabels(), rotation=45, ha='right', rotation_mode='anchor')
+
+
+        fig.subplots_adjust(left=0.16, bottom=0.38)
+        plt.ylim(0., 2.0)
+        plt.savefig(f'relative_features.png', dpi=300)
+        plt.close('all')
+
+        print()
     
 
 if __name__ == '__main__':
@@ -115,11 +170,12 @@ if __name__ == '__main__':
         nd.distribution_across_structures()
 
     if 1:
-        match_file = '../evaluation/data/so_match_table.txt'
-        gs_file = '../evaluation/data/gf_1876_crop_2um.csv'
+        match_file = '../data/so_match_table.txt'
+        gs_file = '../data/gf_1876_crop_2um.csv'
+        #gs_file = '../data/gf_1876_crop_2um_dendrite.csv'
         rec_file = '../../microenviron/data/gf_179k_crop_resampled.csv'
 
         qe = QualityEstimation(match_file, gs_file, rec_file)
-        
+        qe.compare_features()
         
 

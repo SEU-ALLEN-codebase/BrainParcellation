@@ -96,6 +96,6 @@ def exec_pca(ffile, fpca_file):
 
 if __name__ == '__main__':
     ffile = './data/mefeatures_100K.csv'
-    #exec_mrmr(ffile)
-    exec_pca(ffile, f'{os.path.splitext(ffile)[0]}_with_PCAfeatures3.csv')
+    exec_mrmr(ffile)
+    #exec_pca(ffile, f'{os.path.splitext(ffile)[0]}_with_PCAfeatures3.csv')
 
