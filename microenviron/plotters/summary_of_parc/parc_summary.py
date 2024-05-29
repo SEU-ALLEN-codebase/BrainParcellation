@@ -88,11 +88,20 @@ class ParcSummary:
             subparcs = []
             for idx in r2s.keys():
                 subparcs.append([idx, len(s2p[idx]), r2s[idx]])
-            subparcs = pd.DataFrame(subparcs, columns=('Region', 'No. of Subregions', 'Brain structure'))
-            sns.boxplot(data=subparcs, x='Brain structure', y='No. of Subregions', fill=False, 
+            subparcs = pd.DataFrame(subparcs, columns=('Region', 'No. of subregions', 'Brain structure'))
+            sns.boxplot(data=subparcs, x='Brain structure', y='No. of subregions', fill=False, 
                         color='black', order=sorted(BSTRUCTS7.values()), width=0.35)
+            plt.yticks(range(0,16, 2), fontsize=16)
+            plt.xticks(sorted(BSTRUCTS7.values()), fontsize=16)
+            plt.xlabel('Brain structure', fontsize=18)
+            plt.ylabel('No. of subregions', fontsize=18)
+            plt.subplots_adjust(bottom=0.15)
+            ax = plt.gca()
+            ax.spines['left'].set_linewidth(2)
+            ax.spines['bottom'].set_linewidth(2)
+            ax.spines['right'].set_linewidth(2)
+            ax.spines['top'].set_linewidth(2)
             plt.savefig('number_of_subregions_distribution.png', dpi=300); plt.close()
-
 
             return p2s
         else:               
@@ -207,31 +216,44 @@ class ParcSummary:
         data = pd.DataFrame(data, columns=(vol_name, nsub, std_name, moran_name, nme))
         
         print('Plotting overall')
-        g = sns.regplot(data=data, x=vol_name, y=nsub, scatter_kws={'s':4, 'color':'black'}, 
+        g = sns.regplot(data=data, x=vol_name, y=nsub, scatter_kws={'s':6, 'color':'black'}, 
                         line_kws={'color':'red'})
         r1, p1 = stats.pearsonr(data[vol_name], data[nsub])
-        plt.text(0.55, 0.64, r'$R={:.2f}$'.format(r1), transform=g.transAxes)
+        plt.text(0.58, 0.64, r'$R={:.2f}$'.format(r1), transform=g.transAxes)
         e1, m1 = get_exponent_and_mantissa(p1)
-        plt.text(0.55, 0.56, r'$P={%.1f}x10^{%d}$' % (m1, e1), transform=g.transAxes)
+        plt.text(0.58, 0.56, r'$P={%.1f}x10^{%d}$' % (m1, e1), transform=g.transAxes)
         plt.ylim(0, data[nsub].max()+1)
-        plt.yticks(range(0, data[nsub].max()+1))
+        plt.yticks(range(0, data[nsub].max()+1, 2))
         plt.subplots_adjust(left=0.15, bottom=0.15)
+        ax = plt.gca()
+        ax.spines['left'].set_linewidth(2)
+        ax.spines['bottom'].set_linewidth(2)
+        ax.spines['right'].set_linewidth(2)
+        ax.spines['top'].set_linewidth(2)
         plt.savefig('volume_vs_nsubparcs_total.png', dpi=300)
         plt.close()
 
         print('Plotting inset')
         xlim = 3
         data_sub = data[data[vol_name] <= xlim]
-        g2 = sns.regplot(data=data_sub, x=vol_name, y=nsub, scatter_kws={'s':4, 'color':'black'}, 
+        g2 = sns.regplot(data=data_sub, x=vol_name, y=nsub, scatter_kws={'s':10, 'color':'black'}, 
                         line_kws={'color':'red'})
         r2, p2 = stats.pearsonr(data_sub[vol_name], data_sub[nsub])
-        plt.text(0.6, 0.9, r'$R={:.2f}$'.format(r2), transform=g2.transAxes)
+        plt.text(0.45, 0.9, r'$R={:.2f}$'.format(r2), transform=g2.transAxes, fontsize=25)
         e2, m2 = get_exponent_and_mantissa(p2)
-        plt.text(0.6, 0.82, r'$P={%.1f}x10^{%d}$' % (m2, e2), transform=g2.transAxes)
+        plt.text(0.45, 0.8, r'$P={%.1f}x10^{%d}$' % (m2, e2), transform=g2.transAxes, fontsize=25)
         plt.ylim(0, data_sub[nsub].max()+1)
         plt.xlim(0, xlim)
-        plt.yticks(range(0, data_sub[nsub].max()+1))
+        plt.xticks(np.arange(0,xlim+0.001, 0.5), fontsize=20)
+        plt.xlabel('')
+        plt.yticks(range(0, data_sub[nsub].max()+1, 2), fontsize=20)
+        plt.ylabel('')
         plt.subplots_adjust(left=0.15, bottom=0.15)
+        ax = plt.gca()
+        ax.spines['left'].set_linewidth(2)
+        ax.spines['bottom'].set_linewidth(2)
+        ax.spines['right'].set_linewidth(2)
+        ax.spines['top'].set_linewidth(2)
         plt.savefig('volume_vs_nsubparcs_inset.png', dpi=300)
         plt.close()
 
