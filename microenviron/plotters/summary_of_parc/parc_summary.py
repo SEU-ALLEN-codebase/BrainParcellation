@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from scipy import stats
 import pysal.lib as pslib
 from esda.moran import Moran
@@ -21,11 +22,31 @@ from math_utils import get_exponent_and_mantissa
 from anatomy.anatomy_core import get_struct_from_id_path, parse_ana_tree
 
 sys.path.append('../../')
-from config import BS7_COLORS
+from config import BS7_COLORS, mRMR_f3me
 from parcellation import load_features
 
+
+def load_salient_hemisphere(ccf, salient_mask_file=None, zdim2=228):
+    if salient_mask_file is None:
+        import anatomy
+        resource_path = os.path.join(os.path.split(anatomy.__file__)[0], 'resources')
+        salient_mask_file = os.path.join(resource_path, 'salient671_binary_mask.nrrd')
+    
+    smask = load_image(salient_mask_file)
+    sccf = ccf.copy()
+    sccf[smask == 0] = 0
+    sccf[:zdim2] = 0
+    return sccf
+
+def gini(points):
+    points = np.array(points)
+    n = len(points)
+    diff_sum = np.sum(np.abs(points[:, None] - points))
+    return diff_sum / (2 * n * np.sum(points))
+
+
 class ParcSummary:
-    def __init__(self, parc_file, is_ccf=False, struct_type=7):
+    def __init__(self, parc_file, is_ccf=False, struct_type=7, flipLR=True):
         print(f'--> Loading the parcellation_file: {parc_file}')
         self.ccf = load_image(MASK_CCF25_FILE)
         self.is_ccf = is_ccf
@@ -34,6 +55,10 @@ class ParcSummary:
         else:
             self.parc = load_image(parc_file)
             self.parc_file = parc_file
+
+        self.flipLR = flipLR
+        if flipLR:
+            self.ccf = load_salient_hemisphere(self.ccf)
 
         # brain structures
         if struct_type == 4:
@@ -121,12 +146,70 @@ class ParcSummary:
         plt.close()
         print()
 
+    def scatter_hist(self, data, xname, yname, hue_name, figname, log_scale=False):
+        # scatterplot with histogram at right and bottom
+        fig = plt.figure(layout='constrained')
+        ax = fig.add_gridspec(top=0.75, right=0.75).subplots()
+        #ax.set(aspect=1)
+        ax_histx = ax.inset_axes([0, 1.05, 1, 0.25], sharex=ax)
+        ax_histy = ax.inset_axes([1.05, 0, 0.25, 1], sharey=ax)
+        # scatterplot
+        gs = sns.scatterplot(
+            data=data, x=xname, y=yname, hue=hue_name, size=hue_name, ax=ax
+        )
+        #sns.regplot(
+        #    data=data, x=xname, y=yname, ax=ax, scatter=False
+        #)
+        ax_leg = ax.legend(title =hue_name, labelspacing=0.1, handletextpad=0., 
+                   borderpad=0.05, frameon=True, loc='lower right', title_fontsize=15, 
+                   fontsize=13, alignment='center', ncols=2)
+        ax_leg._legend_box.align = 'center'
+
+        # histogram
+        def get_values(xy, cs, bins):
+            if log_scale:
+                xy = np.log(xy+1e-10)
+            bw = (xy.max() - xy.min()) / bins
+            data = []
+            xys = []
+            for xyi in np.arange(xy.min(), xy.max(), bw):
+                xym = (xy >= xyi) & (xy < xyi+bw)
+                if xym.sum() < 2: continue
+                vs = np.mean(cs[xym])
+                xys.append(xyi + bw/2)
+                data.append(vs)
+            if log_scale:
+                xys = np.exp(xys)
+            return xys, data
+
+        ax_histx.tick_params(axis='x', labelbottom=False)
+        ax_histy.tick_params(axis='y', labelleft=False)
+        
+        nbins = 20
+        ax_histx.plot(*get_values(data[xname], data[hue_name], nbins), 'o-', c='orchid')
+        ax_histy.plot(*get_values(data[yname], data[hue_name], nbins)[::-1], 'o-', c='orchid')
+
+        ax_histx.set_ylabel(hue_name, fontsize=13)
+        ax_histx.yaxis.set_label_position('right')
+        
+        ax_histy.set_xlabel(hue_name, fontsize=13)
+        # force integer scale of ticks
+        ax_histx.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=4))
+        ax_histy.xaxis.set_major_locator(MaxNLocator(integer=True, nbins=4))
+
+        #plt.subplots_adjust(bottom=0.15)
+        if log_scale:
+            plt.xscale('log')
+            plt.yscale('log')
+        plt.savefig(figname, dpi=300)
+        plt.close()
+
     def correlation_of_subparcs(self, me_file):
         assert(self.parc_file is not None)
         with open(f'{self.parc_file}.pkl', 'rb') as fp:
             p2ccf = pickle.load(fp)
         # load the microenviron features
-        df, fnames = load_features(me_file, feat_type='full')
+        df, fnames = load_features(me_file, feat_type='full', flipLR=self.flipLR)
 
         ccf2p = {}  # ccf region to subparcellations
         for parc_id, ccf_id in p2ccf.items():
@@ -138,16 +221,12 @@ class ParcSummary:
         print('Get the volumes')
         data = []
         nn = 0
-        # the volume calculation is time-costly, pre-calculate
-        vol_file = './cache/volumes_of_ccf_regions.pkl'
-        moran_file = './cache/moranI_of_micro_environ.pkl'
-        vol_cached = os.path.exists(vol_file)
-        if vol_cached:
-            print(f'Loading cached volume file: {vol_file}')
-            with open(vol_file, 'rb') as fp:
-                vol_dict = pickle.load(fp)
-        else:
-            vol_dict = {}
+        # the moran calculation is time-costly, pre-calculate
+        moran_file = './cache/moranI_of_micro_environ_avg3.pkl'
+
+        # calculate the volumes of all regions
+        vol_dict = dict(zip(*np.unique(self.ccf[self.ccf > 0], return_counts=True)))
+
         # moran
         moran_cached = os.path.exists(moran_file)
         if moran_cached:
@@ -158,13 +237,7 @@ class ParcSummary:
             moran_dict = {}
         
         for ccf_id, parc_ids in ccf2p.items():
-            # volume 
-            if vol_cached:
-                vol = vol_dict[ccf_id]
-            else:
-                cur_mask = self.ccf == ccf_id
-                vol = cur_mask.sum() / 40**3
-                vol_dict[ccf_id] = vol
+            vol = vol_dict[ccf_id] / 40**3
 
             # features of current region
             dfi = df[df.region_id_r671 == ccf_id]
@@ -183,9 +256,11 @@ class ParcSummary:
                     weights = pslib.weights.DistanceBand.from_array(coords.values, threshold=0.5)
                     avgI = []
                     for fn in fnames:
+                        if fn not in mRMR_f3me: continue
                         moran = Moran(dfi[fn], weights)
                         avgI.append(moran.I)
-                    avgI = np.max(avgI)
+                    #avgI = np.max(avgI)
+                    avgI = np.mean(avgI)
 
                     moran_dict[ccf_id] = avgI
             
@@ -193,113 +268,118 @@ class ParcSummary:
             data.append((vol, num_parc, fstd, avgI, dfi.shape[0]))
             
             nn += 1
-            if nn % 10 == 0:
+            if (nn % 10 == 0) and (not moran_cached):
                 print(f'==> Processed {nn} regions')
 
-        # caching the volume dict
-        if not vol_cached:
-            print(f'Saving the volume file: {vol_file}')
-            with open(vol_file, 'wb') as fp:
-                pickle.dump(vol_dict, fp)
-
+        # caching the moran index information
         if not moran_cached:
             print(f'Saving the moran file: {moran_file}')
             with open(moran_file, 'wb') as fp:
                 pickle.dump(moran_dict, fp)
 
         ####### Volume vs number of regions
-        nsub = 'No. of subregions'
+        nsub = 'No. of \nsubregions'
         vol_name = r'Volume ($mm^3$)'
         std_name = 'Feature STD'
         moran_name = 'Moran_I'
         nme = 'No. of neurons'
         data = pd.DataFrame(data, columns=(vol_name, nsub, std_name, moran_name, nme))
         
-        print('Plotting overall')
-        g = sns.regplot(data=data, x=vol_name, y=nsub, scatter_kws={'s':6, 'color':'black'}, 
-                        line_kws={'color':'red'})
-        r1, p1 = stats.pearsonr(data[vol_name], data[nsub])
-        plt.text(0.58, 0.64, r'$R={:.2f}$'.format(r1), transform=g.transAxes)
-        e1, m1 = get_exponent_and_mantissa(p1)
-        plt.text(0.58, 0.56, r'$P={%.1f}x10^{%d}$' % (m1, e1), transform=g.transAxes)
-        plt.ylim(0, data[nsub].max()+1)
-        plt.yticks(range(0, data[nsub].max()+1, 2))
-        plt.subplots_adjust(left=0.15, bottom=0.15)
-        ax = plt.gca()
-        ax.spines['left'].set_linewidth(2)
-        ax.spines['bottom'].set_linewidth(2)
-        ax.spines['right'].set_linewidth(2)
-        ax.spines['top'].set_linewidth(2)
-        plt.savefig('volume_vs_nsubparcs_total.png', dpi=300)
-        plt.close()
+        if 0:
+            # DEPRECATED!
+            print('Plotting overall')
+            g = sns.regplot(data=data, x=vol_name, y=nsub, scatter_kws={'s':6, 'color':'black'}, 
+                            line_kws={'color':'red'})
+            r1, p1 = stats.pearsonr(data[vol_name], data[nsub])
+            plt.text(0.58, 0.64, r'$R={:.2f}$'.format(r1), transform=g.transAxes)
+            e1, m1 = get_exponent_and_mantissa(p1)
+            plt.text(0.58, 0.56, r'$P={%.1f}x10^{%d}$' % (m1, e1), transform=g.transAxes)
+            plt.ylim(0, data[nsub].max()+1)
+            plt.yticks(range(0, data[nsub].max()+1, 2))
+            plt.subplots_adjust(left=0.15, bottom=0.15)
+            ax = plt.gca()
+            ax.spines['left'].set_linewidth(2)
+            ax.spines['bottom'].set_linewidth(2)
+            ax.spines['right'].set_linewidth(2)
+            ax.spines['top'].set_linewidth(2)
+            plt.savefig('volume_vs_nsubparcs_total.png', dpi=300)
+            plt.close()
 
-        print('Plotting inset')
-        xlim = 3
-        data_sub = data[data[vol_name] <= xlim]
-        g2 = sns.regplot(data=data_sub, x=vol_name, y=nsub, scatter_kws={'s':10, 'color':'black'}, 
-                        line_kws={'color':'red'})
-        r2, p2 = stats.pearsonr(data_sub[vol_name], data_sub[nsub])
-        plt.text(0.45, 0.9, r'$R={:.2f}$'.format(r2), transform=g2.transAxes, fontsize=25)
-        e2, m2 = get_exponent_and_mantissa(p2)
-        plt.text(0.45, 0.8, r'$P={%.1f}x10^{%d}$' % (m2, e2), transform=g2.transAxes, fontsize=25)
-        plt.ylim(0, data_sub[nsub].max()+1)
-        plt.xlim(0, xlim)
-        plt.xticks(np.arange(0,xlim+0.001, 0.5), fontsize=20)
-        plt.xlabel('')
-        plt.yticks(range(0, data_sub[nsub].max()+1, 2), fontsize=20)
-        plt.ylabel('')
-        plt.subplots_adjust(left=0.15, bottom=0.15)
-        ax = plt.gca()
-        ax.spines['left'].set_linewidth(2)
-        ax.spines['bottom'].set_linewidth(2)
-        ax.spines['right'].set_linewidth(2)
-        ax.spines['top'].set_linewidth(2)
-        plt.savefig('volume_vs_nsubparcs_inset.png', dpi=300)
-        plt.close()
+            print('Plotting inset')
+            xlim = 3
+            data_sub = data[data[vol_name] <= xlim]
+            g2 = sns.regplot(data=data_sub, x=vol_name, y=nsub, scatter_kws={'s':10, 'color':'black'}, 
+                            line_kws={'color':'red'})
+            r2, p2 = stats.pearsonr(data_sub[vol_name], data_sub[nsub])
+            plt.text(0.45, 0.9, r'$R={:.2f}$'.format(r2), transform=g2.transAxes, fontsize=25)
+            e2, m2 = get_exponent_and_mantissa(p2)
+            plt.text(0.45, 0.8, r'$P={%.1f}x10^{%d}$' % (m2, e2), transform=g2.transAxes, fontsize=25)
+            plt.ylim(0, data_sub[nsub].max()+1)
+            plt.xlim(0, xlim)
+            plt.xticks(np.arange(0,xlim+0.001, 0.5), fontsize=20)
+            plt.xlabel('')
+            plt.yticks(range(0, data_sub[nsub].max()+1, 2), fontsize=20)
+            plt.ylabel('')
+            plt.subplots_adjust(left=0.15, bottom=0.15)
+            ax = plt.gca()
+            ax.spines['left'].set_linewidth(2)
+            ax.spines['bottom'].set_linewidth(2)
+            ax.spines['right'].set_linewidth(2)
+            ax.spines['top'].set_linewidth(2)
+            plt.savefig('volume_vs_nsubparcs_inset.png', dpi=300)
+            plt.close()
 
         ###### plot the spatial coherent score
         data_salient = data[data[std_name] != 0]
-
-        # scatterplot with histogram at right and bottom
-        fig = plt.figure(layout='constrained')
-        ax = fig.add_gridspec(top=0.75, right=0.75).subplots()
-        #ax.set(aspect=1)
-        ax_histx = ax.inset_axes([0, 1.05, 1, 0.25], sharex=ax)
-        ax_histy = ax.inset_axes([1.05, 0, 0.25, 1], sharey=ax)
-        # scatterplot
-        gs = sns.scatterplot(
-            data=data_salient, x=moran_name, y=std_name, hue=nsub, size=nsub, ax=ax
-        )
-        ax.legend(title = '   No. of \nsubregions', labelspacing=0.1, handletextpad=0., 
-                   borderpad=0.05, frameon=True, loc='lower right', title_fontsize=15, 
-                   fontsize=13, alignment='center', ncols=2)
-        # histogram
-        def get_values(xy, cs, bins):
-            bw = (xy.max() - xy.min()) / bins
-            data = []
-            xys = []
-            for xyi in np.arange(xy.min(), xy.max(), bw):
-                xym = (xy >= xyi) & (xy < xyi+bw)
-                if xym.sum() < 2: continue
-                vs = np.mean(cs[xym])
-                xys.append(xyi + bw/2)
-                data.append(vs)
-            return xys, data
-
-        ax_histx.tick_params(axis='x', labelbottom=False)
-        ax_histy.tick_params(axis='y', labelleft=False)
+        self.scatter_hist(data_salient, moran_name, std_name, nsub, 
+                          figname='moran_fstd_nsubparcs.png', log_scale=False)
+        ###### volume and number of neurons
+        self.scatter_hist(data_salient, vol_name, nme, nsub, 
+                          figname='volume_neurons_nsubparcs.png', log_scale=True)
+        print()
         
-        nbins = 20
-        ax_histx.plot(*get_values(data_salient[moran_name], data_salient[nsub], nbins), 'o-', c='orchid')
-        ax_histy.plot(*get_values(data_salient[std_name], data_salient[nsub], nbins)[::-1], 'o-', c='orchid')
+    def volume_statistics(self):
+        assert(self.parc_file is not None)
+        ccf_vdict = dict(zip(*np.unique(self.ccf[self.ccf > 0], return_counts=True)))
+        parc_vdict = dict(zip(*np.unique(self.parc[self.parc > 0], return_counts=True)))
+        # transform the voxel-scale volume to physical space volume
+        for k, v in ccf_vdict.items(): ccf_vdict[k] /= 40**3
+        for k, v in parc_vdict.items(): parc_vdict[k] /= 40**3
 
-        ax_histx.set_ylabel('No. of\nsubregions', fontsize=13)
-        ax_histx.yaxis.set_label_position('right')
+        ###### volume distribution
+        sns.histplot(x=ccf_vdict.values(), binrange=(0,1.5), bins=50, stat='probability', alpha=0.5)
+        sns.histplot(x=parc_vdict.values(), binrange=(0,1.5), bins=50, stat='probability', alpha=0.5)
+        plt.xlim(0, 1.5)
+        plt.xlabel('Volume ($mm^3$)')
+        plt.tight_layout()
+        plt.savefig('volume_distributions.png', dpi=300)
+        plt.close()
+
+        ####### volume of subparcellations 
+        # loading the mapping between ccf and our parcellation
+        with open(f'{self.parc_file}.pkl', 'rb') as fp:
+            p2ccf = pickle.load(fp)
+
+        ccf2p = {}  # ccf region to subparcellations
+        for parc_id, ccf_id in p2ccf.items():
+            try:
+                ccf2p[ccf_id].append(parc_id)
+            except KeyError:
+                ccf2p[ccf_id] = [parc_id]
+
+        # find out all regions with subregions
+        ginis = []
+        for ccf_id, parc_ids in ccf2p.items():
+            if len(parc_ids) > 1:
+                vols = np.array([parc_vdict[parc_id] for parc_id in parc_ids])
+                cur_gini = gini(vols / vols.sum())
+                ginis.append(cur_gini)
         
-        ax_histy.set_xlabel('No. of\nsubregions', fontsize=13)
-
-        #plt.subplots_adjust(bottom=0.15)
-        plt.savefig('moran_fstd_nsubparcs.png', dpi=300); plt.close() 
+        sns.histplot(x=ginis, stat='probability', binrange=(0, 0.8), bins=25)
+        plt.xlabel('Gini coefficient of subregion volumes')
+        plt.tight_layout()
+        plt.savefig('gini_of_subregions.png', dpi=300)
+        plt.close()
         print()
         
 
@@ -314,5 +394,8 @@ if __name__ == '__main__':
     if 0:   # region distribution
         ps.region_distributions()
 
-    if 1: 
+    if 0: 
         ps.correlation_of_subparcs(me_file=me_file)
+
+    if 1:
+        ps.volume_statistics()
