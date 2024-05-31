@@ -347,10 +347,11 @@ class ParcSummary:
         for k, v in parc_vdict.items(): parc_vdict[k] /= 40**3
 
         ###### volume distribution
-        sns.histplot(x=ccf_vdict.values(), binrange=(0,1.5), bins=50, stat='probability', alpha=0.5)
-        sns.histplot(x=parc_vdict.values(), binrange=(0,1.5), bins=50, stat='probability', alpha=0.5)
+        sns.histplot(x=ccf_vdict.values(), binrange=(0,1.5), bins=50, stat='probability', alpha=0.5, label='CCFv3')
+        sns.histplot(x=parc_vdict.values(), binrange=(0,1.5), bins=50, stat='probability', alpha=0.5, label='Ours')
         plt.xlim(0, 1.5)
         plt.xlabel('Volume ($mm^3$)')
+        plt.legend(frameon=False)
         plt.tight_layout()
         plt.savefig('volume_distributions.png', dpi=300)
         plt.close()
@@ -375,8 +376,17 @@ class ParcSummary:
                 cur_gini = gini(vols / vols.sum())
                 ginis.append(cur_gini)
         
-        sns.histplot(x=ginis, stat='probability', binrange=(0, 0.8), bins=25)
+        histplot = sns.histplot(x=ginis, stat='density', binrange=(0, 0.8), bins=25)
+        #histogram_data = [(patch.get_height(), patch.get_x(), patch.get_width()) for patch in histplot.patches]
+        gmean, gstd = stats.norm.fit(ginis)
+        # plot the gaussian plot
+        xmin, xmax = plt.xlim()
+        xg = np.linspace(xmin, xmax, 100)
+        yg = stats.norm.pdf(xg, gmean, gstd)
+        plt.plot(xg, yg, 'red', linewidth=2, label=r'$Gaussian (\mu=0.35, \sigma=0.15)$')
+
         plt.xlabel('Gini coefficient of subregion volumes')
+        plt.legend()
         plt.tight_layout()
         plt.savefig('gini_of_subregions.png', dpi=300)
         plt.close()
