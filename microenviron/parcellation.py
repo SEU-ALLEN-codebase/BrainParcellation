@@ -8,9 +8,11 @@ import os
 import glob
 import time
 import json
+import random
 import numpy as np
 import pandas as pd
 import pickle
+from sklearn import metrics
 from multiprocessing.pool import Pool
 from collections import defaultdict
 from sklearn.neighbors import kneighbors_graph, radius_neighbors_graph
@@ -280,16 +282,10 @@ class BrainParcellation:
 
         print()
 
-    def community_detection(self, coords, feats, reg_mask, n_jobs=2):
-        # or try to use radius_neighbors_graph
-        # the radius are in 25um space
-        radius_th = 4.  # 4x25=100um
-        par2 = 3.
-
+    def do_leiden(self, coords, feats, reg_mask, max_n_neighbors, shape_normalize, n_jobs, par2=3):
         t0 = time.time()
-        coords = coords.values.astype(np.float64)
-        n_neighbors = min(150, coords.shape[0])
-        if self.shape_normalize:
+        n_neighbors = min(max_n_neighbors, coords.shape[0])
+        if shape_normalize:
             coords_t = shape_normalized_scaling(reg_mask, coords, visualize=self.debug)
         else:
             coords_t = coords
@@ -353,6 +349,48 @@ class BrainParcellation:
             cm.append(nii)
         
         community_memberships = np.array([i+1 for i in cm]) # re-indexing starting from 1, to differentiate with background
+        return coords_t, community_memberships, partition
+
+    def community_detection(self, coords, feats, reg_mask, n_jobs=2):
+        # or try to use radius_neighbors_graph
+        # the radius are in 25um space
+        radius_th = 4.  # 4x25=100um
+        par2 = 3.
+
+        t0 = time.time()
+        coords = coords.values.astype(np.float64)
+
+        # do silhoutte-based adaptive parameter tuning
+        max_sil_score = -1
+        for n_neighbors in [50, 100, 150, 200, 250]:
+            for shape_normalize in [True, False]:
+                coords_t, community_memberships, partition = self.do_leiden(
+                        coords, feats, reg_mask, n_neighbors, shape_normalize, n_jobs, par2=par2
+                )
+
+                # estimate the silhoutte score
+                n_sample = 1000
+                if len(community_memberships) > n_sample:
+                    # select only a subset of data
+                    random.seed(1024)
+                    rids = random.sample(range(len(community_memberships)), n_sample)
+                    sil_feats = feats[rids]
+                    sil_labels = community_memberships[rids]
+                else:
+                    sil_feats = feats
+                    sil_labels = community_memberships
+                sil_score = metrics.silhouette_score(sil_feats, sil_labels)
+                print(f'[n_neighbors={n_neighbors}, shape_normalize={shape_normalize}]: sil={sil_score:.4f}')
+                if sil_score > max_sil_score:
+                    max_sil_score = sil_score
+                    max_n_neighbors = n_neighbors
+                    max_shape_normalize = shape_normalize
+        
+        # re-estimate using the best parameter
+        print(f'***Best parameter are: [n_neighbors={max_n_neighbors}, shape_normalize={max_shape_normalize}]***')
+        coords_t, community_memberships, partition = self.do_leiden(
+                coords, feats, reg_mask, max_n_neighbors, max_shape_normalize, n_jobs, par2=par2
+        )
 
         # denoising at the neuron level
         # remove nodes with nearest nodes are not the same class
@@ -650,7 +688,7 @@ if __name__ == '__main__':
     feat_type = 'full'  # mRMR, PCA, full
     debug = False
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 382
+    regid = 672
     r314_mask = False
     
     if r314_mask:
@@ -663,8 +701,8 @@ if __name__ == '__main__':
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
     #bp.parcellate_region(regid=regid)
-    #bp.parcellate_brain()
-    bp.merge_parcs(parc_file=parc_file)
+    bp.parcellate_brain()
+    #bp.merge_parcs(parc_file=parc_file)
     
 
 
