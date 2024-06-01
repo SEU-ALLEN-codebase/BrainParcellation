@@ -397,7 +397,7 @@ def estimate_similarity(parc_file, gf_file, is_axon=True):
     sns.set_theme(style="ticks", font_scale=1.6)
     g = sns.relplot(df, x='Parc1', y='Parc2', hue='Similarity', 
                 size='Similarity', palette="afmhot_r", edgecolor="1.",
-                sizes=(0, 200), size_norm=(0, 1.), hue_norm=(0, 1.))
+                sizes=(0, 200), size_norm=(0, 0.7), hue_norm=(0, 0.6))
     g.set(xlabel="Sub-region", ylabel="Sub-region", aspect="equal")
     g.set(xticks=list(range(len(rs))), yticks=list(range(len(rs))))
     for label in g.ax.get_xticklabels():
@@ -604,10 +604,10 @@ if 1:
         #feat_names = ['Bifurcations', 'Length', 'AverageFragmentation']
         plot_region_feature_sections(ffile, rname='CP', name='axon', r316=False, flipLR=True, thickX2=10)
 
-    if 0:
+    if 1:
         # quantitative analyses
         parc_file = '../../output_full_r671/parc_region672.nrrd'
-        is_axon = True
+        is_axon = False
 
         if is_axon:
             gf_file = 'cp_1876_axonal_features.csv'
@@ -625,7 +625,7 @@ if 1:
 
 # ---------------- Section IV --------------#
 # compare with existing neuron types
-if 1:
+if 0:
     parc_file = '../../output_full_r671/parc_region672.nrrd'
     meta_file = 'TableS6_Full_morphometry_1222.xlsx'
     comp_parc_and_ptype(parc_file, meta_file)

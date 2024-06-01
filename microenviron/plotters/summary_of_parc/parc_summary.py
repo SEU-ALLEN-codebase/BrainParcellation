@@ -404,7 +404,7 @@ if __name__ == '__main__':
     if 0:   # region distribution
         ps.region_distributions()
 
-    if 0: 
+    if 1: 
         ps.correlation_of_subparcs(me_file=me_file)
 
     if 1:
