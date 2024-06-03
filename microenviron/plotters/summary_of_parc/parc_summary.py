@@ -12,8 +12,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from scipy import stats
-import pysal.lib as pslib
-from esda.moran import Moran
 
 from anatomy.anatomy_config import MASK_CCF25_FILE, SALIENT_REGIONS, \
                                    BSTRUCTS4, BSTRUCTS7, BSTRUCTS13
@@ -22,7 +20,7 @@ from math_utils import get_exponent_and_mantissa
 from anatomy.anatomy_core import get_struct_from_id_path, parse_ana_tree
 
 sys.path.append('../../')
-from config import BS7_COLORS, mRMR_f3me
+from config import BS7_COLORS, mRMR_f3me, gini_coeff, moranI_score
 from parcellation import load_features
 
 
@@ -37,13 +35,6 @@ def load_salient_hemisphere(ccf, salient_mask_file=None, zdim2=228):
     sccf[smask == 0] = 0
     sccf[:zdim2] = 0
     return sccf
-
-def gini(points):
-    points = np.array(points)
-    n = len(points)
-    diff_sum = np.sum(np.abs(points[:, None] - points))
-    return diff_sum / (2 * n * np.sum(points))
-
 
 class ParcSummary:
     def __init__(self, parc_file, is_ccf=False, struct_type=7, flipLR=True):
@@ -253,15 +244,7 @@ class ParcSummary:
                 else:
                     # spatial coherence
                     coords = dfi[['soma_x', 'soma_y', 'soma_z']]/40
-                    weights = pslib.weights.DistanceBand.from_array(coords.values, threshold=0.5)
-                    avgI = []
-                    for fn in fnames:
-                        if fn not in mRMR_f3me: continue
-                        moran = Moran(dfi[fn], weights)
-                        avgI.append(moran.I)
-                    #avgI = np.max(avgI)
-                    avgI = np.mean(avgI)
-
+                    avgI = moranI_score(coords.values, dfi[mRMR_f3me].values)
                     moran_dict[ccf_id] = avgI
             
             num_parc = len(parc_ids)
@@ -373,7 +356,7 @@ class ParcSummary:
         for ccf_id, parc_ids in ccf2p.items():
             if len(parc_ids) > 1:
                 vols = np.array([parc_vdict[parc_id] for parc_id in parc_ids])
-                cur_gini = gini(vols / vols.sum())
+                cur_gini = gini_coeff(vols / vols.sum())
                 ginis.append(cur_gini)
         
         histplot = sns.histplot(x=ginis, stat='density', binrange=(0, 0.8), bins=25)
@@ -404,7 +387,7 @@ if __name__ == '__main__':
     if 0:   # region distribution
         ps.region_distributions()
 
-    if 1: 
+    if 0: 
         ps.correlation_of_subparcs(me_file=me_file)
 
     if 1:

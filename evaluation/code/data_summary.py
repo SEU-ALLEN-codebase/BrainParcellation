@@ -156,6 +156,8 @@ class QualityEstimation:
 
         fig.subplots_adjust(left=0.16, bottom=0.38)
         plt.ylim(0., 2.0)
+        plt.xlabel('Morphological feature', fontsize=24)
+        plt.ylabel('Relative to manual', fontsize=24)
         plt.savefig(f'relative_features.png', dpi=300)
         plt.close('all')
 
@@ -171,8 +173,8 @@ if __name__ == '__main__':
 
     if 1:
         match_file = '../data/so_match_table.txt'
-        gs_file = '../data/gf_1876_crop_2um.csv'
-        #gs_file = '../data/gf_1876_crop_2um_dendrite.csv'
+        #gs_file = '../data/gf_1876_crop_2um.csv'
+        gs_file = '../data/gf_1876_crop_2um_dendrite.csv'
         rec_file = '../../microenviron/data/gf_179k_crop_resampled.csv'
 
         qe = QualityEstimation(match_file, gs_file, rec_file)

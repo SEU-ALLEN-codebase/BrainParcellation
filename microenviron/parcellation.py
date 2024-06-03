@@ -40,7 +40,7 @@ from math_utils import min_distances_between_two_sets
 import sys
 from generate_me_map import process_mip
 from shape_normalize import shape_normalized_scaling
-from config import mRMR_f3, mRMR_f3me
+from config import mRMR_f3, mRMR_f3me, gini_coeff, moranI_score
 
 
 def reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask, min_pts_per_parc):
@@ -388,9 +388,21 @@ class BrainParcellation:
         
         # re-estimate using the best parameter
         print(f'***Best parameter are: [n_neighbors={max_n_neighbors}, shape_normalize={max_shape_normalize}]***')
+        # top3 indices
+        orig_fstd = feats.std(axis=0).mean()
+        
         coords_t, community_memberships, partition = self.do_leiden(
                 coords, feats, reg_mask, max_n_neighbors, max_shape_normalize, n_jobs, par2=par2
         )
+        
+        # average gini after estimation:
+        avg_fstd = []
+        for rid in np.unique(community_memberships):
+            cur_m = community_memberships == rid
+            feat_i = feats[cur_m]
+            avg_fstd.append(feat_i.std(axis=0).mean())
+        avg_fstd = np.mean(avg_fstd)
+        print(f'--> [Feature STD] original and after: {orig_fstd:.3f} {avg_fstd:.3f}')
 
         # denoising at the neuron level
         # remove nodes with nearest nodes are not the same class
@@ -688,7 +700,7 @@ if __name__ == '__main__':
     feat_type = 'full'  # mRMR, PCA, full
     debug = False
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 672
+    regid = 382
     r314_mask = False
     
     if r314_mask:
