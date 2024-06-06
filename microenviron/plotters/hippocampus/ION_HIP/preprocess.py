@@ -55,7 +55,7 @@ def aggregate_information(swc_dir, gf_file, reg_file, outfile):
         df_soma.set_index('Name', inplace=True)
         df_soma.to_csv(reg_file)
     else:
-        df_soma = pd.read_csv(reg_file, index=0)
+        df_soma = pd.read_csv(reg_file, index_col=0)
     print('Soma information extraction done!')
             
 
@@ -98,10 +98,11 @@ def aggregate_information(swc_dir, gf_file, reg_file, outfile):
 
 
 if __name__ == '__main__':
-    swc_dir = '/PBshare/SEU-ALLEN/Users/Sujun/ION_Hip_CCFv3_crop'
-    gf_file = 'gf_ion_hip.csv'
+    #swc_dir = '/PBshare/SEU-ALLEN/Users/Sujun/ION_Hip_CCFv3_crop'
+    swc_dir = 'swc_dendrites'
+    gf_file = 'gf_ion_hip_dendrites.csv'
     reg_file = 'soma_region.csv'
-    outfile = 'lm_features_d28.csv'
+    outfile = 'lm_features_d28_dendrites.csv'
 
     aggregate_information(swc_dir, gf_file, reg_file, outfile)
 

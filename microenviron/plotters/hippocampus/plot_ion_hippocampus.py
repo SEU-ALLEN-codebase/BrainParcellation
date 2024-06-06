@@ -553,7 +553,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
     
 
 if __name__ == '__main__':
-    mefile = './ION_HIP/lm_features_d28.csv'
+    mefile = './ION_HIP/lm_features_d28_dendrites.csv'
     mapfile = 'ion_local'
     scale = 25.
     flip_to_left = True

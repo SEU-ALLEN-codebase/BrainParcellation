@@ -604,7 +604,7 @@ if 1:
         #feat_names = ['Bifurcations', 'Length', 'AverageFragmentation']
         plot_region_feature_sections(ffile, rname='CP', name='axon', r316=False, flipLR=True, thickX2=10)
 
-    if 1:
+    if 0:
         # quantitative analyses
         parc_file = '../../output_full_r671/parc_region672.nrrd'
         is_axon = False
