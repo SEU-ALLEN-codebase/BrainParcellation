@@ -20,8 +20,7 @@ from math_utils import get_exponent_and_mantissa
 from anatomy.anatomy_core import get_struct_from_id_path, parse_ana_tree
 
 sys.path.append('../../')
-from config import BS7_COLORS, mRMR_f3me, gini_coeff, moranI_score
-from parcellation import load_features
+from config import BS7_COLORS, mRMR_f3me, gini_coeff, moranI_score, load_features
 
 
 def load_salient_hemisphere(ccf, salient_mask_file=None, zdim2=228):

@@ -410,8 +410,8 @@ def estimate_similarity(parc_file, gf_file, is_axon=True):
         figname = 'parc_vs_axon.png'
         plt.title('Axon')
     else:
-        figname = 'parc_vs_local.png'
-        plt.title('Local')
+        figname = 'parc_vs_dendrite.png'
+        plt.title('Dendrite')
     plt.savefig(figname, dpi=300); plt.close()
 
     print(np.diagonal(reg_corrs).mean(), trius.mean())
@@ -435,7 +435,7 @@ def local_to_axon_manual(local_file, axon_file):
         for ifeat, fname in enumerate(feat_names):
             df.append([row1.iloc[ifeat], row2.iloc[ifeat], fname])
 
-    col1, col2 = 'Local', 'Axon'
+    col1, col2 = 'Dendrite', 'Axon'
     df = pd.DataFrame(df, columns=[col1, col2, 'Feature'])
     
     sns.set_theme(style="ticks", font_scale=1.9)
@@ -465,7 +465,7 @@ def local_to_axon_manual(local_file, axon_file):
             ax.set_xlabel('Local (degree)')
 
     g.map_dataframe(annotate)
-    plt.savefig('local_axon_features_cp.png', dpi=300)
+    plt.savefig('dendrite_axon_features_cp.png', dpi=300)
     plt.close()
 
 
@@ -550,9 +550,9 @@ def comp_parc_and_ptype(parc_file, meta_file):
 # get the global features of local morphologies
 if 0:
     # get the soma position of SEU-A1876 from swc
-    swc_dir = '../../data/S3_1um_final/'
-    gf_file = '../../../reconstruction/analysis/gf_1876_crop.csv'
-    out_file = 'cp_1876_local_features.csv'
+    swc_dir = '../../../evaluation/data/1891_100um_2um_dendrite/'
+    gf_file = '../../../evaluation/data/gf_1876_crop_2um_dendrite.csv'
+    out_file = 'cp_1876_dendrite_features.csv'
 
     aggregate_meta_information(swc_dir, gf_file, out_file)
     
@@ -565,8 +565,8 @@ if 0:
         name = 'auto'
         thickX2 = 10
     else:
-        #ffile = 'cp_1876_local_features.csv'
-        name = 'single_morphology'
+        ffile = 'cp_1876_dendrite_features.csv'
+        name = 'dendrite'
         thickX2 = 10
     
     plot_region_feature_sections(ffile, rname='CP', name=name, r316=False, flipLR=True, thickX2=thickX2, step=20)
@@ -612,14 +612,14 @@ if 1:
         if is_axon:
             gf_file = 'cp_1876_axonal_features.csv'
         else:
-            gf_file = 'cp_1876_local_features.csv'
+            gf_file = 'cp_1876_dendrite_features.csv'
         
         estimate_similarity(parc_file, gf_file, is_axon=is_axon)
         
         
     if 0:
         # plot the dendrite vs axon relationship for manually annotated CP neurons
-        local_file = 'cp_1876_local_features.csv'
+        local_file = 'cp_1876_dendrite_features.csv'
         axon_file = 'cp_1876_axonal_features.csv'
         local_to_axon_manual(local_file, axon_file)
 

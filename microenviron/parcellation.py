@@ -40,7 +40,7 @@ from math_utils import min_distances_between_two_sets
 import sys
 from generate_me_map import process_mip
 from shape_normalize import shape_normalized_scaling
-from config import mRMR_f3, mRMR_f3me, gini_coeff, moranI_score
+from config import mRMR_f3, mRMR_f3me, gini_coeff, moranI_score, load_features
 
 
 def reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask, min_pts_per_parc):
@@ -97,47 +97,6 @@ def random_colorize(coords, values, shape3d, color_level):
     pmap[zyx[:,0], zyx[:,1], zyx[:,2]] = colors
 
     return pmap
-
-def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True):
-    df = pd.read_csv(mefile, index_col=0, comment='#')
-    
-    if feat_type == 'full':
-        cols = df.columns
-        fnames = [fname for fname in cols if fname[-3:] == '_me']
-    elif feat_type == 'mRMR':
-        # Features selected by mRMR
-        fnames = mRMR_f3me
-    elif feat_type == 'PCA':
-        fnames = ['pca_feat1', 'pca_feat2', 'pca_feat3']
-    else:
-        raise ValueError("Unsupported feature types")
-
-    # standardize
-    tmp = df[fnames]
-    tmp = (tmp - tmp.mean()) / (tmp.std() + 1e-10)
-    df[fnames] = tmp
-
-    # scaling the coordinates to CCFv3-25um space
-    df['soma_x'] /= scale
-    df['soma_y'] /= scale
-    df['soma_z'] /= scale
-    # we should remove the out-of-region coordinates
-    zdim,ydim,xdim = (456,320,528)   # dimensions for CCFv3-25um atlas
-    in_region = (df['soma_x'] >= 0) & (df['soma_x'] < xdim) & \
-                (df['soma_y'] >= 0) & (df['soma_y'] < ydim) & \
-                (df['soma_z'] >= 0) & (df['soma_z'] < zdim)
-    df = df[in_region]
-    print(f'Filtered out {in_region.shape[0] - df.shape[0]}')
-
-    if flipLR:
-        # mirror right hemispheric points to left hemisphere
-        zdim2 = zdim // 2
-        nzi = np.nonzero(df['soma_z'] < zdim2)
-        loci = df.index[nzi]
-        df.loc[loci, 'soma_z'] = zdim - df.loc[loci, 'soma_z']
-
-    return df, fnames
-
 
 
 class BrainParcellation:
@@ -698,9 +657,9 @@ if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
     feat_type = 'full'  # mRMR, PCA, full
-    debug = False
+    debug = True
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 382
+    regid = 672
     r314_mask = False
     
     if r314_mask:
@@ -712,8 +671,8 @@ if __name__ == '__main__':
     #parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    #bp.parcellate_region(regid=regid)
-    bp.parcellate_brain()
+    bp.parcellate_region(regid=regid)
+    #bp.parcellate_brain()
     #bp.merge_parcs(parc_file=parc_file)
     
 
