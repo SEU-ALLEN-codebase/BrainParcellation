@@ -42,16 +42,6 @@ from global_features import calc_global_features_from_folder, __FEAT_NAMES22__
 sys.path.append('../..')
 from config import mRMR_f3 as __MAP_FEATS__
 
-def standardize_features(dfc, feat_names, epsilon=1e-8):
-    fvalues = dfc[feat_names]
-    fvalues = (fvalues - fvalues.mean()) / (fvalues.std() + epsilon)
-    dfc[feat_names] = fvalues.values
-
-def normalize_features(dfc, feat_names, epsilon=1e-8):
-    fvalues = dfc[feat_names]
-    fvalues = (fvalues - fvalues.min()) / (fvalues.max() - fvalues.min() + epsilon)
-    dfc[feat_names] = fvalues.values
-
 def aggregate_meta_information(swc_dir, gf_file, out_file):
     atlas = load_image(MASK_CCF25_FILE)
     ana_tree = parse_ana_tree(keyname='id')
@@ -242,18 +232,14 @@ def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,),
         mips.append(cur_mips)
     return mips
 
-def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, flipLR=True, thickX2=10, step=20, feat_names=None):
+def plot_region_feature_sections(mefile, rname='MOB', name='auto', flipLR=True, thickX2=10, step=20, feat_names=None):
     df = pd.read_csv(mefile, index_col=0)
     if feat_names is None:
         feat_names = __MAP_FEATS__
 
     keys = [key for key in feat_names]
-    if r316:
-        rkey = 'region_name_r316'
-        mask = load_image(MASK_CCF25_R314_FILE)
-    else:
-        rkey = 'region_name_r671'
-        mask = load_image(MASK_CCF25_FILE)
+    rkey = 'region_name'
+    mask = load_image(MASK_CCF25_FILE)
     ana_tree = parse_ana_tree(keyname='name')
 
     if type(rname) is list:
@@ -269,6 +255,8 @@ def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, f
         idx = ana_tree[rname]['id']
         rmask = mask == idx
         out_prefix = rname
+    # remove null samples
+    sel_mask = sel_mask & (df[keys].isna().sum(axis=1) == 0)
 
     dfr = df[keys][sel_mask]
     #print(dfr.shape); sys.exit()
@@ -310,7 +298,7 @@ def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, f
 
         mip = get_mip_image(cur_memap, axid)
 
-        figname = f'{out_prefix}_section{sid:03d}_{name}.png'
+        figname = f'{out_prefix}_section{sid:03d}_{name}_axon.png'
         print(mip.shape, sub_mask.shape)
         process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5, b_scale=0.5)
         # load and remove the zero-alpha block
@@ -328,104 +316,25 @@ def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, f
         cv2.imwrite(figname, img)
 
 
-def estimate_similarity(parc_file, gf_file, is_axon=True):
-    zdim = 456
-        
-    parc = load_image(parc_file)
-    df = pd.read_csv(gf_file, index_col=0)
 
-    coords = np.floor(df[['soma_z', 'soma_y', 'soma_x']].values / 25.).astype(int)
-    regions = parc[coords[:,0], coords[:,1], coords[:,2]]
-
-    coords_l = coords.copy()
-    right_m = coords_l[:,0] < zdim/2
-    right_ids = np.nonzero(right_m)[0]
-    coords_l[right_ids, 0] = 456 - coords_l[right_ids, 0]
-    regions = parc[coords_l[:,0], coords_l[:,1], coords_l[:,2]]
-    
-    nzi = np.nonzero(regions == 0)  # out-of-boundary caused by neumeric reason
-    coords_l[nzi, 0] -= 1
-    regions = parc[coords_l[:,0], coords_l[:,1], coords_l[:,2]]
-    df['region'] = regions
-
-    feat_names = __FEAT_NAMES22__
-    
-    dfc = df[feat_names + ['region']]
-    standardize_features(dfc, feat_names)
-
-    # using the region as index
-    dfc.set_index('region', inplace=True)
-    rs, cs = np.unique(dfc.index, return_counts=True)
-    print(rs, cs)
-    dfcv = dfc / np.linalg.norm(dfc, axis=1).reshape(-1,1)
-    corr = pd.DataFrame(np.dot(dfcv, dfcv.transpose()), index=dfc.index, columns=dfc.index)
-
-    reg_corrs = np.zeros((len(rs), len(rs)))
-    for ir, ri in enumerate(rs):
-        ids1 = np.nonzero(dfc.index == ri)[0]
-        for jr in range(ir, len(rs)):
-            rj = rs[jr]
-            ids2 = np.nonzero(dfc.index == rj)[0]
-            cur_corr = corr.iloc[ids1, ids2]
-            if ir == jr:
-                k = 1
-            else:
-                k = 0
-            i_trius = np.triu_indices_from(cur_corr)
-            vs = cur_corr.values[i_trius[0], i_trius[1]]
-            #sns.violinplot(data=vs)
-            #plt.ylim(-1, 1); plt.savefig(f'{ir}_{jr}.png'); plt.close()
-            vsm = vs.mean()
-            reg_corrs[ir, jr] = vsm
-            reg_corrs[jr, ir] = vsm
-        
-    reg_corrs = pd.DataFrame(np.array(reg_corrs))
-    i_trius = np.triu_indices_from(reg_corrs)
-    trius = reg_corrs.values[i_trius[0], i_trius[1]]
-    
-    cols = np.array([(i, j) for i in range(len(rs)) for j in range(len(rs))])
-    reg_values = reg_corrs.values.reshape(-1)
-    #reg_values[reg_values < 0] = 0
-    df = pd.DataFrame(reg_values, columns=['Similarity'])
-    df['Parc1'] = cols[:,0]
-    df['Parc2'] = cols[:,1]
-    # to make sure the unique size legend for local and axon
-    in_mask1 = (df['Similarity'] < 0)
-    in_mask2 = (df['Similarity'] > 0.8)
-    df.loc[np.nonzero(in_mask1)[0], 'Similarity'] = 0
-    df.loc[np.nonzero(in_mask2)[0], 'Similarity'] = 0.8
-    sns.set_theme(style="ticks", font_scale=1.6)
-    g = sns.relplot(df, x='Parc1', y='Parc2', hue='Similarity', 
-                size='Similarity', palette="afmhot_r", edgecolor="1.",
-                sizes=(0, 200), size_norm=(0, 0.7), hue_norm=(0, 0.6))
-    g.set(xlabel="Sub-region", ylabel="Sub-region", aspect="equal")
-    g.set(xticks=list(range(len(rs))), yticks=list(range(len(rs))))
-    for label in g.ax.get_xticklabels():
-        label.set_rotation(90)
-
-    # configuring the legend
-    
-    
-    if is_axon:
-        figname = 'parc_vs_axon.png'
-        plt.title('Axon')
-    else:
-        figname = 'parc_vs_dendrite.png'
-        plt.title('Dendrite')
-    plt.savefig(figname, dpi=300); plt.close()
-
-    print(np.diagonal(reg_corrs).mean(), trius.mean())
-    print(reg_corrs)
-
-
-def local_to_axon_manual(local_file, axon_file):
+def local_to_axon_manual(local_file, axon_file, 
+                         rnames=['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']):
     dfl = pd.read_csv(local_file, index_col=0)
     dfa = pd.read_csv(axon_file, index_col=0)
-    feat_names = ['AverageContraction', 'AverageBifurcationAngleRemote', 
-                  'HausdorffDimension', 'Bifurcations']
 
-    dfl = dfl[feat_names]
-    dfa = dfa[feat_names]
+    #feat_names = ['AverageContraction', 'Nodes', 'Branches', 'Tips']
+    feat_names = ['Length', 'Bifurcations', 'AverageFragmentation', 'HausdorffDimension']
+    #feat_names = ['pc11', 'pc12', 'pc13', 'pca_vr1', 'pca_vr2', 'pca_vr3']
+
+    dfl = dfl[dfl.region_name.isin(rnames)][feat_names]
+    dfa = dfa[dfa.region_name.isin(rnames)][feat_names]
+
+    # remove NA values
+    na_flag = (dfl.isna().sum(axis=1) + dfa.isna().sum(axis=1)) == 0
+    dfl = dfl[na_flag]
+    dfa = dfa[na_flag]
+    print(dfl.shape, dfa.shape)
+
     #standardize_features(dfl, feat_names)
     #standardize_features(dfa, feat_names)
 
@@ -451,11 +360,16 @@ def local_to_axon_manual(local_file, axon_file):
         # annotate the line fitting stats
         r, p = stats.pearsonr(data[col1], data[col2])
         ax = plt.gca()
-        ax.text(0.55, 0.16, r'$R={:.2f}$'.format(r),
-                transform=ax.transAxes)
+        if gg == 'AverageContraction':
+            y1, y2 = 0.16, 0.06
+        else:
+            y1, y2 = 0.8, 0.7
+
+        ax.text(0.55, y1, r'$R={:.2f}$'.format(r),
+                transform=ax.transAxes, color='r')
         e, m = get_exponent_and_mantissa(p)
-        ax.text(0.55, 0.06, r'$P={%.1f}x10^{%d}$' % (m, e),
-                transform=ax.transAxes)
+        ax.text(0.55, y2, r'$P={%.1f}x10^{%d}$' % (m, e),
+                transform=ax.transAxes, color='r')
 
         # Title
         if gg.startswith('Average'):
@@ -465,168 +379,30 @@ def local_to_axon_manual(local_file, axon_file):
             ax.set_xlabel('Local (degree)')
 
     g.map_dataframe(annotate)
-    plt.savefig('dendrite_axon_features_cp.png', dpi=300)
+    plt.savefig('dendrite_axon_features_hip.png', dpi=300)
     plt.close()
 
 
-def comp_parc_and_ptype(parc_file, meta_file):
-    np.random.seed(1024)
-    random.seed(1024)
-
-    parc = load_image(parc_file)
-    meta = pd.read_excel(meta_file)
-    # keep only the manual annotated CP neurons
-    cp_neurons = meta[meta['Projection class'].isin(['CP_SNr', 'CP_GPe', 'CP_others'])]
-    # get the parcellations
-    coords = cp_neurons[['Soma_Z(CCFv3_1𝜇𝑚)', 'Soma_Y(CCFv3_1𝜇𝑚)', 'Soma_X(CCFv3_1𝜇𝑚)']] / 25.  # 25um
-    # in parcellation
-    zyx = np.floor(coords).astype(int).values
-    # mirroring to left
-    zdim = 456
-    r_nz = np.nonzero(zyx[:,0] <= zdim/2)
-    zyx[r_nz,0] = zdim - zyx[r_nz,0]
-    # get the parcellations
-    in_indices = np.nonzero(parc[zyx[:,0], zyx[:,1], zyx[:,2]] > 0)[0]
-    # re-select the neurons
-    in_zyx = zyx[in_indices]
-    cp_parc = parc[in_zyx[:,0], in_zyx[:,1], in_zyx[:,2]] - 1 # start from 0
-    ptypes = cp_neurons.iloc[in_indices]['Projection class']
-    # sankey plot
-    labels = [f'R{i}' for i in range(16)] + ['CP_GPe', 'CP_SNr', 'CP_others']
-    # node colors
-    lut = dict(zip(np.unique(labels), sns.hls_palette(len(np.unique(labels)), l=0.5, s=0.8)))
-    node_color_vs = pd.Series(labels, name='label').map(lut).values
-    np.random.shuffle(node_color_vs)
-    node_colors = []
-    for color in node_color_vs:
-        r,g,b = color
-        r = int(255* r)
-        g = int(255 * g)
-        b = int(255 * b)
-        node_colors.append(f'rgb({r},{g},{b})')
-    
-    lmap = {'CP_GPe': len(labels)-3, 'CP_SNr': len(labels)-2, 'CP_others': len(labels)-1}
-    ptypes_np = ptypes.map(lmap).values
-
-    import plotly.graph_objects as go
-    pairs = np.vstack((cp_parc, ptypes_np)).transpose()
-    pindices, pcounts = np.unique(pairs, axis=0, return_counts=True)
-    sources = pindices[:,0]
-    targets = pindices[:,1]
-    values = pcounts
-
-    # Customize the link color
-    link_colors = []
-    for target in targets:
-        rgb = node_colors[target]
-        rgba = 'rgba' + rgb[3:-1] + f',{160})'
-        link_colors.append(rgba)
-
-    fig = go.Figure(data=[go.Sankey(
-        node = dict(
-            pad = 15,
-            thickness = 20,
-            line = dict(color = "black", width = 0.5),
-            label = labels,
-            color = node_colors
-            ),
-        link = dict(
-            source = sources, # indices correspond to labels, eg A1, A2, A1, B1, ...
-            target = targets,
-            value = values,
-            color = link_colors
-    ))])
-
-    fig.update_layout(title_text="", font_size=16)
-    fig.write_image('parc_vs_ptypes.png')
-
-    print()
 
 
-
-
-
-#----------- Section I ------------#
-# get the global features of local morphologies
-if 0:
-    # get the soma position of SEU-A1876 from swc
-    swc_dir = '../../../evaluation/data/1891_100um_2um_dendrite/'
-    gf_file = '../../../evaluation/data/gf_1876_crop_2um_dendrite.csv'
-    out_file = 'cp_1876_dendrite_features.csv'
-
-    aggregate_meta_information(swc_dir, gf_file, out_file)
-    
-#-------------- Section II --------------#
-if 0:
-    # plotting
-    using_auto = False
-    if using_auto:
-        ffile = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
-        name = 'auto'
-        thickX2 = 10
-    else:
-        ffile = 'cp_1876_dendrite_features.csv'
-        name = 'dendrite'
-        thickX2 = 10
-    
-    plot_region_feature_sections(ffile, rname='CP', name=name, r316=False, flipLR=True, thickX2=thickX2, step=20)
-
-
-#--------------- Section III ---------------#
-# dendrite vs axon 
-if 1:
-    swc_dir = '../../data/S3_1um_final/'
-    axon_dir = 'cp_axons'
-    axon_gf_file = 'cp_axon_gf_1876.csv'
-    axon_feat_file = 'cp_1876_axonal_features.csv'
+if __name__ == '__main__':
+    # dendrite vs axon 
+    axon_dir = './ION_HIP/swc_axons'
+    axon_gf_file = './ION_HIP/gf_hip_axons.csv'
+    axon_feat_file = './ION_HIP/lm_features_d28_axons.csv'
+    rnames = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
     
     
-    
-    if 0:   # extract all axons (along with soma)
-        swc_dir = '../../data/S3_1um_final/'
-        cp_file = 'cp_1876_local_features.csv'
-        # extract the axons from the neurons
-        df_cp = pd.read_csv(cp_file, index_col=0)
-        for swc_name in df_cp.index:
-            print(f'--> Processing {swc_name}')
-            swc_file = os.path.join(swc_dir, f'{swc_name}.swc')
-            tree = parse_swc(swc_file)
-            axons = get_specific_neurite(tree, [1,2])
-            out_file = os.path.join(axon_dir, f'{swc_name}.swc')
-            write_swc(axons, out_file)
+    if 0:
+        calc_global_features_from_folder(axon_dir, outfile=axon_gf_file)
 
     if 1:
-        calc_global_features_from_folder(axon_dir, outfile=axon_gf_file)
-        #aggregate_meta_information(swc_dir, axon_gf_file, axon_feat_file)
-
-    if 0:
-        ffile = 'cp_1876_axonal_features.csv'
         #feat_names = ['Bifurcations', 'Length', 'AverageFragmentation']
-        plot_region_feature_sections(ffile, rname='CP', name='axon', r316=False, flipLR=True, thickX2=10)
+        plot_region_feature_sections(axon_feat_file, rname=rnames, name='axon', flipLR=True, thickX2=10)
 
-    if 0:
-        # quantitative analyses
-        parc_file = '../../output_full_r671/parc_region672.nrrd'
-        is_axon = False
-
-        if is_axon:
-            gf_file = 'cp_1876_axonal_features.csv'
-        else:
-            gf_file = 'cp_1876_dendrite_features.csv'
-        
-        estimate_similarity(parc_file, gf_file, is_axon=is_axon)
-        
-        
     if 0:
         # plot the dendrite vs axon relationship for manually annotated CP neurons
-        local_file = 'cp_1876_dendrite_features.csv'
-        axon_file = 'cp_1876_axonal_features.csv'
-        local_to_axon_manual(local_file, axon_file)
+        local_file = 'ION_HIP/lm_features_d28_dendrites.csv'
+        local_to_axon_manual(local_file, axon_feat_file)
 
-# ---------------- Section IV --------------#
-# compare with existing neuron types
-if 0:
-    parc_file = '../../output_full_r671/parc_region672.nrrd'
-    meta_file = 'TableS6_Full_morphometry_1222.xlsx'
-    comp_parc_and_ptype(parc_file, meta_file)
 

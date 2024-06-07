@@ -73,6 +73,8 @@ def aggregate_information(swc_dir, gf_file, reg_file, outfile):
         swcfile = os.path.join(swc_dir, f'{irow}.swc')
         coords = np.genfromtxt(swcfile, usecols=(2,3,4))
         pca = decomposition.PCA()
+        if coords.ndim == 1:
+            coords = coords.reshape(-1,1)
         pca.fit(coords)
         new_cols.append((*pca.components_[0], *pca.explained_variance_ratio_))
 
@@ -98,12 +100,21 @@ def aggregate_information(swc_dir, gf_file, reg_file, outfile):
 
 
 if __name__ == '__main__':
-    #swc_dir = '/PBshare/SEU-ALLEN/Users/Sujun/ION_Hip_CCFv3_crop'
-    swc_dir = 'swc_dendrites'
-    gf_file = 'gf_ion_hip_dendrites.csv'
-    reg_file = 'soma_region.csv'
-    outfile = 'lm_features_d28_dendrites.csv'
+    if 0:
+        #swc_dir = '/PBshare/SEU-ALLEN/Users/Sujun/ION_Hip_CCFv3_crop'
+        for ratio in np.arange(0.1, 0.9, 0.1):
+            swc_dir = f'swc_dendrites_del{ratio:.1f}'
+            gf_file = f'gf_hip_dendrites_del{ratio:.1f}.csv'
+            reg_file = 'soma_region.csv'
+            outfile = f'lm_features_d28_dendrites_del{ratio:.1f}.csv'
 
-    aggregate_information(swc_dir, gf_file, reg_file, outfile)
+            aggregate_information(swc_dir, gf_file, reg_file, outfile)
+
+    if 1:
+        swc_dir = 'swc_axons'
+        gf_file = 'gf_hip_axons.csv'
+        reg_file = 'soma_region.csv'
+        outfile = 'lm_features_d28_axons.csv'
+        aggregate_information(swc_dir, gf_file, reg_file, outfile)
 
     
