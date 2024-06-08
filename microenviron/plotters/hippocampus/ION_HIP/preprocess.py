@@ -111,10 +111,10 @@ if __name__ == '__main__':
             aggregate_information(swc_dir, gf_file, reg_file, outfile)
 
     if 1:
-        swc_dir = 'swc_axons'
-        gf_file = 'gf_hip_axons.csv'
+        swc_dir = 'swc_axons_8um'
+        gf_file = 'gf_hip_axons_8um.csv'
         reg_file = 'soma_region.csv'
-        outfile = 'lm_features_d28_axons.csv'
+        outfile = 'lm_features_d28_axons_8um.csv'
         aggregate_information(swc_dir, gf_file, reg_file, outfile)
 
     

@@ -62,12 +62,13 @@ if __name__ == '__main__':
         # resample manual morphologies
         indir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/1891_CCFv3_local_100um'#'./data/S3_1um_final'
         outdir = '../evaluation/data/1891_100um_2um' #'./data/S3_2um_final'
+        step = 2
         args_list = []
         for swcfile in glob.glob(os.path.join(indir, '*.swc')):
             fn = os.path.split(swcfile)[-1]
             oswcfile = os.path.join(outdir, fn)
             if not os.path.exists(oswcfile):
-                args_list.append((swcfile, oswcfile))
+                args_list.append((swcfile, oswcfile, step))
 
 
     # multiprocessing
