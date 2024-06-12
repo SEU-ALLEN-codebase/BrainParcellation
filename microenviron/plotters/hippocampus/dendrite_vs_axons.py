@@ -403,17 +403,23 @@ def local_to_axon_separate(local_file, axon_file,
     plt.close()
 
 
-def clustering_on_umap(df, feat_names, nclusters=4, plot=False, figstr=''):
+def clustering_on_umap(df, feat_names=None, nclusters=4, plot=False, figstr='', precomputed_labels=None):
     df = df.copy()
-    standardize_features(df, feat_names)
+    if feat_names is not None:
+        standardize_features(df, feat_names)
     
     reducer = umap.UMAP()
     embedding = reducer.fit_transform(df)
-    # clustering
-    db = sklearn.cluster.SpectralClustering(n_clusters=nclusters).fit(embedding)
-    core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
-    core_samples_mask[db.labels_ != -1] = True
-    labels = db.labels_
+
+    if precomputed_labels is None:
+        # clustering
+        db = sklearn.cluster.SpectralClustering(n_clusters=nclusters).fit(embedding)
+        labels = db.labels_
+    else:
+        labels = precomputed_labels
+    
+    core_samples_mask = np.zeros_like(labels, dtype=bool)
+    core_samples_mask[labels != -1] = True
 
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
     n_noise_ = list(labels).count(-1)
@@ -423,7 +429,7 @@ def clustering_on_umap(df, feat_names, nclusters=4, plot=False, figstr=''):
     # visualize
     if plot:
         # plotting
-        unique_labels = set(labels)
+        unique_labels = sorted(set(labels))
         #colors = [plt.cm.Spectral(each) for each in np.linspace(0, 1, len(unique_labels))]
         colors = [plt.cm.rainbow(each) for each in np.linspace(0, 1, len(unique_labels))]
         # map the features to 2D for better visualization
@@ -444,6 +450,7 @@ def clustering_on_umap(df, feat_names, nclusters=4, plot=False, figstr=''):
                 "o",
                 c=tuple(col),
                 markersize=2,
+                alpha = 0.75,
                 label = f"class={k}"
             )
 
@@ -453,11 +460,16 @@ def clustering_on_umap(df, feat_names, nclusters=4, plot=False, figstr=''):
                 xy[:,1],
                 "o",
                 c=tuple(col),
-                markersize=2
+                markersize=2,
+                alpha = 0.75
             )
         #plt.title('Clustering of arbors')
-        leg = plt.legend()
-        ax.legend_.remove()
+        ax_leg = ax.legend(labelspacing=0.1, handletextpad=0.,
+                   borderpad=0.05, frameon=False, loc='upper right',
+                   fontsize=13, alignment='center', ncols=2,
+                   markerscale=2.5, columnspacing=1.0)
+        ax_leg._legend_box.align = 'center'
+        #ax.legend_.remove()
         ax.spines['left'].set_linewidth(2)
         ax.spines['right'].set_linewidth(2)
         ax.spines['top'].set_linewidth(2)
@@ -476,8 +488,16 @@ def clustering_on_umap(df, feat_names, nclusters=4, plot=False, figstr=''):
 
 def local_to_axon_all(local_file, axon_file, 
                          rnames=['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']):
-    dfl = pd.read_csv(local_file, index_col=0)
-    dfa = pd.read_csv(axon_file, index_col=0)
+
+    if type(local_file) is str:
+        dfl = pd.read_csv(local_file, index_col=0)
+    else:
+        dfl = local_file
+
+    if type(axon_file) is str:
+        dfa = pd.read_csv(axon_file, index_col=0)
+    else:
+        dfa = axon_file
 
     # The angles for axons have many nan values, we just remove them
     except_feats = ['AverageBifurcationAngleLocal', 'AverageBifurcationAngleRemote']
@@ -497,7 +517,7 @@ def local_to_axon_all(local_file, axon_file,
     emb_l, lab_l = clustering_on_umap(dfl, feat_names, nclusters=1, plot=True, figstr='dendrite')
     emb_a, lab_a = clustering_on_umap(dfa, feat_names, nclusters=7, plot=True, figstr='axon')
     
-    print()
+    return emb_l, lab_l, emb_a, lab_a
 
 
 class AxonalProjection:
@@ -517,7 +537,7 @@ class AxonalProjection:
 
         axon_files = glob.glob(os.path.join(axon_dir, '*swc'))
         fnames = [os.path.split(fname)[-1][:-4] for fname in axon_files]
-        projs = pd.DataFrame(np.zeros((len(axon_files), len(regids))), index=fnames)
+        projs = pd.DataFrame(np.zeros((len(axon_files), len(regids))), index=fnames, columns=regids)
                
         t0 = time.time()
         for iaxon, axon_file in enumerate(axon_files):
@@ -552,19 +572,54 @@ class AxonalProjection:
 
         projs *= 8 # to um scale
         projs.to_csv(proj_csv)
+
+    def clustering(self, proj_csv, local_file, axon_file, 
+                   rnames=['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg'],
+                   to_log_space=True):
+        projs = pd.read_csv(proj_csv, index_col=0)
+        local = pd.read_csv(local_file, index_col=0) # reference of the meta information
+        axons = pd.read_csv(axon_file, index_col=0)
+
+        #make sure the share the same index order 
+        projs = projs.loc[axons.index]
+        projs = projs[axons.region_name.isin(rnames)]
+        # keep only the salient 
+        projs.mask(projs < 1000, 0, inplace=True)
+        # remove zero-length regions
+        projs.drop(projs.columns[projs.sum(axis=0) == 0], axis=1, inplace=True)
+        
+        if to_log_space:
+            # to log-space
+            projs = np.log(projs + 1)
+        
+        # now do the real data processing
+        emb_l, lab_l, emb_a, lab_a = local_to_axon_all(local, axons)
+        clustering_on_umap(projs, feat_names=None, nclusters=4, plot=True, 
+                           figstr='projection_by_axons', precomputed_labels=lab_a)
+
+        # coloring by the region
+        regions = axons.region_name[axons.region_name.isin(rnames)].values
+        clustering_on_umap(projs, feat_names=None, nclusters=4, plot=True, 
+                           figstr='projection_by_regions', precomputed_labels=regions)
+        
+        print()
             
 
 
 if __name__ == '__main__':
     # dendrite vs axon 
     axon_dir = './ION_HIP/swc_axons_8um'
+    local_file = 'ION_HIP/lm_features_d28_dendrites.csv'
     axon_gf_file = './ION_HIP/gf_hip_axons_8um.csv'
     axon_feat_file = './ION_HIP/lm_features_d28_axons_8um.csv'
     rnames = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
     
     
-    if 0:
-        calc_global_features_from_folder(axon_dir, outfile=axon_gf_file)
+    if 1:
+        n = 20
+        axon_dir = f'./ION_HIP/point_perturbation/swc_dendrites_del{n}'
+        axon_gf_file = f'./ION_HIP/point_perturbation/gf_hip_dendrites_del{n}.csv'
+        calc_global_features_from_folder(axon_dir, outfile=axon_gf_file, robust=True)
 
     if 0:
         #feat_names = ['Bifurcations', 'Length', 'AverageFragmentation']
@@ -572,15 +627,13 @@ if __name__ == '__main__':
 
     if 0:
         # plot the dendrite vs axon relationship for manually annotated CP neurons
-        local_file = 'ION_HIP/lm_features_d28_dendrites.csv'
         local_to_axon_separate(local_file, axon_feat_file)
         #local_to_axon_all(local_file, axon_feat_file)
         
-    if 1:
-        with_local = False
+    if 0:
         proj_csv = './ION_HIP/axon_proj_8um.csv'
-        if not with_local:
-            proj_csv = './ION_HIP/axon_proj_8um_withoutLocal.csv'
         ap = AxonalProjection()
-        ap.calc_proj_matrix(axon_dir, proj_csv)
+        #ap.calc_proj_matrix(axon_dir, proj_csv)
+        ap.clustering(proj_csv, local_file, axon_feat_file)
+
 

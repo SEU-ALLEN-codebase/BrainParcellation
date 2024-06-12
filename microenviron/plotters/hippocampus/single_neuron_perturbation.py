@@ -71,6 +71,7 @@ class MorphologyPerturbation:
         
 
 def perturbate_folder(swcdir, outswcdir, ratio):
+
     if not os.path.exists(outswcdir):
         os.mkdir(outswcdir)
     
@@ -78,7 +79,11 @@ def perturbate_folder(swcdir, outswcdir, ratio):
     for i, swcfile in enumerate(glob.glob(os.path.join(swcdir, '*swc'))):
         outswcfile = os.path.join(outswcdir, os.path.split(swcfile)[-1])
         mp = MorphologyPerturbation(swcfile)
-        pruned = mp.random_remove_tips(ratio, outswcfile=outswcfile)
+        if type(ratio) is int:
+            f_random = mp.random_remove_points
+        else:
+            f_random = mp.random_remove_tips
+        pruned = f_random(ratio, outswcfile=outswcfile)
         
         if (i+1) % 20 == 0:
             print(time.time() - t0)
@@ -101,19 +106,32 @@ class FeatureEvolution:
         coords_l = []
         feats_l = []
         
-        for ratio in np.arange(0, 0.9, 0.1):
+        ratios = [0,1,5,10,-1,-2]
+        for ratio in ratios:
             if ratio == 0:
                 kstr = ''
             else:
-                kstr = f'_del{ratio:.1f}'
+                kstr = f'_del{ratio}'
             lm_file = os.path.join(lm_dir, f'lm_features_d28_dendrites{kstr}.csv')
-            dfi = pd.read_csv(lm_file, index_col=0)
-            dfi = dfi[dfi.region_name.isin(rnames)]
+            if ratio == -1: # the original data
+                lm_file = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
+                dfi = pd.read_csv(lm_file, index_col=0)
+                dfi = dfi[dfi.region_name_r671.isin(rnames)]
+                __FEAT_NAMES = self.feat_names
+            elif ratio == -2:
+                lm_file = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
+                dfi = pd.read_csv(lm_file, index_col=0)
+                dfi = dfi[dfi.region_name_r671.isin(rnames)]
+                __FEAT_NAMES = [f'{fn}_me' for fn in self.feat_names]
+            else:
+                dfi = pd.read_csv(lm_file, index_col=0)
+                dfi = dfi[dfi.region_name.isin(rnames)]
+                __FEAT_NAMES = self.feat_names
             # feature
-            feats = dfi[self.feat_names]
+            feats = dfi[__FEAT_NAMES]
             # standardization
             if standardize:
-                standardize_features(feats, self.feat_names)
+                standardize_features(feats, __FEAT_NAMES)
             feats_l.append(feats)
 
             # flipLR for coordinates
@@ -126,15 +144,19 @@ class FeatureEvolution:
 
             # remove the na data points
             if ratio == 0:
-                na_flag = feats.isna().sum(axis=1) == 0
+                na_ids = set(feats[feats.isna().sum(axis=1) == 0].index)
+            elif ratio in [-1,-2]:
+                continue
             else:
-                na_flag = na_flag & (feats.isna().sum(axis=1) == 0)
+                na_ids = na_ids & set(feats[feats.isna().sum(axis=1) == 0].index)
         
         # filter all neurons
-        print(na_flag.sum())
-        for i in range(len(coords_l)):
-            coords_l[i] = coords_l[i][na_flag]
-            feats_l[i] = feats_l[i][na_flag]
+        for i, ratio in enumerate(ratios):
+            if ratio in [-1,-2]:
+                continue
+            mask = feats_l[i].index.isin(na_ids)
+            coords_l[i] = coords_l[i][mask]
+            feats_l[i] = feats_l[i][mask]
         
         return coords_l, feats_l
 
@@ -144,8 +166,9 @@ class FeatureEvolution:
         for i, feats in enumerate(self.feats_l):
             feats = feats.copy()
             feats[ratio_name] = i * 0.1
-            feats_l.append(feats)
-        feats_l = pd.concat(feats_l, ignore_index=True)
+            feats_l.append(feats.values)
+            print(i, feats.shape, feats.isna().sum().sum())
+        feats_l = pd.DataFrame(np.vstack(feats_l), columns=self.feat_names+[ratio_name])
         feats_l.loc[:,'Length'] = feats_l['Length'] / 1000.
         # plot
         for fn in self.feat_names:
@@ -159,7 +182,7 @@ class FeatureEvolution:
 
     def plot_statistics(self):
         # Spatial auto-correlation
-        moran_file = 'moran_cached.pkl'
+        moran_file = 'moran_cached_point_perturbation_withME.pkl'
         moran_cached = os.path.exists(moran_file)
         if moran_cached:
             with open(moran_file, 'rb') as fp:
@@ -168,7 +191,8 @@ class FeatureEvolution:
             morans = []
             for coords, feats in zip(self.coords_l, self.feats_l):
                 feats = feats.copy()
-                standardize_features(feats, self.feat_names)
+                fnames = feats.columns
+                standardize_features(feats, fnames)
                 moran = moranI_score(coords, feats.values, reduce_type='all')
                 morans.append(moran)
                 print(len(morans))
@@ -177,6 +201,8 @@ class FeatureEvolution:
                 pickle.dump(morans, fp)
 
         morans = np.array(morans)
+        print(morans.mean(axis=1))
+        print(morans)
 
         #----- STD -------#
         feats_all = pd.concat(self.feats_l)
@@ -184,7 +210,7 @@ class FeatureEvolution:
         for feats in self.feats_l:
             feats = (feats - fmean) / fstd
             
-        import ipdb; ipdb.set_trace()
+        #import ipdb; ipdb.set_trace()
         print()
         
         
@@ -197,12 +223,12 @@ if __name__ == '__main__':
     if 0:
         # random perturbation of swc files
         swcdir = './ION_HIP/swc_dendrites'
-        ratio = 0.8
-        outswcdir = f'./ION_HIP/swc_dendrites_del{ratio}'
+        ratio = 25
+        outswcdir = f'./ION_HIP/point_perturbation/swc_dendrites_del{ratio}'
         perturbate_folder(swcdir, outswcdir, ratio)
 
     if 1:
-        lm_dir = 'ION_HIP'
+        lm_dir = 'ION_HIP/point_perturbation'
         fe = FeatureEvolution(lm_dir)
         fe.plot_features()
         fe.plot_statistics()

@@ -51,6 +51,7 @@ from generate_me_map import process_mip, generate_me_maps, colorize_atlas2d_cv2
 
 # features selected by mRMR
 from config import mRMR_f3 as __MAP_FEATS__
+from config import mRMR_f3me, standardize_features, moranI_score
 #__MAP_FEATS__ = ('Length', 'AverageFragmentation', 'AverageContraction')
 
 
@@ -279,7 +280,23 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
             #
         cv2.imwrite(figname, img)
  
+def calc_feat_statistics(mefile, rnames, flipLR=True):
+    df = pd.read_csv(mefile, index_col=0)
+    df = df[df.region_name_r671.isin(rnames)]
 
+    coords = df[['soma_x', 'soma_y', 'soma_z']].values / 1000
+    dfr = df[mRMR_f3me]
+    if flipLR:
+        zdim = 456
+        zcoord = zdim * 25. / 1000
+        right = np.nonzero(coords[:,2] > zcoord/2)[0]
+        coords[right, 2] = zcoord - coords[right, 2]
+
+    standardize_features(dfr, mRMR_f3me)
+
+    moran = moranI_score(coords, dfr.values, reduce_type='all')
+    print(moran, np.mean(moran))
+    
 
     
 
@@ -306,5 +323,6 @@ if __name__ == '__main__':
 
         #rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
         rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
-        plot_region_feature_sections(mefile, rname)
+        #plot_region_feature_sections(mefile, rname)
+        calc_feat_statistics(mefile, rname)
    
