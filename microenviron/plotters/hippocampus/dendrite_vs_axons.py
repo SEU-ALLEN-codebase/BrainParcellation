@@ -616,9 +616,9 @@ if __name__ == '__main__':
     
     
     if 1:
-        n = 20
-        axon_dir = f'./ION_HIP/point_perturbation/swc_dendrites_del{n}'
-        axon_gf_file = f'./ION_HIP/point_perturbation/gf_hip_dendrites_del{n}.csv'
+        n = 40
+        axon_dir = f'./ION_HIP/point_perturbation/swc_dendrites_del_max{n}'
+        axon_gf_file = f'./ION_HIP/point_perturbation/gf_hip_dendrites_del_max{n}.csv'
         calc_global_features_from_folder(axon_dir, outfile=axon_gf_file, robust=True)
 
     if 0:

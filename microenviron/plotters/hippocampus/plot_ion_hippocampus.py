@@ -384,7 +384,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
     ana_tree = parse_ana_tree(keyname='name')
 
     if type(rname) is list:
-        sel_mask = df[rkey].isin(rname)
+        sel_mask = df[rkey].isin(rname) & (df[keys].isna().sum(axis=1) == 0)
         rmask = np.zeros_like(mask)
         for ri in rname:
             idx = ana_tree[ri]['id']
@@ -392,7 +392,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
             
         out_prefix = 'tmp'
     else:
-        sel_mask = df[rkey] == rname
+        sel_mask = (df[rkey] == rname) & (df[keys].isna().sum(axis=1) == 0)
         idx = ana_tree[rname]['id']
         rmask = mask == idx
         out_prefix = rname
@@ -496,7 +496,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         if anchor2p1 > anchor2p2:
             pcoords = pcoords[::-1]
 
-        if debug:
+        if False:
             mm = np.hstack(((section_mask > 0).astype(np.uint8), main_axis)) * 255
             cv2.imwrite(f'temp_{figname}', mm)
         # map the points to longitudinal space
@@ -553,7 +553,8 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
     
 
 if __name__ == '__main__':
-    mefile = './ION_HIP/lm_features_d28_dendrites.csv'
+    #mefile = './ION_HIP/lm_features_d28_dendrites.csv'
+    mefile = './ION_HIP/point_perturbation/lm_features_d28_dendrites_del_max40.csv'
     mapfile = 'ion_local'
     scale = 25.
     flip_to_left = True

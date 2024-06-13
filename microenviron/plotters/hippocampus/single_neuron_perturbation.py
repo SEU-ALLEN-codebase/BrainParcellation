@@ -29,8 +29,14 @@ class MorphologyPerturbation:
         random.seed(seed)
         np.random.seed(seed)
 
-    def random_remove_points(self, npoints, outswcfile=None):
+    def random_remove_points(self, npoints, outswcfile=None, n_random=True):
+        if npoints >= len(self.nsids):
+            npoints = np.random.randint(0, len(self.nsids), 1)[0]
+        elif n_random:
+            npoints = np.random.randint(0, npoints, 1)[0]
+        
         sel_ids = random.sample(self.nsids, npoints)
+
         sel_indices = [self.tree[sel_id][0] for sel_id in sel_ids]
     
         # remove disconnected nodes
@@ -106,12 +112,12 @@ class FeatureEvolution:
         coords_l = []
         feats_l = []
         
-        ratios = [0,1,5,10,-1,-2]
+        ratios = [0,5,10,15,20,25,30,35,40]
         for ratio in ratios:
             if ratio == 0:
                 kstr = ''
             else:
-                kstr = f'_del{ratio}'
+                kstr = f'_del_max{ratio}'
             lm_file = os.path.join(lm_dir, f'lm_features_d28_dendrites{kstr}.csv')
             if ratio == -1: # the original data
                 lm_file = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
@@ -161,8 +167,14 @@ class FeatureEvolution:
         return coords_l, feats_l
 
     def plot_features(self):
+        a2m_medians = {
+            'Length': 0.933,
+            'AverageContraction': 1.013,
+            'AverageFragmentation': 0.891
+        }
+
         feats_l = []
-        ratio_name = 'Deleted ratio'
+        ratio_name = 'Maximal deleted nodes'
         for i, feats in enumerate(self.feats_l):
             feats = feats.copy()
             feats[ratio_name] = i * 0.1
@@ -174,7 +186,13 @@ class FeatureEvolution:
         for fn in self.feat_names:
             sns.boxplot(data=feats_l, x=ratio_name, y=fn, 
                         width=0.35, color='black', fill=False)
-            plt.xticks(ticks=np.arange(0,9,1), labels=[f'{r:.1f}' for r in np.arange(0, 0.9, 0.1)])
+            mval = feats_l[feats_l[ratio_name] == 0].median()[fn]
+            hval = mval * a2m_medians[fn]
+            print(mval, hval, a2m_medians[fn])
+            plt.axhline(y=hval, linewidth=2, linestyle="--", color='r', clip_on=False)
+            
+            #plt.xticks(ticks=np.arange(0,9,1), labels=[f'{r:.1f}' for r in np.arange(0, 0.9, 0.1)])
+            plt.xticks(ticks=np.arange(0,9,1), labels=[f'{r:d}' for r in range(0,40+1,5)])
             if fn == 'Length':
                 plt.ylabel('Length (mm)')
             plt.subplots_adjust(bottom=0.15)
@@ -223,8 +241,8 @@ if __name__ == '__main__':
     if 0:
         # random perturbation of swc files
         swcdir = './ION_HIP/swc_dendrites'
-        ratio = 25
-        outswcdir = f'./ION_HIP/point_perturbation/swc_dendrites_del{ratio}'
+        ratio = 40
+        outswcdir = f'./ION_HIP/point_perturbation/swc_dendrites_del_max{ratio}'
         perturbate_folder(swcdir, outswcdir, ratio)
 
     if 1:
