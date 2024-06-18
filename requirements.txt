@@ -1,7 +1,6 @@
 neuro_morpho_toolbox
 leidenalg==0.10.2
-cc3d
-pylib
+cc3d==3.12.4
 opencv-python
 igraph
 plotly
@@ -10,4 +9,3 @@ skan==0.11.1
 thin-plate-spline==1.1.0
 adjustText==1.1.1
 pysal==24.01
-hdbscan==0.8.36

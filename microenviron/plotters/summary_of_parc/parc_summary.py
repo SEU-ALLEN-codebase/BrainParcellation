@@ -194,19 +194,25 @@ class ParcSummary:
         plt.savefig(figname, dpi=300)
         plt.close()
 
-    def correlation_of_subparcs(self, me_file):
+    def load_parc_meta(self):
         assert(self.parc_file is not None)
         with open(f'{self.parc_file}.pkl', 'rb') as fp:
             p2ccf = pickle.load(fp)
-        # load the microenviron features
-        df, fnames = load_features(me_file, feat_type='full', flipLR=self.flipLR)
-
+        
         ccf2p = {}  # ccf region to subparcellations
         for parc_id, ccf_id in p2ccf.items():
             try:
                 ccf2p[ccf_id].append(parc_id)
             except KeyError:
                 ccf2p[ccf_id] = [parc_id]
+
+        return p2ccf, ccf2p
+
+    def correlation_of_subparcs(self, me_file):
+        # load the microenviron features
+        df, fnames = load_features(me_file, feat_type='full', flipLR=self.flipLR)
+        p2ccf, ccf2p = self.load_parc_meta()
+
 
         print('Get the volumes')
         data = []
@@ -340,15 +346,7 @@ class ParcSummary:
 
         ####### volume of subparcellations 
         # loading the mapping between ccf and our parcellation
-        with open(f'{self.parc_file}.pkl', 'rb') as fp:
-            p2ccf = pickle.load(fp)
-
-        ccf2p = {}  # ccf region to subparcellations
-        for parc_id, ccf_id in p2ccf.items():
-            try:
-                ccf2p[ccf_id].append(parc_id)
-            except KeyError:
-                ccf2p[ccf_id] = [parc_id]
+        p2ccf, ccf2p = self.load_parc_meta()
 
         # find out all regions with subregions
         ginis = []
@@ -374,6 +372,42 @@ class ParcSummary:
         plt.close()
         print()
         
+    def eval_parc(self, me_file):
+        # load the microenviron features
+        df, fnames = load_features(me_file, feat_type='full', flipLR=self.flipLR)
+        p2ccf, ccf2p = self.load_parc_meta()
+
+        feats = df[fnames]
+        zyx = np.floor(df[['soma_z', 'soma_y', 'soma_x']]).astype(int).values
+        ids_in_ccf = self.ccf[zyx[:,0], zyx[:,1], zyx[:,2]]
+        ids_in_parc = self.parc[zyx[:,0], zyx[:,1], zyx[:,2]]
+
+        std_ratios = []
+        for ccf_id, p_ids in ccf2p.items():
+            if len(p_ids) == 1:
+                continue
+
+            #if ccf_id == 202:
+                #import ipdb; ipdb.set_trace()
+            # get the neurons in subparcellations
+            ccf_feats = feats[ids_in_ccf == ccf_id]
+            p_feats = [feats[ids_in_parc == p_id] for p_id in p_ids]
+            # estimate the STD change after subparcellation
+            avg_std = []
+            for i in range(len(p_feats)):
+                p_feat = p_feats[i]
+                if len(p_feat) > 2:
+                    avg_std.append(p_feat.std().mean())
+            avg_std = np.mean(avg_std)
+            r_std = avg_std / ccf_feats.std().mean()
+            std_ratios.append(r_std)
+        
+            # estimate the silhoutte score before and after subparcellation
+        
+        std_ratios = np.array(std_ratios)
+        import ipdb; ipdb.set_trace()
+        print()
+    
 
 
 if __name__ == '__main__':
@@ -389,5 +423,10 @@ if __name__ == '__main__':
     if 0: 
         ps.correlation_of_subparcs(me_file=me_file)
 
-    if 1:
+    if 0:
         ps.volume_statistics()
+
+    if 1:
+        ps.eval_parc(me_file=me_file)
+
+

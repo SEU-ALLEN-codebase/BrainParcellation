@@ -29,7 +29,6 @@ import cv2
 import seaborn as sns
 import matplotlib.pyplot as plt
 import umap
-import hdbscan
 import matplotlib.lines as mlines
 
 from swc_handler import parse_swc, write_swc, get_specific_neurite

@@ -222,6 +222,15 @@ class FeatureEvolution:
         print(morans.mean(axis=1))
         print(morans)
 
+        length_morans = morans[:, 0]
+        xticks = range(0,40+1,5)
+        plt.plot(xticks, length_morans, 'o-', c='orchid')
+        plt.xticks(xticks, labels=[f'{r:d}' for r in xticks])
+        plt.xlabel('Maximal deleted nodes')
+        plt.ylabel('Moran')
+        plt.subplots_adjust(bottom=0.15, left=0.15)
+        plt.savefig('moran_perturbation.png', dpi=300); plt.close()
+
         #----- STD -------#
         feats_all = pd.concat(self.feats_l)
         fmean, fstd = feats_all.mean(), feats_all.std()

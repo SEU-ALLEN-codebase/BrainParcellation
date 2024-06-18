@@ -346,7 +346,7 @@ class BrainParcellation:
                     max_shape_normalize = shape_normalize
         
         # re-estimate using the best parameter
-        print(f'***Best parameter are: [n_neighbors={max_n_neighbors}, shape_normalize={max_shape_normalize}]***')
+        print(f'***Best parameter are: [n_neighbors={max_n_neighbors}, shape_normalize={max_shape_normalize}], with silhouette_score={max_sil_score}***')
         # top3 indices
         orig_fstd = feats.std(axis=0).mean()
         
