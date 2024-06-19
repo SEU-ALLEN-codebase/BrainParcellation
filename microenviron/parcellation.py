@@ -102,7 +102,7 @@ def random_colorize(coords, values, shape3d, color_level):
 class BrainParcellation:
     def __init__(self, mefile, scale=25., feat_type='mRMR', flipLR=True, seed=1024, r314_mask=True, 
                  debug=False, out_mask_dir='./output', out_vis_dir='./vis', shape_normalize=True,
-                 min_neurons_per_region=10, min_max_width=9):
+                 min_neurons_per_region=30, min_max_width=9):
         """
         @args feat_type: 
                     - "full": complete set of L-Measure features
@@ -241,53 +241,63 @@ class BrainParcellation:
 
         print()
 
-    def do_leiden(self, coords, feats, reg_mask, max_n_neighbors, shape_normalize, n_jobs, par2=3):
+    def do_leiden(self, coords, feats, reg_mask, max_n_neighbors, shape_normalize, n_jobs):
         t0 = time.time()
-        n_neighbors = min(max_n_neighbors, coords.shape[0])
+        max_n_neighbors = 200
+        n_neighbors = min(max_n_neighbors, coords.shape[0]-1)
         if shape_normalize:
             coords_t = shape_normalized_scaling(reg_mask, coords, visualize=self.debug)
         else:
             coords_t = coords
-        A = kneighbors_graph(coords_t, 
-                             n_neighbors=n_neighbors, include_self=True, 
-                             mode='distance', metric='euclidean', n_jobs=n_jobs)
+        # joint features
+        #coords_t = (coords_t - coords_t.mean(axis=0)) / (coords_t - coords_t.std(axis=0))
 
-        dist_th = A[A>0].max()# + 1e-5   # to ensure all included
-        if self.debug:
-            print(f'Threshold for graph construction: {dist_th:.4f} <<-- {time.time() - t0:.2f} seconds')
-        
+        #fj = np.hstack((feats, coords_t))
+        # do bilaterial filtering
+        Ni = min(5, coords.shape[0])
+        A = kneighbors_graph(coords_t, 
+                             n_neighbors=Ni, include_self=False, 
+                             mode='distance', metric='l2', n_jobs=n_jobs)
+
+        A_csr = csr_matrix(A)
+        sources, targets = A_csr.nonzero()
+        d1 = coords.shape[0]
+        d2 = sources.shape[0] // d1
+        # estimate the edge weights
+        dists = np.array(A_csr[sources, targets].reshape((d1, d2)))
+        #fdists = np.fabs(feats[sources] - feats[targets]).sum(axis=1).reshape((d1, d2))
+        sigma1 = dists.std(axis=1, keepdims=True)
+        #sigma2 = fdists.std(axis=1, keepdims=True)
+        #fws = np.exp(-(dists/sigma1 + fdists/sigma2) * 0.5)
+        fws = np.exp(-dists/sigma1*0.5)
+
+        feats = (fws.reshape((d1,d2,1)) * feats[targets].reshape((d1,d2,24))).sum(axis=1) / fws.sum(axis=-1, keepdims=True)
+
+        # do clustering
+        A = kneighbors_graph(feats, 
+                             n_neighbors=n_neighbors, include_self=False, 
+                             mode='distance', metric='l2', n_jobs=n_jobs)
         A.setdiag(0)
         if self.debug:
             print(f'[Neighbors generation]: {time.time() - t0:.2f} seconds')
         
         A_csr = csr_matrix(A)
         sources, targets = A_csr.nonzero()
-        # estimate the edge weights
-        dists = A_csr[sources, targets]
-        wd = np.squeeze(np.asarray(np.exp(-dists/dist_th)))
-
+        D = A[A>0]
+        dist_th = D.std()
+        wd = np.squeeze(np.asarray(np.exp(-D/(2*dist_th))))
         if self.debug:
             print(f'wd[mean/max/min]: {wd.mean():.2f}, {wd.max():.2f}, {wd.min():.2f}')
             print(f'Total and avg number of edges: {wd.shape[0]}, {wd.shape[0]/feats.shape[0]:.2f}')
 
-        fs = feats[sources]
-        ft = feats[targets]
-        if self.feat_type == 'full':
-            # The mean pairwise distances of full set of features (`feat_type == full`) are about 3x
-            # (6.576) compared to that of mRMR3 (2.180) and PCA3 (2.236).
-            par2 = par2 / 3.
-        wf = np.exp(-par2 * np.linalg.norm(fs - ft, axis=1))
-        if self.debug:
-            print(f'wf[mean/max/min]: {wf.mean():.2f}, {wf.max():.2f}, {wf.min():.2g}')
-            print(f'[weights estimation]: {time.time() - t0:.2f} seconds')
+        #fs = feats[sources]
+        #ft = feats[targets]
+        #wf = np.exp(-par2 * np.linalg.norm(fs - ft, axis=1))
+        #if self.debug:
+        #    print(f'wf[mean/max/min]: {wf.mean():.2f}, {wf.max():.2f}, {wf.min():.2g}')
+        #    print(f'[weights estimation]: {time.time() - t0:.2f} seconds')
 
-        #weights = wd * wf
-        weights = wf
-        #wavg = np.median(weights)
-        #wmask = weights > wavg
-        #weights = weights[wmask]
-        #sources = sources[wmask]
-        #targets = targets[wmask]
+        weights = wd
         
 
         g = ig.Graph(list(zip(sources, targets)), directed=False)
@@ -313,46 +323,56 @@ class BrainParcellation:
     def community_detection(self, coords, feats, reg_mask, n_jobs=2):
         # or try to use radius_neighbors_graph
         # the radius are in 25um space
-        radius_th = 4.  # 4x25=100um
-        par2 = 3.
 
         t0 = time.time()
         coords = coords.values.astype(np.float64)
 
-        # do silhoutte-based adaptive parameter tuning
-        max_sil_score = -1
-        for n_neighbors in [50, 100, 150, 200, 250]:
-            for shape_normalize in [True, False]:
-                coords_t, community_memberships, partition = self.do_leiden(
-                        coords, feats, reg_mask, n_neighbors, shape_normalize, n_jobs, par2=par2
-                )
+        if 0:
+            # do silhoutte-based adaptive parameter tuning
+            max_sil_score = -1
+            for n_neighbors in [50, 100, 150, 200, 250]:
+                for shape_normalize in [True, False]:
+                    coords_t, community_memberships, partition = self.do_leiden(
+                            coords, feats, reg_mask, n_neighbors, shape_normalize, n_jobs
+                    )
 
-                # estimate the silhoutte score
-                n_sample = 1000
-                if len(community_memberships) > n_sample:
-                    # select only a subset of data
-                    random.seed(1024)
-                    rids = random.sample(range(len(community_memberships)), n_sample)
-                    sil_feats = feats[rids]
-                    sil_labels = community_memberships[rids]
-                else:
-                    sil_feats = feats
-                    sil_labels = community_memberships
-                sil_score = metrics.silhouette_score(sil_feats, sil_labels)
-                print(f'[n_neighbors={n_neighbors}, shape_normalize={shape_normalize}]: sil={sil_score:.4f}')
-                if sil_score > max_sil_score:
-                    max_sil_score = sil_score
-                    max_n_neighbors = n_neighbors
-                    max_shape_normalize = shape_normalize
+                    # estimate the silhoutte score
+                    n_sample = 1000
+                    if len(community_memberships) > n_sample:
+                        # select only a subset of data
+                        random.seed(1024)
+                        rids = random.sample(range(len(community_memberships)), n_sample)
+                        sil_feats = feats[rids]
+                        sil_labels = community_memberships[rids]
+                    else:
+                        sil_feats = feats
+                        sil_labels = community_memberships
+                    sil_score = metrics.silhouette_score(sil_feats, sil_labels)
+                    print(f'[n_neighbors={n_neighbors}, shape_normalize={shape_normalize}]: sil={sil_score:.4f}')
+                    if sil_score > max_sil_score:
+                        max_sil_score = sil_score
+                        max_n_neighbors = n_neighbors
+                        max_shape_normalize = shape_normalize
+            
+            # re-estimate using the best parameter
+            print(f'***Best parameter are: [n_neighbors={max_n_neighbors}, shape_normalize={max_shape_normalize}], with silhouette_score={max_sil_score}***')
+        else:
+            max_sil_score = -1
+            max_n_neighbors = 150
+            max_shape_normalize = False
         
-        # re-estimate using the best parameter
-        print(f'***Best parameter are: [n_neighbors={max_n_neighbors}, shape_normalize={max_shape_normalize}], with silhouette_score={max_sil_score}***')
         # top3 indices
         orig_fstd = feats.std(axis=0).mean()
         
         coords_t, community_memberships, partition = self.do_leiden(
-                coords, feats, reg_mask, max_n_neighbors, max_shape_normalize, n_jobs, par2=par2
+                coords, feats, reg_mask, max_n_neighbors, max_shape_normalize, n_jobs
         )
+        community_sizes = np.array([len(community) for community in partition])
+        comms, counts = np.unique(community_sizes, return_counts=True)
+        if self.debug:
+            print(f'[Number of communities] = {len(partition)}')
+            print(f'[Community statistics: mean/std/max/min]: {community_sizes.mean():.1f}, {community_sizes.std():.1f}, {community_sizes.max()}, {community_sizes.min()}')
+            print(comms, counts)
         
         # average gini after estimation:
         avg_fstd = []
@@ -365,20 +385,13 @@ class BrainParcellation:
 
         # denoising at the neuron level
         # remove nodes with nearest nodes are not the same class
-        topk = 6
-        A1 = kneighbors_graph(coords_t, n_neighbors=topk-1, include_self=False, mode='distance', metric='euclidean')
-        yc, xc = A1.nonzero()
-        Ab = community_memberships[xc].reshape(-1, topk-1)
-        Ab = np.hstack((community_memberships.reshape(-1,1), Ab))
-        community_memberships = np.array([np.bincount(row).argmax() for row in Ab])
+        #topk = 6
+        #A1 = kneighbors_graph(coords_t, n_neighbors=topk-1, include_self=False, mode='distance', metric='euclidean')
+        #yc, xc = A1.nonzero()
+        #Ab = community_memberships[xc].reshape(-1, topk-1)
+        #Ab = np.hstack((community_memberships.reshape(-1,1), Ab))
+        #community_memberships = np.array([np.bincount(row).argmax() for row in Ab])
 
-
-        community_sizes = np.array([len(community) for community in partition])
-        comms, counts = np.unique(community_sizes, return_counts=True)
-        if self.debug:
-            print(f'[Number of communities] = {len(partition)}')
-            print(f'[Community statistics: mean/std/max/min]: {community_sizes.mean():.1f}, {community_sizes.std():.1f}, {community_sizes.max()}, {community_sizes.min()}')
-            print(comms, counts)
 
         node_to_community = {node: community for node, community in enumerate(community_memberships)}
         # Initialize a dictionary to hold lists of nodes for each community
@@ -399,7 +412,7 @@ class BrainParcellation:
     def parcellate_region(self, regid, save_mask=True):
         print(f'---> Processing for region={regid}')
         t0 = time.time()
-        min_pts_per_parc = 8**3 # (0.25*x)^6 um^3
+        min_pts_per_parc = 20**3 # (0.25*x)^6 um^3
         if type(regid) is list:
             rprefix = 9999
         else:
@@ -535,10 +548,11 @@ class BrainParcellation:
 
                 if sub_fg_mask.sum() > min_pts_per_parc:
                     sub_mask, cc_mask, cc_ids, cc_cnts = self.remove_small_parcs(sub_mask, sub_fg_mask, cc_mask, cc_ids, cc_cnts, min_pts_per_parc)
-                if self.debug:
+                if self.debug and (cc_mask is not None):
                     print(f'[No. of CCs for iter={i_interp}]: {cc_mask.max()}')
                     print(cc_ids, cc_cnts)
 
+            
             # Ensure no small parcellations
             niter = 0
             while (sub_fg_mask.sum() > min_pts_per_parc) and ((cc_cnts<min_pts_per_parc).sum() > 0):
@@ -551,8 +565,9 @@ class BrainParcellation:
                 print(regid, niter, cc_ids.shape, cc_cnts)
                 niter += 1
             
+            
 
-            if self.debug:
+            if self.debug and (cc_mask is not None):
                 print(f'[No. of CCs finally]: {cc_mask.max()}')
                 print(cc_ids, cc_cnts)
 
@@ -657,9 +672,9 @@ if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
     feat_type = 'full'  # mRMR, PCA, full
-    debug = True
+    debug = False
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 672
+    regid = 961 #382, 507, 672
     r314_mask = False
     
     if r314_mask:
@@ -671,9 +686,9 @@ if __name__ == '__main__':
     #parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    bp.parcellate_region(regid=regid)
+    #bp.parcellate_region(regid=regid)
     #bp.parcellate_brain()
-    #bp.merge_parcs(parc_file=parc_file)
+    bp.merge_parcs(parc_file=parc_file)
     
 
 
