@@ -26,7 +26,7 @@ import cc3d
 from skimage.morphology import ball as morphology_ball
 from skimage.morphology import cube as morphology_cube
 from skimage.morphology import erosion
-from skimage.filters.rank import median as rank_median_filter
+from skimage.filters.rank import majority as majority_filter
 
 import leidenalg as lg
 import igraph as ig
@@ -102,7 +102,7 @@ def random_colorize(coords, values, shape3d, color_level):
 class BrainParcellation:
     def __init__(self, mefile, scale=25., feat_type='mRMR', flipLR=True, seed=1024, r314_mask=True, 
                  debug=False, out_mask_dir='./output', out_vis_dir='./vis', shape_normalize=True,
-                 min_neurons_per_region=30, min_max_width=9):
+                 min_neurons_per_region=40, min_max_width=9):
         """
         @args feat_type: 
                     - "full": complete set of L-Measure features
@@ -243,7 +243,6 @@ class BrainParcellation:
 
     def do_leiden(self, coords, feats, reg_mask, max_n_neighbors, shape_normalize, n_jobs):
         t0 = time.time()
-        max_n_neighbors = 200
         n_neighbors = min(max_n_neighbors, coords.shape[0]-1)
         if shape_normalize:
             coords_t = shape_normalized_scaling(reg_mask, coords, visualize=self.debug)
@@ -253,7 +252,7 @@ class BrainParcellation:
         #coords_t = (coords_t - coords_t.mean(axis=0)) / (coords_t - coords_t.std(axis=0))
 
         #fj = np.hstack((feats, coords_t))
-        # do bilaterial filtering
+        # do bilaterial/gaussian filtering in feature space
         Ni = min(5, coords.shape[0])
         A = kneighbors_graph(coords_t, 
                              n_neighbors=Ni, include_self=False, 
@@ -283,19 +282,17 @@ class BrainParcellation:
         
         A_csr = csr_matrix(A)
         sources, targets = A_csr.nonzero()
-        D = A[A>0]
-        dist_th = D.std()
-        wd = np.squeeze(np.asarray(np.exp(-D/(2*dist_th))))
+        Df = A[A>0]
+        Df_th = Df.std()
+        # estimate the spatial distance
+        #De = ((coords_t[sources] - coords_t[targets])**2).sum(axis=1)
+        #De_th = De.std()
+        #wd = np.squeeze(np.asarray(np.exp(-Df/(2*Df_th) - De/(2*De_th))))
+        
+        wd = np.squeeze(np.asarray(np.exp(-Df/(2*Df_th))))
         if self.debug:
             print(f'wd[mean/max/min]: {wd.mean():.2f}, {wd.max():.2f}, {wd.min():.2f}')
             print(f'Total and avg number of edges: {wd.shape[0]}, {wd.shape[0]/feats.shape[0]:.2f}')
-
-        #fs = feats[sources]
-        #ft = feats[targets]
-        #wf = np.exp(-par2 * np.linalg.norm(fs - ft, axis=1))
-        #if self.debug:
-        #    print(f'wf[mean/max/min]: {wf.mean():.2f}, {wf.max():.2f}, {wf.min():.2g}')
-        #    print(f'[weights estimation]: {time.time() - t0:.2f} seconds')
 
         weights = wd
         
@@ -327,7 +324,7 @@ class BrainParcellation:
         t0 = time.time()
         coords = coords.values.astype(np.float64)
 
-        if 0:
+        if 1:
             # do silhoutte-based adaptive parameter tuning
             max_sil_score = -1
             for n_neighbors in [50, 100, 150, 200, 250]:
@@ -358,7 +355,7 @@ class BrainParcellation:
             print(f'***Best parameter are: [n_neighbors={max_n_neighbors}, shape_normalize={max_shape_normalize}], with silhouette_score={max_sil_score}***')
         else:
             max_sil_score = -1
-            max_n_neighbors = 150
+            max_n_neighbors = 200
             max_shape_normalize = False
         
         # top3 indices
@@ -412,6 +409,8 @@ class BrainParcellation:
     def parcellate_region(self, regid, save_mask=True):
         print(f'---> Processing for region={regid}')
         t0 = time.time()
+        # regions smaller than (0.5)^3 mm^3 is dangerous to be a subregion, which maybe 
+        # noise-induced
         min_pts_per_parc = 20**3 # (0.25*x)^6 um^3
         if type(regid) is list:
             rprefix = 9999
@@ -483,6 +482,11 @@ class BrainParcellation:
             return self.insufficient_data(reg_mask, out_image_file, save_mask)
 
         communities, comms = self.community_detection(coords, feats, reg_sub_mask, n_jobs=1)
+        if len(communities) == 1:
+            cur_mask = reg_mask.astype(np.uint16)
+            save_image(out_image_file, cur_mask, useCompression=True)
+            print('No subdomain found!')
+            return True
 
         if self.debug:
             dfp = self.df[cp_mask].copy()
@@ -507,7 +511,6 @@ class BrainParcellation:
             mcoord = cur_coords.mean(axis=0).values
             mcoords.append(mcoord)
         mcoords = np.array(mcoords)
-
 
         if mcoords.shape[0] == 0:
             print(f'[Warning] Insufficient data to detect sub-regions for regid={regid}!')
@@ -540,20 +543,22 @@ class BrainParcellation:
             # for more specific implementation.
             sub_fg_mask = sub_mask > 0
 
-            # 2 rounds of parcellation smoothing
+            # Iterative smoothing and removing small isolated domain, assuming that a subdomain
+            # contains voxels continuously in space.
             cc_mask, cc_ids, cc_cnts = None, None, None
-            for i_interp in range(2):
-                sub_mask = rank_median_filter(sub_mask, morphology_ball(5), mask=sub_fg_mask)
-                sub_mask[~sub_fg_mask] = 0  # force to zero
+            for i_interp in range(5):
+                sub_mask = majority_filter(sub_mask, morphology_ball(11), mask=sub_fg_mask)
+                sub_mask[~sub_fg_mask] = 0  # interpolated background to zero
 
                 if sub_fg_mask.sum() > min_pts_per_parc:
                     sub_mask, cc_mask, cc_ids, cc_cnts = self.remove_small_parcs(sub_mask, sub_fg_mask, cc_mask, cc_ids, cc_cnts, min_pts_per_parc)
                 if self.debug and (cc_mask is not None):
-                    print(f'[No. of CCs for iter={i_interp}]: {cc_mask.max()}')
+                    print(f'[No. of CCs for iter={i_interp}]: {np.unique(cc3d.connected_components(sub_mask), return_counts=True)}')
                     print(cc_ids, cc_cnts)
 
             
-            # Ensure no small parcellations
+            # Ensure no small parcellations. This is specifically designed for the handling of 
+            # non-connected-component region in original CCF atlas
             niter = 0
             while (sub_fg_mask.sum() > min_pts_per_parc) and ((cc_cnts<min_pts_per_parc).sum() > 0):
                 if niter < 2:
@@ -565,11 +570,11 @@ class BrainParcellation:
                 print(regid, niter, cc_ids.shape, cc_cnts)
                 niter += 1
             
-            
 
             if self.debug and (cc_mask is not None):
                 print(f'[No. of CCs finally]: {cc_mask.max()}')
                 print(cc_ids, cc_cnts)
+
 
             # re-ordering the connected components or parcellations
             reorder_mask_using_cc(sub_mask, cc_mask, sub_fg_mask, min_pts_per_parc)
@@ -667,14 +672,29 @@ class BrainParcellation:
         # save the correspondence file
         with open(f'{parc_file}.pkl', 'wb') as fp:
             pickle.dump(parcs2ccf, fp)
+
+    def plot_parc_sections(self, parc_file):
+        parc = load_image(parc_file)
+        # get the subregion
+        reg_mask = parc > 0
+        nzcoords = reg_mask.nonzero()
+        nzcoords_t = np.array(nzcoords).transpose()
+        # We should only processing the mask region, so pre-extracting it.
+        zmin, ymin, xmin = nzcoords_t.min(axis=0)
+        zmax, ymax, xmax = nzcoords_t.max(axis=0)
+        reg_sub_mask = reg_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+
+        cmask = random_colorize(nzcoords_t, parc[nzcoords], self.mask.shape, parc.max())
+        sub_parc = cmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+        self.save_colorized_images(sub_parc, reg_sub_mask, parc_file, thickX2=10)
     
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
     feat_type = 'full'  # mRMR, PCA, full
-    debug = False
+    debug = True
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 961 #382, 507, 672
+    regid = 943 #382, 507, 672
     r314_mask = False
     
     if r314_mask:
@@ -688,7 +708,7 @@ if __name__ == '__main__':
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
     #bp.parcellate_region(regid=regid)
     #bp.parcellate_brain()
-    bp.merge_parcs(parc_file=parc_file)
+    #bp.merge_parcs(parc_file=parc_file)
     
-
+    bp.plot_parc_sections('output_full_r671/parc_region672.nrrd')
 

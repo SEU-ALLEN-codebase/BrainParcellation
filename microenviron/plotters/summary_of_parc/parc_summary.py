@@ -106,7 +106,7 @@ class ParcSummary:
             subparcs = pd.DataFrame(subparcs, columns=('Region', 'No. of subregions', 'Brain structure'))
             sns.boxplot(data=subparcs, x='Brain structure', y='No. of subregions', fill=False, 
                         color='black', order=sorted(BSTRUCTS7.values()), width=0.35)
-            plt.yticks(range(0,16, 2), fontsize=16)
+            plt.yticks(range(0,subparcs['No. of subregions'].max()+1, 2), fontsize=16)
             plt.xticks(sorted(BSTRUCTS7.values()), fontsize=16)
             plt.xlabel('Brain structure', fontsize=18)
             plt.ylabel('No. of subregions', fontsize=18)
@@ -363,7 +363,7 @@ class ParcSummary:
         xmin, xmax = plt.xlim()
         xg = np.linspace(xmin, xmax, 100)
         yg = stats.norm.pdf(xg, gmean, gstd)
-        plt.plot(xg, yg, 'red', linewidth=2, label=r'$Gaussian (\mu=0.35, \sigma=0.15)$')
+        plt.plot(xg, yg, 'red', linewidth=2, label=r'$Gaussian (\mu=$'+f'{gmean:.2f}, ' + r'$\sigma=$'+f'{gstd:.2f})')
 
         plt.xlabel('Gini coefficient of subregion volumes')
         plt.legend()
@@ -405,7 +405,6 @@ class ParcSummary:
             # estimate the silhoutte score before and after subparcellation
         
         std_ratios = np.array(std_ratios)
-        import ipdb; ipdb.set_trace()
         print()
     
 
@@ -423,10 +422,10 @@ if __name__ == '__main__':
     if 0: 
         ps.correlation_of_subparcs(me_file=me_file)
 
-    if 0:
+    if 1:
         ps.volume_statistics()
 
-    if 1:
+    if 0:
         ps.eval_parc(me_file=me_file)
 
 
