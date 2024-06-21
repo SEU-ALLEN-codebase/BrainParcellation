@@ -26,7 +26,7 @@ import cc3d
 from skimage.morphology import ball as morphology_ball
 from skimage.morphology import cube as morphology_cube
 from skimage.morphology import erosion
-from skimage.filters.rank import median as rank_median_filter
+from skimage.filters.rank import majority as majority_filter
 
 import leidenalg as lg
 import igraph as ig
@@ -241,13 +241,14 @@ class BrainParcellation:
 
         print()
 
-    def do_leiden(self, coords, feats, reg_mask, max_n_neighbors, shape_normalize, n_jobs, par2=3):
+    def do_leiden(self, coords, feats, reg_mask, max_n_neighbors, shape_normalize, n_jobs):
         t0 = time.time()
         n_neighbors = min(max_n_neighbors, coords.shape[0])
         if shape_normalize:
             coords_t = shape_normalized_scaling(reg_mask, coords, visualize=self.debug)
         else:
             coords_t = coords
+
         A = kneighbors_graph(coords_t, 
                              n_neighbors=n_neighbors, include_self=True, 
                              mode='distance', metric='euclidean', n_jobs=n_jobs)
@@ -272,23 +273,18 @@ class BrainParcellation:
 
         fs = feats[sources]
         ft = feats[targets]
+        par2 = 3
         if self.feat_type == 'full':
             # The mean pairwise distances of full set of features (`feat_type == full`) are about 3x
             # (6.576) compared to that of mRMR3 (2.180) and PCA3 (2.236).
             par2 = par2 / 3.
-        wf = np.exp(-par2 * np.linalg.norm(fs - ft, axis=1))
+        wf = np.exp(-par2*np.linalg.norm(fs - ft, axis=1))
+
         if self.debug:
             print(f'wf[mean/max/min]: {wf.mean():.2f}, {wf.max():.2f}, {wf.min():.2g}')
             print(f'[weights estimation]: {time.time() - t0:.2f} seconds')
 
-        #weights = wd * wf
         weights = wf
-        #wavg = np.median(weights)
-        #wmask = weights > wavg
-        #weights = weights[wmask]
-        #sources = sources[wmask]
-        #targets = targets[wmask]
-        
 
         g = ig.Graph(list(zip(sources, targets)), directed=False)
         g.es['weight'] = weights
@@ -313,45 +309,49 @@ class BrainParcellation:
     def community_detection(self, coords, feats, reg_mask, n_jobs=2):
         # or try to use radius_neighbors_graph
         # the radius are in 25um space
-        radius_th = 4.  # 4x25=100um
-        par2 = 3.
 
         t0 = time.time()
         coords = coords.values.astype(np.float64)
 
         # do silhoutte-based adaptive parameter tuning
         max_sil_score = -1
-        for n_neighbors in [50, 100, 150, 200, 250]:
-            for shape_normalize in [True, False]:
-                coords_t, community_memberships, partition = self.do_leiden(
-                        coords, feats, reg_mask, n_neighbors, shape_normalize, n_jobs, par2=par2
-                )
+        if 0:
+            for n_neighbors in [50, 100, 150, 200, 250]:
+                for shape_normalize in [True, False]:
+                    coords_t, community_memberships, partition = self.do_leiden(
+                            coords, feats, reg_mask, n_neighbors, shape_normalize, n_jobs
+                    )
 
-                # estimate the silhoutte score
-                n_sample = 1000
-                if len(community_memberships) > n_sample:
-                    # select only a subset of data
-                    random.seed(1024)
-                    rids = random.sample(range(len(community_memberships)), n_sample)
-                    sil_feats = feats[rids]
-                    sil_labels = community_memberships[rids]
-                else:
-                    sil_feats = feats
-                    sil_labels = community_memberships
-                sil_score = metrics.silhouette_score(sil_feats, sil_labels)
-                print(f'[n_neighbors={n_neighbors}, shape_normalize={shape_normalize}]: sil={sil_score:.4f}')
-                if sil_score > max_sil_score:
-                    max_sil_score = sil_score
-                    max_n_neighbors = n_neighbors
-                    max_shape_normalize = shape_normalize
-        
-        # re-estimate using the best parameter
-        print(f'***Best parameter are: [n_neighbors={max_n_neighbors}, shape_normalize={max_shape_normalize}], with silhouette_score={max_sil_score}***')
+                    # estimate the silhoutte score
+                    n_sample = 1000
+                    if len(community_memberships) > n_sample:
+                        # select only a subset of data
+                        random.seed(1024)
+                        rids = random.sample(range(len(community_memberships)), n_sample)
+                        sil_feats = feats[rids]
+                        sil_labels = community_memberships[rids]
+                    else:
+                        sil_feats = feats
+                        sil_labels = community_memberships
+                    sil_score = metrics.silhouette_score(sil_feats, sil_labels)
+                    print(f'[n_neighbors={n_neighbors}, shape_normalize={shape_normalize}]: sil={sil_score:.4f}')
+                    if sil_score > max_sil_score:
+                        max_sil_score = sil_score
+                        max_n_neighbors = n_neighbors
+                        max_shape_normalize = shape_normalize
+            
+            # re-estimate using the best parameter
+            print(f'***Best parameter are: [n_neighbors={max_n_neighbors}, shape_normalize={max_shape_normalize}], with silhouette_score={max_sil_score}***')
+        else:
+            max_n_neighbors = 200
+            max_shape_normalize = False
+
+
         # top3 indices
         orig_fstd = feats.std(axis=0).mean()
         
         coords_t, community_memberships, partition = self.do_leiden(
-                coords, feats, reg_mask, max_n_neighbors, max_shape_normalize, n_jobs, par2=par2
+                coords, feats, reg_mask, max_n_neighbors, max_shape_normalize, n_jobs
         )
         
         # average gini after estimation:
@@ -399,7 +399,7 @@ class BrainParcellation:
     def parcellate_region(self, regid, save_mask=True):
         print(f'---> Processing for region={regid}')
         t0 = time.time()
-        min_pts_per_parc = 8**3 # (0.25*x)^6 um^3
+        min_pts_per_parc = 20**3 # (0.25*x)^6 um^3
         if type(regid) is list:
             rprefix = 9999
         else:
@@ -530,7 +530,7 @@ class BrainParcellation:
             # 2 rounds of parcellation smoothing
             cc_mask, cc_ids, cc_cnts = None, None, None
             for i_interp in range(2):
-                sub_mask = rank_median_filter(sub_mask, morphology_ball(5), mask=sub_fg_mask)
+                sub_mask = majority_filter(sub_mask, morphology_ball(5), mask=sub_fg_mask)
                 sub_mask[~sub_fg_mask] = 0  # force to zero
 
                 if sub_fg_mask.sum() > min_pts_per_parc:
@@ -652,6 +652,21 @@ class BrainParcellation:
         # save the correspondence file
         with open(f'{parc_file}.pkl', 'wb') as fp:
             pickle.dump(parcs2ccf, fp)
+
+    def plot_parc_sections(self, parc_file):
+        parc = load_image(parc_file)
+        # get the subregion
+        reg_mask = parc > 0
+        nzcoords = reg_mask.nonzero()
+        nzcoords_t = np.array(nzcoords).transpose()
+        # We should only processing the mask region, so pre-extracting it.
+        zmin, ymin, xmin = nzcoords_t.min(axis=0)
+        zmax, ymax, xmax = nzcoords_t.max(axis=0)
+        reg_sub_mask = reg_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+
+        cmask = random_colorize(nzcoords_t, parc[nzcoords], self.mask.shape, parc.max())
+        sub_parc = cmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+        self.save_colorized_images(sub_parc, reg_sub_mask, parc_file, thickX2=10)
     
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
