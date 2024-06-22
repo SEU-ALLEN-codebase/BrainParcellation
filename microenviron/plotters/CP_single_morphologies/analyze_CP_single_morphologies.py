@@ -606,7 +606,7 @@ if 1:
 
     if 1:
         # quantitative analyses
-        parc_file = '../../../mm_tmp/output_full_r671/parc_region672.nrrd'
+        parc_file = '../../output_full_r671/parc_region672.nrrd'
         
         for is_axon in [True, False]:
             if is_axon:

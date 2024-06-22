@@ -103,7 +103,7 @@ def random_colorize(coords, values, shape3d, color_level):
 class BrainParcellation:
     def __init__(self, mefile, scale=25., feat_type='mRMR', flipLR=True, seed=1024, r314_mask=True, 
                  debug=False, out_mask_dir='./output', out_vis_dir='./vis', shape_normalize=True,
-                 min_neurons_per_region=10, min_max_width=9):
+                 min_neurons_per_region=40, min_max_width=9):
         """
         @args feat_type: 
                     - "full": complete set of L-Measure features
@@ -316,8 +316,11 @@ class BrainParcellation:
 
         # do silhoutte-based adaptive parameter tuning
         max_sil_score = -1
-        if 0:
-            for n_neighbors in [50, 100, 150, 200, 250]:
+        if 1:
+            start_id = 50
+            end_id = 250
+            step_id = 50
+            for n_neighbors in range(start_id, end_id+step_id, step_id):
                 for shape_normalize in [True, False]:
                     coords_t, community_memberships, partition = self.do_leiden(
                             coords, feats, reg_mask, n_neighbors, shape_normalize, n_jobs
@@ -340,6 +343,9 @@ class BrainParcellation:
                         max_sil_score = sil_score
                         max_n_neighbors = n_neighbors
                         max_shape_normalize = shape_normalize
+
+                if n_neighbors > coords.shape[0]:
+                    break
             
             # re-estimate using the best parameter
             print(f'***Best parameter are: [n_neighbors={max_n_neighbors}, shape_normalize={max_shape_normalize}], with silhouette_score={max_sil_score}***')
@@ -400,7 +406,7 @@ class BrainParcellation:
     def parcellate_region(self, regid, save_mask=True):
         print(f'---> Processing for region={regid}')
         t0 = time.time()
-        min_pts_per_parc = 20**3 # (0.25*x)^6 um^3
+        min_pts_per_parc = 12**3 # (0.25*x)^6 um^3
         if type(regid) is list:
             rprefix = 9999
         else:
@@ -471,6 +477,11 @@ class BrainParcellation:
             return self.insufficient_data(reg_mask, out_image_file, save_mask)
 
         communities, comms = self.community_detection(coords, feats, reg_sub_mask, n_jobs=1)
+        if len(communities) == 1:
+            cur_mask = reg_mask.astype(np.uint16)
+            save_image(out_image_file, cur_mask, useCompression=True)
+            print('No subdomain found!')
+            return True
 
         if self.debug:
             dfp = self.df[cp_mask].copy()
@@ -681,9 +692,9 @@ if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
     scale = 25.
     feat_type = 'full'  # mRMR, PCA, full
-    debug = True
+    debug = False
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 507
+    regid = 651
     r314_mask = False
     
     if r314_mask:
@@ -695,8 +706,8 @@ if __name__ == '__main__':
     #parc_dir = 'Tmp'
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
-    bp.parcellate_region(regid=regid)
-    #bp.parcellate_brain()
+    #bp.parcellate_region(regid=regid)
+    bp.parcellate_brain()
     #bp.merge_parcs(parc_file=parc_file)
     
 
