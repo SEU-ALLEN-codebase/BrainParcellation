@@ -595,7 +595,7 @@ if 1:
             out_file = os.path.join(axon_dir, f'{swc_name}.swc')
             write_swc(axons, out_file)
 
-    if 1:
+    if 0:
         calc_global_features_from_folder(axon_dir, outfile=axon_gf_file)
         #aggregate_meta_information(swc_dir, axon_gf_file, axon_feat_file)
 
@@ -604,17 +604,17 @@ if 1:
         #feat_names = ['Bifurcations', 'Length', 'AverageFragmentation']
         plot_region_feature_sections(ffile, rname='CP', name='axon', r316=False, flipLR=True, thickX2=10)
 
-    if 0:
+    if 1:
         # quantitative analyses
         parc_file = '../../output_full_r671/parc_region672.nrrd'
-        is_axon = False
-
-        if is_axon:
-            gf_file = 'cp_1876_axonal_features.csv'
-        else:
-            gf_file = 'cp_1876_dendrite_features.csv'
         
-        estimate_similarity(parc_file, gf_file, is_axon=is_axon)
+        for is_axon in [True, False]:
+            if is_axon:
+                gf_file = 'cp_1876_axonal_features.csv'
+            else:
+                gf_file = 'cp_1876_dendrite_features.csv'
+            
+            estimate_similarity(parc_file, gf_file, is_axon=is_axon)
         
         
     if 0:
