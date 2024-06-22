@@ -27,6 +27,7 @@ from skimage.morphology import ball as morphology_ball
 from skimage.morphology import cube as morphology_cube
 from skimage.morphology import erosion
 from skimage.filters.rank import majority as majority_filter
+from sklearn.neighbors import KNeighborsClassifier
 
 import leidenalg as lg
 import igraph as ig
@@ -508,9 +509,17 @@ class BrainParcellation:
             # The following 2 lines of codes are added without verification!
             cur_mask = reg_mask.astype(uint16)
             cur_mask[nzcoords] = dmi[:,0]
-        elif parc_method == 'NearestNeighbor':
-            interp = NearestNDInterpolator(coords.iloc[mnodes][['soma_z', 'soma_y', 'soma_x']].values, mcomms)
-            predv = interp(*nzcoords)
+        elif (parc_method == 'NearestNeighbor') or (parc_method == 'KNN'):
+            if parc_method == 'NearestNeighbor':
+                interp = NearestNDInterpolator(coords.iloc[mnodes][['soma_z', 'soma_y', 'soma_x']].values, mcomms)
+                predv = interp(*nzcoords)
+            elif parc_method == 'KNN':
+                knn = KNeighborsClassifier(n_neighbors=3)
+                knn.fit(coords.iloc[mnodes][['soma_z', 'soma_y', 'soma_x']].values, mcomms)
+                predv = knn.predict(nzcoords_t)
+            else:
+                raise NotImplementedError
+                
             cur_mask = reg_mask.astype(np.uint16)
             cur_mask[nzcoords] = predv
             
@@ -674,7 +683,7 @@ if __name__ == '__main__':
     feat_type = 'full'  # mRMR, PCA, full
     debug = True
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 672
+    regid = 507
     r314_mask = False
     
     if r314_mask:
