@@ -98,12 +98,13 @@ class ParcSummary:
                     s2p[crid].append(prid)
                 except:
                     s2p[crid] = [prid]
-
+            
             # plot the region distribution
             subparcs = []
             for idx in r2s.keys():
                 subparcs.append([idx, len(s2p[idx]), r2s[idx]])
             subparcs = pd.DataFrame(subparcs, columns=('Region', 'No. of subregions', 'Brain structure'))
+            
             sns.boxplot(data=subparcs, x='Brain structure', y='No. of subregions', fill=False, 
                         color='black', order=sorted(BSTRUCTS7.values()), width=0.35)
             plt.yticks(range(0,subparcs['No. of subregions'].max()+1, 2), fontsize=16)

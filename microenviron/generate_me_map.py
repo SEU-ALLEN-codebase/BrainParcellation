@@ -592,11 +592,19 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
     mips = []
     shape3d = mask.shape
     axid = 2
-    for sid in range(0, xmax-xmin-thickX2-1, thickX2*2):
+    dmax, dmin = nzcoords_t.max(axis=0)[axid], nzcoords_t.min(axis=0)[axid]
+    for sid in range(0, dmax-dmin-thickX2-1, thickX2*2):
         sid = sid + thickX2
         cur_memap = memap.copy()
-        cur_memap[:,:,:sid-thickX2] = 0
-        cur_memap[:,:,sid+thickX2:] = 0
+        if axid == 0:
+            cur_memap[:sid-thickX2] = 0
+            cur_memap[sid+thickX2:] = 0
+        elif axid == 1:
+            cur_memap[:,:sid-thickX2] = 0
+            cur_memap[:,sid+thickX2:] = 0
+        elif axid == 2:
+            cur_memap[:,:,:sid-thickX2] = 0
+            cur_memap[:,:,sid+thickX2:] = 0
         print(cur_memap.mean(), cur_memap.std())
 
         mip = get_mip_image(cur_memap, axid)
@@ -690,7 +698,7 @@ if __name__ == '__main__':
         rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
         #plot_MOB_features(mefile, 'MOB')
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
-        plot_region_feature_sections(mefile, 'MD')
+        plot_region_feature_sections(mefile, 'VPM')
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'

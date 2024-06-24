@@ -371,7 +371,7 @@ def estimate_similarity(parc_file, gf_file, is_axon=True):
                 k = 1
             else:
                 k = 0
-            i_trius = np.triu_indices_from(cur_corr)
+            i_trius = np.triu_indices_from(cur_corr, k=k)
             vs = cur_corr.values[i_trius[0], i_trius[1]]
             #sns.violinplot(data=vs)
             #plt.ylim(-1, 1); plt.savefig(f'{ir}_{jr}.png'); plt.close()

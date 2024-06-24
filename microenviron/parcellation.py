@@ -632,10 +632,8 @@ class BrainParcellation:
             #if rid in regions:
             if not os.path.exists(os.path.join(self.out_mask_dir, f'parc_region{rid}.nrrd')):
                 args_list.append((rid, save_mask))
-                self.parcellate_region(rid, save_mask)#; sys.exit()
         print(f'No. of regions to calculate: {len(args_list)}')
         
-        #self.parcellate_region(206, save_mask); sys.exit() # debug
         
         # multiprocessing
         pt = Pool(n_jobs)
@@ -694,7 +692,7 @@ if __name__ == '__main__':
     feat_type = 'full'  # mRMR, PCA, full
     debug = False
     regid = [382, 423, 463, 484682470, 502, 10703, 10704, 632]
-    regid = 651
+    regid = 672
     r314_mask = False
     
     if r314_mask:
@@ -707,8 +705,8 @@ if __name__ == '__main__':
     
     bp = BrainParcellation(mefile, scale=scale, feat_type=feat_type, r314_mask=r314_mask, debug=debug, out_mask_dir=parc_dir)
     #bp.parcellate_region(regid=regid)
-    bp.parcellate_brain()
+    #bp.parcellate_brain()
     #bp.merge_parcs(parc_file=parc_file)
     
-
+    bp.plot_parc_sections('output_full_r671/parc_region672.nrrd')
 
