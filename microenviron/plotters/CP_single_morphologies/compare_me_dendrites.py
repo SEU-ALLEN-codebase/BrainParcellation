@@ -45,9 +45,9 @@ moranI_de = np.array(moranI_score(coords, des, reduce_type='all'))
 print(f'Avg Moran Index for ME and DE are {moranI_me.mean():.2f}, {moranI_de.mean():.2f}')
 
 sns.set_theme(style='ticks', font_scale=1.6)
-plt.plot(range(len(moranI_me)), moranI_me, 'o-', color='orange', lw=2, label='Microenviron')
-plt.plot(range(len(moranI_de)), moranI_de, 'o-', color='blueviolet', lw=2, label='Dendrites-Auto')
-plt.ylabel('Moran_I')
+plt.plot(range(len(moranI_me)), moranI_me, 'o-', color='orange', lw=2, label='Microenvironment')
+plt.plot(range(len(moranI_de)), moranI_de, 'o-', color='blueviolet', lw=2, label='Single neuron')
+plt.ylabel("Moran's Index")
 # processing the feature labels
 pf2label = {
     'AverageBifurcationAngleRemote': 'Bif angle remote',

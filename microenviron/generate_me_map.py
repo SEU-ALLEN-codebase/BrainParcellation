@@ -560,8 +560,10 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         keys = __MAP_FEATS__
     elif feat_type == 'global_pca':
         keys = ['pca_feat1', 'pca_feat2', 'pca_feat3']
-    elif feat_type == 'local_pca':
+    elif feat_type == 'local_me_pca':
         keys = [key for key in df.columns if key.endswith('_me')]
+    elif feat_type == 'local_single_pca':
+        keys = [key[:-3] for key in df.columns if key.endswith('_me')]
     else:
         raise ValueError
     
@@ -589,7 +591,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         out_prefix = rname
     
     dfr = df[keys][sel_mask]
-    if feat_type == 'local_pca':
+    if (feat_type == 'local_me_pca') or (feat_type == 'local_single_pca'):
         # do pca feature reduction
         pca = PCA(n_components=3, whiten=True)
         dfr = pd.DataFrame(pca.fit_transform(dfr), columns=('pca_feat1', 'pca_feat2', 'pca_feat3'))
@@ -640,7 +642,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
 
         mip = get_mip_image(cur_memap, axid)
         
-        figname = f'{out_prefix}_section{sid:03d}.png'
+        figname = f'{out_prefix}_{feat_type}_section{sid:03d}.png'
         print(mip.shape, sub_mask.shape)
         process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5, b_scale=0.5)
         # load and remove the zero-alpha block
@@ -730,7 +732,7 @@ if __name__ == '__main__':
         rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
         #plot_MOB_features(mefile, 'MOB')
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
-        plot_region_feature_sections(mefile, 'CP', feat_type='local_pca')
+        plot_region_feature_sections(mefile, 'CP', feat_type='me')
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'

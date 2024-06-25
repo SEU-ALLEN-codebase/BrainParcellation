@@ -524,8 +524,8 @@ def comp_parc_and_ptype(parc_file, meta_file):
 
     fig = go.Figure(data=[go.Sankey(
         node = dict(
-            pad = 15,
-            thickness = 20,
+            pad =15,
+            thickness = 25,
             line = dict(color = "black", width = 0.5),
             label = labels,
             color = node_colors
@@ -537,8 +537,8 @@ def comp_parc_and_ptype(parc_file, meta_file):
             color = link_colors
     ))])
 
-    fig.update_layout(title_text="", font_size=16)
-    fig.write_image('parc_vs_ptypes.png')
+    fig.update_layout(title_text="", font_size=16, width=500, height=500)
+    fig.write_image('parc_vs_ptypes.png', scale=2)
 
     print()
 
@@ -604,7 +604,7 @@ if 1:
         #feat_names = ['Bifurcations', 'Length', 'AverageFragmentation']
         plot_region_feature_sections(ffile, rname='CP', name='axon', r316=False, flipLR=True, thickX2=10)
 
-    if 1:
+    if 0:
         # quantitative analyses
         parc_file = '../../output_full_r671/parc_region672.nrrd'
         
@@ -625,7 +625,7 @@ if 1:
 
 # ---------------- Section IV --------------#
 # compare with existing neuron types
-if 0:
+if 1:
     parc_file = '../../output_full_r671/parc_region672.nrrd'
     meta_file = 'TableS6_Full_morphometry_1222.xlsx'
     comp_parc_and_ptype(parc_file, meta_file)
