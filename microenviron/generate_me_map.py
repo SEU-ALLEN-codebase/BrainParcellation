@@ -33,6 +33,7 @@ import astropy.units as u
 from sklearn.neighbors import KDTree
 from sklearn.cluster import KMeans
 from sklearn.metrics import r2_score
+from sklearn.decomposition import PCA
 
 from image_utils import get_mip_image, image_histeq
 from file_io import load_image, save_image
@@ -53,17 +54,22 @@ if __name__ == '__main__':
 # features selected by mRMR
 #__MAP_FEATS__ = ('Length', 'AverageFragmentation', 'AverageContraction')   # original one
 
-def process_features(mefile, scale=25., with_comment=False):
+def process_features(mefile, scale=25., with_comment=False, use_me_feature=True):
     if with_comment:
         df = pd.read_csv(mefile, index_col=0, comment='#')
     else:
         df = pd.read_csv(mefile, index_col=0)
-    df.drop(list(__MAP_FEATS__), axis=1, inplace=True)
 
-    mapper = {}
-    for mf in __MAP_FEATS__:
-        mapper[f'{mf}_me'] = mf
-    df.rename(columns=mapper, inplace=True)
+    if use_me_feature:
+        # Manually rename them to remove the '_me' suffix. This is not an elegant way, but
+        # rather a temporal way historically
+        df.drop(list(__MAP_FEATS__), axis=1, inplace=True)
+
+        mapper = {}
+        for mf in __MAP_FEATS__:
+            mapper[f'{mf}_me'] = mf
+        df.rename(columns=mapper, inplace=True)
+    
     # We would like to use tortuosity, which is  opposite of contraction
     #df.loc[:, 'AverageContraction'] = 1 - df['AverageContraction']
 
@@ -133,9 +139,14 @@ def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='comp
     if mode == 'composite':
         fg_values = mip[fg_indices] / 255.
         cmap = None
-    else:
+    elif mode == 'single':  # single feature
         fg_values = mip[fg_indices][:,0] / 255.
         cmap = 'coolwarm'
+    elif mode == 'soma':    # soma density
+        fg_values = mip[fg_indices] / 255.
+        cmap = None
+    else:
+        raise NotImplementedError
     
     if len(fg_indices[0]) > 0:
         ax.scatter(fg_indices[1], fg_indices[0], c=fg_values, s=pt_scale, edgecolors='none', cmap=cmap)
@@ -149,8 +160,8 @@ def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='comp
     #out = np.frombuffer(img_buffer, dtype=np.uint8).reshape(height, width, 3)
     #return out
 
-def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,), thickX2=20, disp_right_hemi=False):
-    df, feat_names = process_features(mefile)
+def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,), thickX2=20, disp_right_hemi=False, use_me_feature=True):
+    df, feat_names = process_features(mefile, use_me_feature=use_me_feature)
     
     c = len(feat_names)
     zdim, ydim, xdim = shape3d
@@ -186,8 +197,12 @@ def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,),
 
     if mode == 'composite':
         memap[xyz[:,2], xyz[:,1], xyz[:,0]] = fvalues
-    else:
+    elif mode == 'single':
         memap[xyz[:,2], xyz[:,1], xyz[:,0]] = fvalues[:,findex].reshape(-1,1)
+    elif mode == 'soma':
+        memap[xyz[:,2], xyz[:,1], xyz[:,0]] = [255,0,0]
+    else:
+        raise NotImplementedError
     
     # keep only values near the section plane
     mips = []
@@ -213,7 +228,7 @@ def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,),
         mips.append(cur_mips)
     return mips
 
-def generate_me_maps(mefile, outfile, histeq=True, flip_to_left=True, mode='composite', findex=0, fmt='svg', axids=(2,)):
+def generate_me_maps(mefile, outfile, histeq=True, flip_to_left=True, mode='composite', findex=0, fmt='svg', axids=(2,), use_me_feature=True):
     '''
     @param mefile:          file containing microenviron features
     @param outfile:         prefix of output file
@@ -231,7 +246,7 @@ def generate_me_maps(mefile, outfile, histeq=True, flip_to_left=True, mode='comp
     mask = load_image(MASK_CCF25_FILE)  # z,y,x order!
     shape3d = mask.shape
     thickX2 = 20
-    mips = get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=axids, thickX2=thickX2)
+    mips = get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=axids, thickX2=thickX2, use_me_feature=use_me_feature)
     for axid, cur_mips in zip(axids, mips):
         for imip, mip in enumerate(cur_mips):
             figname = f'{prefix}_mip{axid}_{imip:02d}.{fmt}'
@@ -537,9 +552,20 @@ def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=Tru
     plt.savefig(f"{out_prefix}_features_ccf.png", bbox_inches='tight')
     plt.close()
 
-def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10):
+def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10, feat_type='me'):
     df = pd.read_csv(mefile, index_col=0)
-    keys = [f'{key}_me' for key in __MAP_FEATS__]
+    if feat_type == 'me':
+        keys = [f'{key}_me' for key in __MAP_FEATS__]
+    elif feat_type == 'single':
+        keys = __MAP_FEATS__
+    elif feat_type == 'global_pca':
+        keys = ['pca_feat1', 'pca_feat2', 'pca_feat3']
+    elif feat_type == 'local_pca':
+        keys = [key for key in df.columns if key.endswith('_me')]
+    else:
+        raise ValueError
+    
+
     if r316:
         rkey = 'region_name_r316'
         mask = load_image(MASK_CCF25_R314_FILE)
@@ -563,6 +589,11 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         out_prefix = rname
     
     dfr = df[keys][sel_mask]
+    if feat_type == 'local_pca':
+        # do pca feature reduction
+        pca = PCA(n_components=3, whiten=True)
+        dfr = pd.DataFrame(pca.fit_transform(dfr), columns=('pca_feat1', 'pca_feat2', 'pca_feat3'))
+
     coords = df[['soma_x', 'soma_y', 'soma_z']][sel_mask].values / 1000
     if flipLR:
         zdim = 456
@@ -675,13 +706,14 @@ if __name__ == '__main__':
     mapfile = 'microenviron_map'
     scale = 25.
     flip_to_left = True
-    mode = 'composite'
+    mode = 'composite'  # 'compsite'/'single'/'soma'
     axids = (2,)
     findex = 0
     fmt = 'png'
+    use_me_feature = True
 
     if 0:
-        generate_me_maps(mefile, outfile=mapfile, flip_to_left=flip_to_left, mode=mode, findex=findex, fmt=fmt, axids=axids)
+        generate_me_maps(mefile, outfile=mapfile, flip_to_left=flip_to_left, mode=mode, findex=findex, fmt=fmt, axids=axids, use_me_feature=use_me_feature)
 
     if 1:
         mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
@@ -698,7 +730,7 @@ if __name__ == '__main__':
         rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
         #plot_MOB_features(mefile, 'MOB')
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
-        plot_region_feature_sections(mefile, 'VPM')
+        plot_region_feature_sections(mefile, 'CP', feat_type='local_pca')
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'

@@ -5,6 +5,7 @@
 ##########################################################
 import sys
 import random
+import pickle
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -15,7 +16,7 @@ from anatomy.anatomy_config import BSTRUCTS13, SALIENT_REGIONS
 from anatomy.anatomy_core import get_struct_from_id_path, parse_ana_tree
 
 sys.path.append('../../')
-from config import mRMR_f3, mRMR_f3me, standardize_features
+from config import mRMR_f3, mRMR_f3me, standardize_features, load_features
 
 def regions_to_structs(regids, ana_tree):
     bstructs = BSTRUCTS13.keys()
@@ -148,76 +149,131 @@ def structral_distribution(feat_file):
         plt.savefig('inter-areal_top1_distribution.png', dpi=300)
         plt.close()
         
+class SpatialFeatures:
+    def __init__(self, feat_file, feat_type='full', min_neurons=10, standardize=True):
+        self.df, self.fnames_orig = load_features(feat_file, feat_type=feat_type, standardize=standardize)
+        self.min_neurons = min_neurons
+        self.feat_type = feat_type
+        if self.feat_type == 'full':
+            self.fnames = mRMR_f3me
+        elif self.feat_type == 'single':
+            self.fnames = mRMR_f3
+        elif self.feat_type == 'PCA':
+            self.fnames = ['pca_feat1', 'pca_feat2', 'pca_feat3']
+        else:
+            raise NotImplementedError
 
-def spatial_randomness(feat_file):
-    
-    # helper functions
-    def top1_dist(dfr):
-        A = kneighbors_graph(dfr[mRMR_f3me].values, n_neighbors=1, include_self=False,
-                             mode='distance', metric='euclidean', n_jobs=10)
-        top1 = A.nonzero()[1]
-        src_c = dfr[['soma_x', 'soma_y', 'soma_z']] / 1000.
-        dst_c = dfr.iloc[top1][['soma_x', 'soma_y', 'soma_z']] / 1000.
-        dists = np.linalg.norm(src_c.values - dst_c.values, axis=1)
-        return np.median(dists)
-
-
-    random.seed(1024)
-    np.random.seed(1024)
-
-    df = pd.read_csv(feat_file, index_col=0)
-    standardize_features(df, mRMR_f3me)
-    
-    ratios = []
-    for irid, rid in enumerate(SALIENT_REGIONS):
-        rmask = df.region_id_r671 == rid
-        if rmask.sum() < 10:
-            continue
-        df_r = df[rmask]
+    def calc_feature_std(self, outfile):
+        df = self.df.copy()
         
-        # estimate top1 distance
-        mdist1 = top1_dist(df_r)
+        STDs = {}
+        for irid, rid in enumerate(SALIENT_REGIONS):
+            rmask = df.region_id_r671 == rid
+            if rmask.sum() < self.min_neurons:
+                continue
 
-        # Randomly shuffle the data
-        mdists2 = []
-        for i in range(5):
-            df_rrng = df_r.copy()
-            dids = np.arange(df_r.shape[0])
-            random.shuffle(dids)
-            df_rrng.loc[:, mRMR_f3me] = df_rrng[mRMR_f3me].values[dids]
-            mdists2.append(top1_dist(df_rrng))
-        mdist2 = np.median(mdists2)
+            df_r = df[rmask][self.fnames]
+            std = df_r.std() / df_r.mean()
+            #print(df_r.std(), df_r.mean(), std)
+            STDs[rid] = std.mean()
+            
+        with open(outfile, 'wb') as fp:
+            pickle.dump(STDs, fp)
+            
 
-        ratio = mdist1/mdist2
-        ratios.append(ratio)
-        if ratio > 1:
-            print(df_r.region_name_r671.iloc[0], ratio)
+    def spatial_randomness(self):
+        
+        # helper functions
+        def top1_dist(dfr):
+            A = kneighbors_graph(dfr[self.fnames].values, n_neighbors=1, include_self=False,
+                                 mode='distance', metric='euclidean', n_jobs=10)
+            top1 = A.nonzero()[1]
+            src_c = dfr[['soma_x', 'soma_y', 'soma_z']] / 1000.
+            dst_c = dfr.iloc[top1][['soma_x', 'soma_y', 'soma_z']] / 1000.
+            dists = np.linalg.norm(src_c.values - dst_c.values, axis=1)
+            return np.median(dists)
 
-        if len(ratios) % 10 == 0:
-            print(irid)
-            #break
 
-    ratios = np.array(ratios)
-    print(f'Mean and median ratio: {ratios.mean()}, {np.median(ratios)}')
+        random.seed(1024)
+        np.random.seed(1024)
 
-    fig = plt.figure(figsize=(6,6))
-    sns.set_theme(style='ticks', font_scale=2.1)
-    dfr = pd.DataFrame(ratios, columns=['ratio'])
-    sns.histplot(x=dfr['ratio'], fill=True, color='mediumpurple', bins=100)
+        df = self.df.copy()
+        standardize_features(df, self.fnames)
+        
+        ratios = []
+        for irid, rid in enumerate(SALIENT_REGIONS):
+            rmask = df.region_id_r671 == rid
+            if rmask.sum() < self.min_neurons:
+                continue
+            df_r = df[rmask]
+            
+            # estimate top1 distance
+            mdist1 = top1_dist(df_r)
+
+            # Randomly shuffle the data
+            mdists2 = []
+            for i in range(5):
+                df_rrng = df_r.copy()
+                dids = np.arange(df_r.shape[0])
+                random.shuffle(dids)
+                df_rrng.loc[:, self.fnames] = df_rrng[self.fnames].values[dids]
+                mdists2.append(top1_dist(df_rrng))
+            mdist2 = np.median(mdists2)
+
+            ratio = mdist1/mdist2
+            ratios.append(ratio)
+            if ratio > 1:
+                print(df_r.region_name_r671.iloc[0], ratio)
+
+            if len(ratios) % 10 == 0:
+                print(irid)
+                #break
+
+        ratios = np.array(ratios)
+        print(f'Mean and median ratio: {ratios.mean()}, {np.median(ratios)}')
+
+        fig = plt.figure(figsize=(6,6))
+        sns.set_theme(style='ticks', font_scale=2.1)
+        dfr = pd.DataFrame(ratios, columns=['ratio'])
+        sns.histplot(x=dfr['ratio'], fill=True, color='mediumpurple', bins=100)
+        
+        plt.xlim(0, dfr['ratio'].max())
+        plt.xticks([0,1,2,3,4,5,6])
+        plt.xlabel('Spatial randomness')
+        plt.axvline(x=1, linewidth=2, linestyle='--', color='red')
+
+        ax = plt.gca()
+        lw = 2.5
+        ax.spines['left'].set_linewidth(lw)
+        ax.spines['bottom'].set_linewidth(lw)
+        ax.spines['right'].set_linewidth(lw)
+        ax.spines['top'].set_linewidth(lw)
+        plt.subplots_adjust(left=0.15, bottom=0.15)
+        plt.savefig('non_randomness.png', dpi=300); plt.close()
+
+def compare_spatial_statis(params):
+    with open(params['single_pkl'], 'rb') as fp:
+        sdict = pickle.load(fp)
     
-    plt.xlim(0, dfr['ratio'].max())
-    plt.xticks([0,1,2,3,4,5,6])
-    plt.xlabel('Spatial randomness')
-    plt.axvline(x=1, linewidth=2, linestyle='--', color='red')
+    with open(params['me_pkl'], 'rb') as fp:
+        mdict = pickle.load(fp)
 
-    ax = plt.gca()
-    lw = 2.5
-    ax.spines['left'].set_linewidth(lw)
-    ax.spines['bottom'].set_linewidth(lw)
-    ax.spines['right'].set_linewidth(lw)
-    ax.spines['top'].set_linewidth(lw)
-    plt.subplots_adjust(left=0.15, bottom=0.15)
-    plt.savefig('non_randomness.png', dpi=300); plt.close()
+    svalues = np.array(list(sdict.values()))
+    mvalues = np.array(list(mdict.values()))
+    import ipdb; ipdb.set_trace()
+
+    sns.set_theme(style='ticks', font_scale=1.6)
+    sns.histplot(x=svalues(), fill=True, color='coral', binrange=(params['xmin'], params['xmax']), 
+                 alpha=0.7, bins=50, kde=True, stat='proportion', label='Single neuron', line_kws={'alpha':1.})
+    sns.histplot(x=mvalues(), fill=True, color='royalblue', binrange=(params['xmin'], params['xmax']), 
+                 alpha=0.7, bins=50, kde=True, stat='proportion', label='Microenvironment', line_kws={'alpha':1.})
+    plt.xlabel(params['xlabel'])
+    plt.ylabel('Proportion of regions')
+
+    plt.legend(frameon=False)
+    plt.subplots_adjust(left=0.18, bottom=0.16)
+    plt.savefig(params['figname'], dpi=300)
+    plt.close()
 
 
 if __name__ == '__main__':
@@ -225,7 +281,32 @@ if __name__ == '__main__':
     if 0:
         structral_distribution(feat_file)
 
+    if 0:
+        # calculate statistics for each type
+        standardize = False
+        feat_type = 'single'
+        outfile = 'std_all_regions_avg3_single.pkl'
+        sf = SpatialFeatures(feat_file, feat_type=feat_type, standardize=standardize)
+        sf.calc_feature_std(outfile)
+        
     if 1:
-        spatial_randomness(feat_file)
+        # compare and plotting between different feature types
+        params1 = {
+            'single_pkl': '../summary_of_parc/cache/moranI_of_singleneuron_avg3.pkl', 
+            'me_pkl': '../summary_of_parc/cache/moranI_of_micro_environ_avg3.pkl',
+            'xlabel': "Spatial coherence (Moran's Index)",
+            'figname': 'moran_single_vs_me.png',
+            'xmin': -0.3,
+            'xmax': 0.7,
+        }
+        params2 = {
+            'single_pkl': './data/std_all_regions_avg3_single.pkl', 
+            'me_pkl': './data/std_all_regions_avg3_me.pkl',
+            'xlabel': "Coefficient of variance",
+            'figname': 'std_single_vs_me.png',
+            'xmin': 0.05,
+            'xmax': 0.4,
+        }
+        compare_spatial_statis(params2)
 
 

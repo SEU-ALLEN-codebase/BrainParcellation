@@ -22,7 +22,7 @@ BS7_COLORS = {
 }
 
 
-def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True):
+def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True, standardize=True):
     df = pd.read_csv(mefile, index_col=0)
 
     if feat_type == 'full':
@@ -33,13 +33,16 @@ def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True):
         fnames = mRMR_f3me
     elif feat_type == 'PCA':
         fnames = ['pca_feat1', 'pca_feat2', 'pca_feat3']
+    elif feat_type == 'single':
+        fnames = mRMR_f3
     else:
         raise ValueError("Unsupported feature types")
 
-    # standardize
-    tmp = df[fnames]
-    tmp = (tmp - tmp.mean()) / (tmp.std() + 1e-10)
-    df[fnames] = tmp
+    if standardize:
+        # standardize
+        tmp = df[fnames]
+        tmp = (tmp - tmp.mean()) / (tmp.std() + 1e-10)
+        df[fnames] = tmp
 
     # scaling the coordinates to CCFv3-25um space
     df['soma_x'] /= scale

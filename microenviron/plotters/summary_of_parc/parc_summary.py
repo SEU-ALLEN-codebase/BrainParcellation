@@ -20,7 +20,7 @@ from math_utils import get_exponent_and_mantissa
 from anatomy.anatomy_core import get_struct_from_id_path, parse_ana_tree
 
 sys.path.append('../../')
-from config import BS7_COLORS, mRMR_f3me, gini_coeff, moranI_score, load_features
+from config import BS7_COLORS, mRMR_f3, mRMR_f3me, gini_coeff, moranI_score, load_features
 
 
 def load_salient_hemisphere(ccf, salient_mask_file=None, zdim2=228):
@@ -211,7 +211,8 @@ class ParcSummary:
 
     def correlation_of_subparcs(self, me_file):
         # load the microenviron features
-        df, fnames = load_features(me_file, feat_type='full', flipLR=self.flipLR)
+        feat_type = 'full'
+        df, fnames = load_features(me_file, feat_type=feat_type, flipLR=self.flipLR)
         p2ccf, ccf2p = self.load_parc_meta()
 
 
@@ -219,7 +220,12 @@ class ParcSummary:
         data = []
         nn = 0
         # the moran calculation is time-costly, pre-calculate
-        moran_file = './cache/moranI_of_micro_environ_avg3.pkl'
+        if feat_type == 'full':
+            moran_file = './cache/moranI_of_micro_environ_avg3.pkl'
+            fnames = mRMR_f3me
+        elif feat_type == 'single':
+            moran_file = './cache/moranI_of_singleneuron_avg3.pkl'
+            fnames = mRMR_f3
 
         # calculate the volumes of all regions
         vol_dict = dict(zip(*np.unique(self.ccf[self.ccf > 0], return_counts=True)))
@@ -250,7 +256,7 @@ class ParcSummary:
                 else:
                     # spatial coherence
                     coords = dfi[['soma_x', 'soma_y', 'soma_z']]/40
-                    avgI = moranI_score(coords.values, dfi[mRMR_f3me].values)
+                    avgI = moranI_score(coords.values, dfi[fnames].values)
                     moran_dict[ccf_id] = avgI
             
             num_parc = len(parc_ids)
@@ -420,10 +426,10 @@ if __name__ == '__main__':
     if 0:   # region distribution
         ps.region_distributions()
 
-    if 0: 
+    if 1: 
         ps.correlation_of_subparcs(me_file=me_file)
 
-    if 1:
+    if 0:
         ps.volume_statistics()
 
     if 0:
