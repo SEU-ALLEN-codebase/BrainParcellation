@@ -564,6 +564,9 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         keys = [key for key in df.columns if key.endswith('_me')]
     elif feat_type == 'local_single_pca':
         keys = [key[:-3] for key in df.columns if key.endswith('_me')]
+        if len(keys) == 0:
+            from config import __FEAT24D__
+            keys = __FEAT24D__
     else:
         raise ValueError
     

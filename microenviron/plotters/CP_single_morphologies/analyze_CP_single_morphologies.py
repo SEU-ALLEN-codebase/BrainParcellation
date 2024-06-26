@@ -25,6 +25,7 @@ import cv2
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
+from sklearn import decomposition
 
 from swc_handler import parse_swc, write_swc, get_specific_neurite
 from image_utils import get_mip_image, image_histeq
@@ -41,6 +42,8 @@ from global_features import calc_global_features_from_folder, __FEAT_NAMES22__
 # features selected by mRMR
 sys.path.append('../..')
 from config import mRMR_f3 as __MAP_FEATS__
+from config import __FEAT24D__
+from generate_me_map import plot_region_feature_sections
 
 def standardize_features(dfc, feat_names, epsilon=1e-8):
     fvalues = dfc[feat_names]
@@ -60,6 +63,7 @@ def aggregate_meta_information(swc_dir, gf_file, out_file):
     coords = []
     regids = []
     regnames = []
+    pca_feats = []
 
     for prefix in df1.index:
         swc_file = os.path.join(swc_dir, f'{prefix}.swc')
@@ -84,248 +88,32 @@ def aggregate_meta_information(swc_dir, gf_file, out_file):
         regids.append(regid)
         regnames.append(regname)
 
+        # estimate the pca features
+        ccs = np.genfromtxt(swc_file, usecols=(2,3,4))
+        pca = decomposition.PCA()
+        pca.fit(ccs)
+        pca_feats.append((*pca.components_[0], *pca.explained_variance_ratio_))
+
         if len(regids) % 20 == 0:
             print(len(regids))
 
     coords = np.array(coords)
+    pca_feats = np.array(pca_feats)
+
     df1['soma_x'] = coords[:,0]
     df1['soma_y'] = coords[:,1]
     df1['soma_z'] = coords[:,2]
     df1['region_id_r671'] = regids
     df1['region_name_r671'] = regnames
+    df1['pc11'] = pca_feats[:,0]
+    df1['pc12'] = pca_feats[:,1]
+    df1['pc13'] = pca_feats[:,2]
+    df1['pca_vr1'] = pca_feats[:,3]
+    df1['pca_vr2'] = pca_feats[:,4]
+    df1['pca_vr3'] = pca_feats[:,5]
 
     df_cp = df1[df1['region_id_r671'] == 672]
     df_cp.to_csv(out_file)
-
-
-
-def process_features(mefile, scale=25.):
-    df = pd.read_csv(mefile, index_col=0)
-
-    feat_names = [fn for fn in __MAP_FEATS__]
-    # scaling the coordinates to CCFv3-25um space
-    df['soma_x'] /= scale
-    df['soma_y'] /= scale
-    df['soma_z'] /= scale
-    # we should remove the out-of-region coordinates
-    zdim,ydim,xdim = (456,320,528)   # dimensions for CCFv3-25um atlas
-    in_region = (df['soma_x'] >= 0) & (df['soma_x'] < xdim) & \
-                (df['soma_y'] >= 0) & (df['soma_y'] < ydim) & \
-                (df['soma_z'] >= 0) & (df['soma_z'] < zdim)
-    df = df[in_region]
-    print(f'Filtered out {in_region.shape[0] - df.shape[0]}')
-
-    return df, feat_names
-
-def plot_section_outline(mask, axis=0, sectionX=None, ax=None, with_outline=True, outline_color='orange', b_scale=0.5):
-    boundary_mask2d = get_section_boundary(mask, axis=axis, v=1, c=sectionX)
-    sh, sw = boundary_mask2d.shape[:2]
-    if ax is None:
-        fig, ax = plt.subplots()
-        brain_mask2d = get_brain_mask2d(mask, axis=axis, v=1)
-        im = np.ones((sh, sw, 4), dtype=np.uint8) * 255
-        im[~brain_mask2d] = 0#1
-
-    # show boundary
-    b_indices = np.where(boundary_mask2d)
-    ax.scatter(b_indices[1], b_indices[0], s=b_scale, c='black', alpha=0.5, edgecolors='none')
-    # intra-brain regions
-
-    if with_outline:
-        outline_mask2d = get_brain_outline2d(mask, axis=axis, v=1)
-        o_indices = np.where(outline_mask2d)
-        ax.scatter(o_indices[1], o_indices[0], s=1.0, c=outline_color, alpha=1.0, edgecolors='none')
-
-    if ax is None:
-        return fig, ax
-    else:
-        return ax
-
-def process_mip(mip, mask, sectionX=None, axis=0, figname='temp.png', mode='composite', with_outline=True, outline_color='orange', pt_scale=2, b_scale=0.5):
-    # get the mask
-    brain_mask2d = get_brain_mask2d(mask, axis=axis, v=1)
-
-    #if axis==1: cv2.imwrite('temp.png', mip); sys.exit()
-    im = np.ones((mip.shape[0], mip.shape[1], 4), dtype=np.uint8) * 255
-    # default size is 6.4 x 4.8
-    scale = np.sqrt(np.prod(mip.shape[:2]) / 456 / 320)
-    wi, hi = np.round(6.4 * scale, 2), np.round(4.8 * scale, 2)
-
-    fig, ax = plt.subplots(figsize=(wi, hi))
-    width, height = fig.get_size_inches() * fig.get_dpi()
-    width = int(width)
-    height = int(height)
-
-    canvas = FigureCanvas(fig)
-    im = ax.imshow(im)
-    fig.patch.set_visible(False)
-    ax.axis('off')
-
-    bg_mask = mip.sum(axis=-1) == 0
-    fg_mask = ~bg_mask
-    fg_indices = np.where(fg_mask)
-    if mode == 'composite':
-        fg_values = mip[fg_indices] / 255.
-        cmap = None
-    else:
-        fg_values = mip[fg_indices][:,0] / 255.
-        cmap = 'coolwarm'
-
-    if len(fg_indices[0]) > 0:
-        ax.scatter(fg_indices[1], fg_indices[0], c=fg_values, s=pt_scale, edgecolors='none', cmap=cmap)
-    plot_section_outline(mask, axis=axis, sectionX=sectionX, ax=ax, with_outline=with_outline, outline_color=outline_color, b_scale=b_scale)
-
-    plt.savefig(figname, dpi=300)
-    plt.close('all')
-
-def get_me_mips(mefile, shape3d, histeq, flip_to_left, mode, findex, axids=(2,), thickX2=20, disp_right_hemi=False):
-    df, feat_names = process_features(mefile)
-
-    c = len(feat_names)
-    zdim, ydim, xdim = shape3d
-    zdim2, ydim2, xdim2 = zdim//2, ydim//2, xdim//2
-    memap = np.zeros((zdim, ydim, xdim, c), dtype=np.uint8)
-    xyz = np.floor(df[['soma_x', 'soma_y', 'soma_z']].to_numpy()).astype(np.int32)
-    # normalize to uint8
-    fvalues = df[feat_names]
-    fmin, fmax = fvalues.min(), fvalues.max()
-    fvalues = ((fvalues - fmin) / (fmax - fmin) * 255).to_numpy()
-    if histeq:
-        for i in range(fvalues.shape[1]):
-            fvalues[:,i] = image_histeq(fvalues[:,i])[0]
-
-    if flip_to_left:
-        # flip z-dimension, so that to aggregate the information to left or right hemisphere
-        right_hemi_mask = xyz[:,2] < zdim2
-        xyz[:,2][right_hemi_mask] = zdim - xyz[:,2][right_hemi_mask]
-        # I would also like to show the right hemisphere
-        if disp_right_hemi:
-            xyz2 = xyz.copy()
-            xyz2[:,2] = zdim - xyz2[:,2]
-            # concat
-            xyz = np.vstack((xyz, xyz2))
-            # also for the values
-            fvalues = np.vstack((fvalues, fvalues))
-
-    debug = False
-    if debug: #visualize the distribution of features
-        g = sns.histplot(data=fvalues, kde=True)
-        plt.savefig('fvalues_distr_histeq.png', dpi=300)
-        plt.close('all')
-
-    if mode == 'composite':
-        memap[xyz[:,2], xyz[:,1], xyz[:,0]] = fvalues
-    else:
-        memap[xyz[:,2], xyz[:,1], xyz[:,0]] = fvalues[:,findex].reshape(-1,1)
-
-    # keep only values near the section plane
-    mips = []
-    for axid in axids:
-        print(f'--> Processing axis: {axid}')
-        cur_mips = []
-        for sid in range(thickX2, shape3d[axid], 2*thickX2):
-            cur_memap = memap.copy()
-            if thickX2 != -1:
-                if axid == 0:
-                    cur_memap[:sid-thickX2] = 0
-                    cur_memap[sid+thickX2:] = 0
-                elif axid == 1:
-                    cur_memap[:,:sid-thickX2] = 0
-                    cur_memap[:,sid+thickX2:] = 0
-                else:
-                    cur_memap[:,:,:sid-thickX2] = 0
-                    cur_memap[:,:,sid+thickX2:] = 0
-            print(cur_memap.mean(), cur_memap.std())
-
-            mip = get_mip_image(cur_memap, axid)
-            cur_mips.append(mip)
-        mips.append(cur_mips)
-    return mips
-
-def plot_region_feature_sections(mefile, rname='MOB', name='auto', r316=False, flipLR=True, thickX2=10, step=20, feat_names=None):
-    df = pd.read_csv(mefile, index_col=0)
-    if feat_names is None:
-        feat_names = __MAP_FEATS__
-
-    keys = [key for key in feat_names]
-    if r316:
-        rkey = 'region_name_r316'
-        mask = load_image(MASK_CCF25_R314_FILE)
-    else:
-        rkey = 'region_name_r671'
-        mask = load_image(MASK_CCF25_FILE)
-    ana_tree = parse_ana_tree(keyname='name')
-
-    if type(rname) is list:
-        sel_mask = df[rkey].isin(rname)
-        rmask = np.zeros_like(mask)
-        for ri in rname:
-            idx = ana_tree[ri]['id']
-            rmask = rmask | (mask == idx)
-
-        out_prefix = 'tmp'
-    else:
-        sel_mask = df[rkey] == rname
-        idx = ana_tree[rname]['id']
-        rmask = mask == idx
-        out_prefix = rname
-
-    dfr = df[keys][sel_mask]
-    #print(dfr.shape); sys.exit()
-    coords = df[['soma_x', 'soma_y', 'soma_z']][sel_mask].values / 1000
-    if flipLR:
-        zdim = 456
-        zcoord = zdim * 25. / 1000
-        right = np.nonzero(coords[:,2] > zcoord/2)[0]
-        coords[right, 2] = zcoord - coords[right, 2]
-        rmask[zdim//2:] = 0
-
-    # We handling the coloring
-    dfc = dfr.copy()
-    for i in range(3):
-        tmp = dfc.iloc[:,i]
-        dfc.iloc[:,i] = image_histeq(tmp.values)[0]
-    dfc[dfc > 255] = 255
-
-    # get the boundary of region
-    nzcoords = rmask.nonzero()
-    nzcoords_t = np.array(nzcoords).transpose()
-    zmin, ymin, xmin = nzcoords_t.min(axis=0)
-    zmax, ymax, xmax = nzcoords_t.max(axis=0)
-    sub_mask = rmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
-    memap = np.zeros((*sub_mask.shape, 3), dtype=np.uint8)
-
-    coords_s = np.floor(coords * 40).astype(int)
-    memap[coords_s[:,2]-zmin, coords_s[:,1]-ymin, coords_s[:,0]-xmin] = dfc.values
-
-    mips = []
-    shape3d = mask.shape
-    axid = 2
-    for sid in range(0, xmax-xmin-thickX2-1, step):
-        sid = sid + step//2
-        cur_memap = memap.copy()
-        cur_memap[:,:,:sid-thickX2] = 0
-        cur_memap[:,:,sid+thickX2:] = 0
-        print(cur_memap.mean(), cur_memap.std())
-
-        mip = get_mip_image(cur_memap, axid)
-
-        figname = f'{out_prefix}_section{sid:03d}_{name}.png'
-        print(mip.shape, sub_mask.shape)
-        process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5, b_scale=0.5)
-        # load and remove the zero-alpha block
-        img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
-        wnz = np.nonzero(img[img.shape[0]//2,:,-1])[0]
-        ws, we = wnz[0], wnz[-1]
-        hnz = np.nonzero(img[:,img.shape[1]//2,-1])[0]
-        hs, he = hnz[0], hnz[-1]
-        img = img[hs:he+1, ws:we+1]
-        # set the alpha of non-brain region as 0
-        img[img[:,:,-1] == 1] = 0
-        if axid != 0:   # rotate 90
-            img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
-            #
-        cv2.imwrite(figname, img)
 
 
 def estimate_similarity(parc_file, gf_file, is_axon=True):
@@ -348,7 +136,7 @@ def estimate_similarity(parc_file, gf_file, is_axon=True):
     regions = parc[coords_l[:,0], coords_l[:,1], coords_l[:,2]]
     df['region'] = regions
 
-    feat_names = __FEAT_NAMES22__
+    feat_names = __FEAT24D__
     
     dfc = df[feat_names + ['region']]
     standardize_features(dfc, feat_names)
@@ -559,17 +347,18 @@ if 0:
 #-------------- Section II --------------#
 if 0:
     # plotting
-    using_auto = False
-    if using_auto:
+    plot_data = 'dendrite'
+    if plot_data == 'me':
         ffile = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
         name = 'auto'
-        thickX2 = 10
-    else:
+    elif plot_data == 'dendrite':
         ffile = 'cp_1876_dendrite_features.csv'
         name = 'dendrite'
-        thickX2 = 10
+    elif plot_data == 'axon':
+        ffile = 'cp_1876_axonal_features.csv'
+        name = 'axon'
     
-    plot_region_feature_sections(ffile, rname='CP', name=name, r316=False, flipLR=True, thickX2=thickX2, step=20)
+    plot_region_feature_sections(ffile, rname='CP', feat_type='local_single_pca')
 
 
 #--------------- Section III ---------------#
@@ -596,15 +385,10 @@ if 1:
             write_swc(axons, out_file)
 
     if 0:
-        calc_global_features_from_folder(axon_dir, outfile=axon_gf_file)
-        #aggregate_meta_information(swc_dir, axon_gf_file, axon_feat_file)
+        #calc_global_features_from_folder(axon_dir, outfile=axon_gf_file)
+        aggregate_meta_information(swc_dir, axon_gf_file, axon_feat_file)
 
-    if 0:
-        ffile = 'cp_1876_axonal_features.csv'
-        #feat_names = ['Bifurcations', 'Length', 'AverageFragmentation']
-        plot_region_feature_sections(ffile, rname='CP', name='axon', r316=False, flipLR=True, thickX2=10)
-
-    if 0:
+    if 1:
         # quantitative analyses
         parc_file = '../../output_full_r671/parc_region672.nrrd'
         
@@ -625,7 +409,7 @@ if 1:
 
 # ---------------- Section IV --------------#
 # compare with existing neuron types
-if 1:
+if 0:
     parc_file = '../../output_full_r671/parc_region672.nrrd'
     meta_file = 'TableS6_Full_morphometry_1222.xlsx'
     comp_parc_and_ptype(parc_file, meta_file)

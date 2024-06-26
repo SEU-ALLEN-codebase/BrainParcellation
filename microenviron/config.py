@@ -10,6 +10,14 @@ from esda.moran import Moran
 
 mRMR_f3 = ['Length', 'AverageContraction', 'AverageFragmentation']
 mRMR_f3me = ['Length_me', 'AverageContraction_me', 'AverageFragmentation_me']
+__FEAT24D__ = [
+    'Stems', 'Bifurcations', 'Branches', 'Tips', 'OverallWidth', 'OverallHeight',
+    'OverallDepth', 'Length', 'Volume', 'MaxEuclideanDistance', 'MaxPathDistance',
+    'MaxBranchOrder', 'AverageContraction', 'AverageFragmentation',
+    'AverageParent-daughterRatio', 'AverageBifurcationAngleLocal',
+    'AverageBifurcationAngleRemote', 'HausdorffDimension',
+    'pc11', 'pc12', 'pc13', 'pca_vr1', 'pca_vr2', 'pca_vr3'
+]
 
 BS7_COLORS = {
     'CTX': 'limegreen',
