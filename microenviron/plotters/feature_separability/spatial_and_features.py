@@ -260,13 +260,22 @@ def compare_spatial_statis(params):
 
     svalues = np.array(list(sdict.values()))
     mvalues = np.array(list(mdict.values()))
-    import ipdb; ipdb.set_trace()
 
     sns.set_theme(style='ticks', font_scale=1.6)
-    sns.histplot(x=svalues(), fill=True, color='coral', binrange=(params['xmin'], params['xmax']), 
-                 alpha=0.7, bins=50, kde=True, stat='proportion', label='Single neuron', line_kws={'alpha':1.})
-    sns.histplot(x=mvalues(), fill=True, color='royalblue', binrange=(params['xmin'], params['xmax']), 
-                 alpha=0.7, bins=50, kde=True, stat='proportion', label='Microenvironment', line_kws={'alpha':1.})
+    
+    if params['type'] == 'moran':
+        deltas = mvalues - svalues
+        p_imp = 100.0 * (deltas > 0).sum() / deltas.shape[0]
+        plt.axvline(x=0, linestyle='--', color='red')
+        plt.annotate(f'Percentage improve: {p_imp:.1f}%', xy=(0.26,0.92), xycoords='axes fraction',
+                     ha='left', va='top', color='red')
+        sns.histplot(x=deltas, fill=False, color='black', binrange=(params['xmin'], params['xmax']), 
+                 alpha=0.7, bins=50, kde=True, stat='proportion', line_kws={'alpha':1.})
+    else:
+        sns.histplot(x=svalues, fill=True, color='coral', binrange=(params['xmin'], params['xmax']), 
+                     alpha=0.7, bins=50, kde=True, stat='proportion', label='Single neuron', line_kws={'alpha':1.})
+        sns.histplot(x=mvalues, fill=True, color='royalblue', binrange=(params['xmin'], params['xmax']), 
+                     alpha=0.7, bins=50, kde=True, stat='proportion', label='Microenvironment', line_kws={'alpha':1.})
     plt.xlabel(params['xlabel'])
     plt.ylabel('Proportion of regions')
 
@@ -292,14 +301,16 @@ if __name__ == '__main__':
     if 1:
         # compare and plotting between different feature types
         params1 = {
-            'single_pkl': '../summary_of_parc/cache/moranI_of_singleneuron_avg3.pkl', 
-            'me_pkl': '../summary_of_parc/cache/moranI_of_micro_environ_avg3.pkl',
-            'xlabel': "Spatial coherence (Moran's Index)",
+            'type': 'moran',
+            'single_pkl': '../summary_of_parc/cache/moranI_of_singleneuron_avg_top3.pkl', 
+            'me_pkl': '../summary_of_parc/cache/moranI_of_micro_environ_avg_top3.pkl',
+            'xlabel': "Spatial coherence change",
             'figname': 'moran_single_vs_me.png',
-            'xmin': -0.3,
-            'xmax': 0.7,
+            'xmin': -0.15,
+            'xmax': 0.5,
         }
         params2 = {
+            'type': 'std',
             'single_pkl': './data/std_all_regions_avg3_single.pkl', 
             'me_pkl': './data/std_all_regions_avg3_me.pkl',
             'xlabel': "Coefficient of variance",
@@ -307,6 +318,6 @@ if __name__ == '__main__':
             'xmin': 0.05,
             'xmax': 0.4,
         }
-        compare_spatial_statis(params2)
+        compare_spatial_statis(params1)
 
 

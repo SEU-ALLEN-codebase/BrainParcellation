@@ -36,10 +36,11 @@ from swc_handler import parse_swc, write_swc, get_specific_neurite
 from image_utils import get_mip_image, image_histeq
 from math_utils import get_exponent_and_mantissa
 from file_io import load_image, save_image
-from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE, ANATOMY_TREE_FILE
+from anatomy.anatomy_config import MASK_CCF25_FILE, MASK_CCF25_R314_FILE, ANATOMY_TREE_FILE, \
+                                   BSTRUCTS7, BSTRUCTS13, SALIENT_REGIONS
 from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_outline, \
                                 get_brain_mask2d, get_section_boundary, detect_edges2d
-from anatomy.anatomy_core import parse_ana_tree
+from anatomy.anatomy_core import parse_ana_tree, get_struct_from_id_path
 from global_features import calc_global_features_from_folder
 
 
@@ -49,7 +50,7 @@ sys.path.append('../..')
 from config import mRMR_f3 as __MAP_FEATS__, standardize_features
 sys.path.append('../../../common_lib')
 from configs import __FEAT_NAMES__
-from hpf_config import __RNAMES__
+from hpf_config import __RNAMES__, __RIDS__
 
 
 sns.set_theme(style='ticks', font_scale=1.7)
@@ -622,60 +623,97 @@ def dendrite_axon_correspondence(local_file, axon_file, is_local_me=False):
     
 
 
-
-
 class AxonalProjection:
     def __init__(self):
         pass
 
-    def calc_proj_matrix(self, axon_dir, proj_csv):
-        atlas = load_image(MASK_CCF25_FILE)
-        zdim, ydim, xdim = atlas.shape
-        # get the new atlas with differentiation of left-right hemisphere
-        atlas_lr = np.zeros(atlas.shape, dtype=np.int64)
-        atlas_lr[:zdim//2] = atlas[:zdim//2]
-        atlas_lr[zdim//2:] = -atlas[zdim//2:].astype(np.int64)
-        # vector
-        regids = np.unique(atlas_lr[atlas_lr != 0])
-        rdict = dict(zip(regids, range(len(regids))))
+    def calc_proj_matrix(self, axon_dir, proj_csv, reg_csv='./ION_HIP/lm_features_d28_axons_8um.csv'):
+        if os.path.exists(proj_csv):
+            projs = pd.read_csv(proj_csv, index_col=0)
+        else:
+            atlas = load_image(MASK_CCF25_FILE)
+            zdim, ydim, xdim = atlas.shape
+            # get the new atlas with differentiation of left-right hemisphere
+            atlas_lr = np.zeros(atlas.shape, dtype=np.int64)
+            atlas_lr[:zdim//2] = atlas[:zdim//2]
+            atlas_lr[zdim//2:] = -atlas[zdim//2:].astype(np.int64)
+            # vector
+            regids = np.unique(atlas_lr[atlas_lr != 0])
+            rdict = dict(zip(regids, range(len(regids))))
 
-        axon_files = glob.glob(os.path.join(axon_dir, '*swc'))
-        fnames = [os.path.split(fname)[-1][:-4] for fname in axon_files]
-        projs = pd.DataFrame(np.zeros((len(axon_files), len(regids))), index=fnames, columns=regids)
-               
-        t0 = time.time()
-        for iaxon, axon_file in enumerate(axon_files):
-            ncoords = pd.read_csv(axon_file, sep=' ', usecols=(2,3,4,6)).values
-            # flipping
-            smask = ncoords[:,-1] == -1
-            # convert to CCF-25um
-            ncoords[:,:-1] = ncoords[:,:-1] / 25.
-            soma_coord = ncoords[smask][0,:-1]
-            ncoords = ncoords[~smask][:,:-1]
-            if soma_coord[2] > zdim/2:
-                ncoords[:,2] = zdim - ncoords[:,2]
-            # make sure no out-of-mask points
-            ncoords = np.round(ncoords).astype(int)
-            ncoords[:,0] = np.clip(ncoords[:,0], 0, xdim-1)
-            ncoords[:,1] = np.clip(ncoords[:,1], 0, ydim-1)
-            ncoords[:,2] = np.clip(ncoords[:,2], 0, zdim-1)
-            # get the projected regions
-            proj = atlas_lr[ncoords[:,2], ncoords[:,1], ncoords[:,0]]
-            # to project matrix
-            rids, rcnts = np.unique(proj, return_counts=True)
-            # Occasionally, there are some nodes located outside of the atlas, due to 
-            # the registration error
-            nzm = rids != 0
-            rids = rids[nzm]
-            rcnts = rcnts[nzm]
-            rindices = np.array([rdict[rid] for rid in rids])
-            projs.iloc[iaxon, rindices] = rcnts
+            axon_files = glob.glob(os.path.join(axon_dir, '*swc'))
+            fnames = [os.path.split(fname)[-1][:-4] for fname in axon_files]
+            projs = pd.DataFrame(np.zeros((len(axon_files), len(regids))), index=fnames, columns=regids)
+                   
+            t0 = time.time()
+            for iaxon, axon_file in enumerate(axon_files):
+                ncoords = pd.read_csv(axon_file, sep=' ', usecols=(2,3,4,6)).values
+                # flipping
+                smask = ncoords[:,-1] == -1
+                # convert to CCF-25um
+                ncoords[:,:-1] = ncoords[:,:-1] / 25.
+                soma_coord = ncoords[smask][0,:-1]
+                ncoords = ncoords[~smask][:,:-1]
+                if soma_coord[2] > zdim/2:
+                    ncoords[:,2] = zdim - ncoords[:,2]
+                # make sure no out-of-mask points
+                ncoords = np.round(ncoords).astype(int)
+                ncoords[:,0] = np.clip(ncoords[:,0], 0, xdim-1)
+                ncoords[:,1] = np.clip(ncoords[:,1], 0, ydim-1)
+                ncoords[:,2] = np.clip(ncoords[:,2], 0, zdim-1)
+                # get the projected regions
+                proj = atlas_lr[ncoords[:,2], ncoords[:,1], ncoords[:,0]]
+                # to project matrix
+                rids, rcnts = np.unique(proj, return_counts=True)
+                # Occasionally, there are some nodes located outside of the atlas, due to 
+                # the registration error
+                nzm = rids != 0
+                rids = rids[nzm]
+                rcnts = rcnts[nzm]
+                rindices = np.array([rdict[rid] for rid in rids])
+                projs.iloc[iaxon, rindices] = rcnts
 
-            if (iaxon + 1) % 10 == 0:
-                print(f'--> finished {iaxon+1} in {time.time()-t0:.2f} seconds')
+                if (iaxon + 1) % 10 == 0:
+                    print(f'--> finished {iaxon+1} in {time.time()-t0:.2f} seconds')
 
-        projs *= 8 # to um scale
-        projs.to_csv(proj_csv)
+            projs *= 8 # to um scale
+            projs.to_csv(proj_csv)
+
+        # zeroing non-salient regions
+        df_reg = pd.read_csv(reg_csv, index_col=0)
+        target_neurons = [rname for rname in df_reg.index[df_reg.region_name.isin(__RNAMES__)]]
+        projs = projs.loc[target_neurons]
+
+        salient_mask = np.array([True if np.fabs(int(col)) in SALIENT_REGIONS else False for col in projs.columns])
+        keep_mask = (projs.sum() > 0) & salient_mask
+        # filter the neurons not in target regions
+        projs = projs.loc[:, keep_mask]
+
+        # plot the map
+        ana_tree = parse_ana_tree()
+        # regid to regname
+        regnames = []
+        bstructs = []
+        for regid in projs.columns:
+            regid = int(regid)
+            if regid > 0:
+                hstr = 'ipsi'
+            else:
+                hstr = 'contra'
+            regid = np.fabs(regid)
+            regname = hstr + ana_tree[regid]['acronym']
+            regnames.append(regname)
+            
+            bstruct = get_struct_from_id_path(ana_tree[regid]['structure_id_path'], BSTRUCTS7)
+            if bstruct == 0:
+                print(regname, regid)
+                bstructs.append('root')
+            else:
+                bstructs.append(ana_tree[bstruct]['acronym'])
+        
+        import ipdb; ipdb.set_trace()
+        print()
+
 
     def clustering(self, proj_csv, local_file, axon_file, 
                    to_log_space=True, is_local_me=False):
@@ -743,7 +781,7 @@ if __name__ == '__main__':
     if 1:
         proj_csv = './ION_HIP/axon_proj_8um.csv'
         ap = AxonalProjection()
-        #ap.calc_proj_matrix(axon_dir, proj_csv)
-        ap.clustering(proj_csv, local_me_file, axon_feat_file, is_local_me=True)
+        ap.calc_proj_matrix(axon_dir, proj_csv)
+        #ap.clustering(proj_csv, local_me_file, axon_feat_file, is_local_me=True)
 
 

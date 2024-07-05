@@ -735,7 +735,7 @@ if __name__ == '__main__':
         rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
         #plot_MOB_features(mefile, 'MOB')
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
-        plot_region_feature_sections(mefile, 'CP', feat_type='me')
+        plot_region_feature_sections(mefile, 'ACB', feat_type='me')
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'

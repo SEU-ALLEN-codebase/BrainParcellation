@@ -12,6 +12,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from scipy import stats
+from sklearn.decomposition import PCA
 
 from anatomy.anatomy_config import MASK_CCF25_FILE, SALIENT_REGIONS, \
                                    BSTRUCTS4, BSTRUCTS7, BSTRUCTS13
@@ -20,7 +21,8 @@ from math_utils import get_exponent_and_mantissa
 from anatomy.anatomy_core import get_struct_from_id_path, parse_ana_tree
 
 sys.path.append('../../')
-from config import BS7_COLORS, mRMR_f3, mRMR_f3me, gini_coeff, moranI_score, load_features
+from config import BS7_COLORS, mRMR_f3, mRMR_f3me, __FEAT24D__, \
+                   gini_coeff, moranI_score, load_features
 
 
 def load_salient_hemisphere(ccf, salient_mask_file=None, zdim2=228):
@@ -209,7 +211,7 @@ class ParcSummary:
 
         return p2ccf, ccf2p
 
-    def correlation_of_subparcs(self, me_file):
+    def correlation_of_subparcs(self, me_file, use_pca=False):
         # load the microenviron features
         feat_type = 'full'
         df, fnames = load_features(me_file, feat_type=feat_type, flipLR=self.flipLR)
@@ -221,11 +223,17 @@ class ParcSummary:
         nn = 0
         # the moran calculation is time-costly, pre-calculate
         if feat_type == 'full':
-            moran_file = './cache/moranI_of_micro_environ_avg3.pkl'
             fnames = mRMR_f3me
+            moran_file = './cache/moranI_of_micro_environ_avg_top3.pkl'
+            if use_pca: 
+                fnames_all = [f'{fn}_me' for fn in __FEAT24D__]
+                moran_file = './cache/moranI_of_micro_environ_avg_pca3.pkl'
         elif feat_type == 'single':
-            moran_file = './cache/moranI_of_singleneuron_avg3.pkl'
             fnames = mRMR_f3
+            moran_file = './cache/moranI_of_singleneuron_avg_top3.pkl'
+            if use_pca:
+                fnames_all = __FEAT24D__
+                moran_file = './cache/moranI_of_singleneuron_avg_pca3.pkl'
 
         # calculate the volumes of all regions
         vol_dict = dict(zip(*np.unique(self.ccf[self.ccf > 0], return_counts=True)))
@@ -256,7 +264,13 @@ class ParcSummary:
                 else:
                     # spatial coherence
                     coords = dfi[['soma_x', 'soma_y', 'soma_z']]/40
-                    avgI = moranI_score(coords.values, dfi[fnames].values)
+                    if use_pca:
+                        feats = dfi[fnames_all].values
+                        pca = PCA(n_components=3, whiten=True)
+                        feat3 = pca.fit_transform(feats)
+                        avgI = moranI_score(coords.values, feat3)
+                    else:
+                        avgI = moranI_score(coords.values, dfi[fnames].values)
                     moran_dict[ccf_id] = avgI
             
             num_parc = len(parc_ids)
