@@ -15,8 +15,10 @@ from config import mRMR_f3, mRMR_f3me, moranI_score, load_features, standardize_
 
 # compare the statistics of ME features and original dendritic features
 feat_file = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
+rname = 'VPL'
+
 df, fnames = load_features(feat_file, feat_type='full')
-df_cp = df[df.region_name_r671 == 'CP']
+df_cp = df[df.region_name_r671 == rname]
 fn22_me = [col for col in df.columns if col.endswith('_me')]
 fn22 = [col[:-3] for col in fn22_me]
 
@@ -27,13 +29,14 @@ df_de = df_cp[fn22]; standardize_features(df_de, fn22)
 # estimate the spatial coherence
 # the calculation of MoranI is very time-costly, use a subset
 use_subset = True
-if use_subset:
+nsel = 5000
+if use_subset and (df_me.shape[0] > nsel):
     random.seed(1024)
-    nsel = 5000
     sel_ids = np.array(random.sample(range(df_me.shape[0]), nsel))
     coords = df_coords.iloc[sel_ids].values
     mes = df_me.iloc[sel_ids].values
     des = df_de.iloc[sel_ids].values
+        
 else:
     coords = df_coords.values
     mes = df_me.values
@@ -91,7 +94,7 @@ plt.subplots_adjust(left=0.16, bottom=0.38)
 plt.xlabel('Morphological feature')
 
 plt.legend(frameon=False, loc='upper center')
-plt.savefig('MoranI_improvement_of_CP.png', dpi=300); plt.close()
+plt.savefig(f'MoranI_improvement_of_{rname}.png', dpi=300); plt.close()
 
 print()
 

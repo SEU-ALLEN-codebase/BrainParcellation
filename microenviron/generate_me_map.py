@@ -724,10 +724,10 @@ def plot_region_clusters_on_sections(mefile, rname='MOB', r316=False, flipLR=Tru
     # sort the label, so that they were more likely consistent across feat_types.
     sorted_labels = np.zeros_like(labels)
     unique_labels = sorted(set(labels))
-    # sorting criterion
+    # sorting criterion. It's not guaranted to be consistent across feat_types
     means = [coords[labels == label].mean(axis=0) for label in unique_labels]
     random.seed(seed)
-    random.shuffle(means)
+    #random.shuffle(means)
     sorted_indices = np.argsort([mean[1] for mean in means])
     # map the original labels to sorted labels
     for new_label, old_label in enumerate(sorted_indices):
@@ -859,7 +859,7 @@ if __name__ == '__main__':
         #find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
         #plot_inter_regional_features(mefile)
         rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
-        rname = 'VPL'
+        rname = ''
         #plot_MOB_features(mefile, 'MOB')
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
         #plot_region_feature_sections(mefile, rname, feat_type='local_me_pca')
