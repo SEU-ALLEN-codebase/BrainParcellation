@@ -8,6 +8,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from adjustText import adjust_text
+from collections import Counter
 
 from anatomy.anatomy_config import SALIENT_REGIONS
 from anatomy.anatomy_core import get_struct_from_id_path, parse_ana_tree
@@ -70,29 +71,39 @@ class NeuronDistribution:
 
         ###### For each brain structure ##########
         sns.set_theme(style="ticks", font_scale=1.6)
-        # distribution for each brain structure
-        for bname in bnames:
-            dfb = self.df[self.df['bstruct'] == bname]
-            rnames, rcnts = np.unique(dfb.region_name_r671, return_counts=True)
-            dfc = pd.DataFrame([rnames, rcnts], index=('Region', '#Neurons')).transpose()
+        if False:
+            # distribution for each brain structure
+            for bname in bnames:
+                dfb = self.df[self.df['bstruct'] == bname]
+                rnames, rcnts = np.unique(dfb.region_name_r671, return_counts=True)
+                dfc = pd.DataFrame([rnames, rcnts], index=('Region', '#Neurons')).transpose()
 
-            fig, ax = plt.subplots(figsize=(6,6))
-            sns.kdeplot(dfc, x='#Neurons', fill=True, alpha=0.2, linewidth=2, color=self.COLORS[bname])
-            plt.xlim(0, rcnts.max()*1.2)
-            ax.text(0.4, 0.7, f'#Regions (n>0): {len(rcnts)}\n#Regions (n>10): {(rcnts > 10).sum()}\n#Regions (n>100): {(rcnts > 100).sum()}',
-                transform=ax.transAxes)
+                fig, ax = plt.subplots(figsize=(6,6))
+                sns.kdeplot(dfc, x='#Neurons', fill=True, alpha=0.2, linewidth=2, color=self.COLORS[bname])
+                plt.xlim(0, rcnts.max()*1.2)
+                ax.text(0.4, 0.7, f'#Regions (n>0): {len(rcnts)}\n#Regions (n>10): {(rcnts > 10).sum()}\n#Regions (n>100): {(rcnts > 100).sum()}',
+                    transform=ax.transAxes)
 
-            plt.title(bname, fontsize=25)
-            plt.yticks([])
-            ax.set_ylabel('')
-            plt.subplots_adjust(bottom=0.15)
-            ax.spines['left'].set_linewidth(2)
-            ax.spines['bottom'].set_linewidth(2)
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            plt.savefig(f'{bname}_rcnt_distr.png', dpi=300)
-            plt.close()
-            #sys.exit()
+                plt.title(bname, fontsize=25)
+                plt.yticks([])
+                ax.set_ylabel('')
+                plt.subplots_adjust(bottom=0.15)
+                ax.spines['left'].set_linewidth(2)
+                ax.spines['bottom'].set_linewidth(2)
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                plt.savefig(f'{bname}_rcnt_distr.png', dpi=300)
+                plt.close()
+                
+        if True:
+            # distributin using box-pots
+            df_cur = self.df[['region_name_r671', 'bstruct']][self.df.bstruct.isin(bnames)]
+            vcur = [tuple(vi) for vi in df_cur.values]
+            cnter = Counter(vcur)
+            col1, col2 = 'Brain Structure', 'Num of Neurons'
+            df_t = pd.DataFrame(np.array([[k[1], v] for k,v in cnter.items()]), columns=[col1, col2])
+            import ipdb; ipdb.set_trace()
+            print()
         print()
 
 class QualityEstimation:
@@ -165,13 +176,13 @@ class QualityEstimation:
     
 
 if __name__ == '__main__':
-    if 0:
+    if 1:
         mefile = '../../microenviron/data/mefeatures_100K_with_PCAfeatures3.csv'
 
         nd = NeuronDistribution(mefile)
         nd.distribution_across_structures()
 
-    if 1:
+    if 0:
         match_file = '../data/so_match_table.txt'
         #gs_file = '../data/gf_1876_crop_2um.csv'
         gs_file = '../data/gf_1876_crop_2um_dendrite.csv'

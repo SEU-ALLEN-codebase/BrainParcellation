@@ -266,20 +266,31 @@ def compare_spatial_statis(params):
     if params['type'] == 'moran':
         deltas = mvalues - svalues
         p_imp = 100.0 * (deltas > 0).sum() / deltas.shape[0]
-        plt.axvline(x=0, linestyle='--', color='red')
-        plt.annotate(f'Percentage improve: {p_imp:.1f}%', xy=(0.26,0.92), xycoords='axes fraction',
-                     ha='left', va='top', color='red')
-        sns.histplot(x=deltas, fill=False, color='black', binrange=(params['xmin'], params['xmax']), 
-                 alpha=0.7, bins=50, kde=True, stat='proportion', line_kws={'alpha':1.})
+        g = sns.histplot(x=deltas, fill=True, color='gray', 
+                     binrange=(params['xmin'], params['xmax']), 
+                     alpha=0.7, bins=50, kde=True, stat='proportion', 
+                     line_kws={'alpha':1., 'lw': 2})
+        g.lines[0].set_color('black')
+    
+        plt.axvline(x=0, lw=2, linestyle='--', color='red')
+        #plt.annotate(f'Percentage \nimprovement: \n{int(round(p_imp))}%', xy=(0.65,0.92), 
+        #             xycoords='axes fraction',
+        #             ha='center', va='top', color='red')
+        plt.xlim(params['xlim0'], params['xlim1'])
+        plt.legend(frameon=False)
     else:
         sns.histplot(x=svalues, fill=True, color='coral', binrange=(params['xmin'], params['xmax']), 
-                     alpha=0.7, bins=50, kde=True, stat='proportion', label='Single neuron', line_kws={'alpha':1.})
+                     alpha=0.7, bins=50, kde=True, stat='proportion', label='Single neuron', 
+                     line_kws={'alpha':1., 'lw':2})
         sns.histplot(x=mvalues, fill=True, color='royalblue', binrange=(params['xmin'], params['xmax']), 
-                     alpha=0.7, bins=50, kde=True, stat='proportion', label='Microenvironment', line_kws={'alpha':1.})
+                     alpha=0.7, bins=50, kde=True, stat='proportion', label='Microenvironment', 
+                     line_kws={'alpha':1., 'lw':2})
+        # customize the legend
+        plt.legend().remove()
+
     plt.xlabel(params['xlabel'])
     plt.ylabel('Proportion of regions')
 
-    plt.legend(frameon=False)
     plt.subplots_adjust(left=0.18, bottom=0.16)
     plt.savefig(params['figname'], dpi=300)
     plt.close()
@@ -304,10 +315,12 @@ if __name__ == '__main__':
             'type': 'moran',
             'single_pkl': '../summary_of_parc/cache/moranI_of_singleneuron_avg_top3.pkl', 
             'me_pkl': '../summary_of_parc/cache/moranI_of_micro_environ_avg_top3.pkl',
-            'xlabel': "Spatial coherence change",
+            'xlabel': u"Δ Spatial coherence",
             'figname': 'moran_single_vs_me.png',
             'xmin': -0.15,
-            'xmax': 0.5,
+            'xmax': 0.4,
+            'xlim0': -0.13,
+            'xlim1': 0.3,
         }
         params2 = {
             'type': 'std',

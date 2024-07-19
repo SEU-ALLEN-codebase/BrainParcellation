@@ -154,7 +154,7 @@ class ParcSummary:
         #    data=data, x=xname, y=yname, ax=ax, scatter=False
         #)
         ax_leg = ax.legend(title =hue_name, labelspacing=0.1, handletextpad=0., 
-                   borderpad=0.05, frameon=True, loc='lower right', title_fontsize=15, 
+                   borderpad=0.05, frameon=True, loc='best', title_fontsize=15, 
                    fontsize=13, alignment='center', ncols=2)
         ax_leg._legend_box.align = 'center'
 
@@ -167,7 +167,7 @@ class ParcSummary:
             xys = []
             for xyi in np.arange(xy.min(), xy.max(), bw):
                 xym = (xy >= xyi) & (xy < xyi+bw)
-                if xym.sum() < 2: continue
+                if xym.sum() < 1: continue
                 vs = np.mean(cs[xym])
                 xys.append(xyi + bw/2)
                 data.append(vs)
@@ -384,10 +384,11 @@ class ParcSummary:
         xmin, xmax = plt.xlim()
         xg = np.linspace(xmin, xmax, 100)
         yg = stats.norm.pdf(xg, gmean, gstd)
-        plt.plot(xg, yg, 'red', linewidth=2, label=r'$Gaussian (\mu=$'+f'{gmean:.2f}, ' + r'$\sigma=$'+f'{gstd:.2f})')
+        plt.plot(xg, yg, 'red', linewidth=2, label='Normal distribution\n' + r'$\mathcal{N}$' + f'({gmean:.2f},' + f'{gstd:.2f})')
 
         plt.xlabel('Gini coefficient of subregion volumes')
-        plt.legend()
+        plt.legend(loc='best', 
+                   frameon=False, handlelength=1, handletextpad=0.3, alignment='center')
         plt.tight_layout()
         plt.savefig('gini_of_subregions.png', dpi=300)
         plt.close()

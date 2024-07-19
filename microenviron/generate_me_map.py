@@ -31,9 +31,10 @@ from mpl_toolkits.mplot3d import Axes3D
 from fil_finder import FilFinder2D
 import astropy.units as u
 from sklearn.neighbors import KDTree
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.metrics import r2_score
 from sklearn.decomposition import PCA
+import umap
 
 from image_utils import get_mip_image, image_histeq
 from file_io import load_image, save_image
@@ -43,7 +44,7 @@ from anatomy.anatomy_vis import get_brain_outline2d, get_section_boundary_with_o
 from anatomy.anatomy_core import parse_ana_tree
 from plotters.neurite_arbors import NeuriteArbors
 
-from config import mRMR_f3 as __MAP_FEATS__
+from config import mRMR_f3 as __MAP_FEATS__, standardize_features
 
 if __name__ == '__main__':
     # customize the fonts
@@ -662,6 +663,132 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
             #
         cv2.imwrite(figname, img)
  
+
+def plot_region_clusters_on_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10, feat_type='me', seed=1024):
+    df = pd.read_csv(mefile, index_col=0)
+    if feat_type == 'me':
+        keys = [f'{key}_me' for key in __MAP_FEATS__]
+    elif feat_type == 'single':
+        keys = __MAP_FEATS__
+    else:
+        raise ValueError
+
+    if r316:
+        rkey = 'region_name_r316'
+        mask = load_image(MASK_CCF25_R314_FILE)
+    else:
+        rkey = 'region_name_r671'
+        mask = load_image(MASK_CCF25_FILE)
+    ana_tree = parse_ana_tree(keyname='name')
+
+    if type(rname) is list:
+        sel_mask = df[rkey].isin(rname)
+        rmask = np.zeros_like(mask)
+        for ri in rname:
+            idx = ana_tree[ri]['id']
+            rmask = rmask | (mask == idx)
+            
+        out_prefix = 'tmp'
+    else:
+        sel_mask = df[rkey] == rname
+        idx = ana_tree[rname]['id']
+        rmask = mask == idx
+        out_prefix = rname
+    
+    dfr = df[keys][sel_mask]
+
+    coords = df[['soma_x', 'soma_y', 'soma_z']][sel_mask].values / 1000
+    if flipLR:
+        zdim = 456
+        zcoord = zdim * 25. / 1000
+        right = np.nonzero(coords[:,2] > zcoord/2)[0]
+        coords[right, 2] = zcoord - coords[right, 2]
+        rmask[zdim//2:] = 0
+
+    # do clustering
+    print(f'--> Processing for region {rname} with {dfr.shape[0]} samples')
+    # standardize
+    standardize_features(dfr, dfr.columns)
+    reducer = umap.UMAP(random_state=seed)
+    embedding = reducer.fit_transform(dfr)
+    # clustering
+    # load the parcellation file
+    #subparc_file = os.path.join(parc_dir, f'parc_region{ana_tree[rname]["id"]}.nrrd')
+    #subparc = load_image(subparc_file)
+    #nclusters = subparc.max()
+    nclusters = 3
+    
+
+    db = SpectralClustering(n_clusters=nclusters, random_state=seed).fit(embedding)
+    labels = db.labels_
+    # sort the label, so that they were more likely consistent across feat_types.
+    sorted_labels = np.zeros_like(labels)
+    unique_labels = sorted(set(labels))
+    # sorting criterion
+    means = [coords[labels == label].mean(axis=0) for label in unique_labels]
+    random.seed(seed)
+    random.shuffle(means)
+    sorted_indices = np.argsort([mean[1] for mean in means])
+    # map the original labels to sorted labels
+    for new_label, old_label in enumerate(sorted_indices):
+        sorted_labels[labels == unique_labels[old_label]] = new_label
+    labels = sorted_labels
+
+    colors = {ie: plt.cm.rainbow(each, bytes=True) for ie, each in enumerate(np.linspace(0, 1, len(unique_labels)))}
+    all_colors = np.array([colors[i] for i in labels])
+
+    # We handling the coloring
+    dfc = dfr.copy()
+    dfc.iloc[:,:3] = all_colors[:,:3]
+    dfc[dfc > 255] = 255
+
+    # get the boundary of region
+    nzcoords = rmask.nonzero()
+    nzcoords_t = np.array(nzcoords).transpose()
+    zmin, ymin, xmin = nzcoords_t.min(axis=0)
+    zmax, ymax, xmax = nzcoords_t.max(axis=0)
+    sub_mask = rmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+    memap = np.zeros((*sub_mask.shape, 3), dtype=np.uint8)
+    
+    coords_s = np.floor(coords * 40).astype(int)
+    memap[coords_s[:,2]-zmin, coords_s[:,1]-ymin, coords_s[:,0]-xmin] = dfc.values
+
+    mips = []
+    shape3d = mask.shape
+    axid = 2
+    dmax, dmin = nzcoords_t.max(axis=0)[axid], nzcoords_t.min(axis=0)[axid]
+    for sid in range(0, dmax-dmin-thickX2-1, thickX2*2):
+        sid = sid + thickX2
+        cur_memap = memap.copy()
+        if axid == 0:
+            cur_memap[:sid-thickX2] = 0
+            cur_memap[sid+thickX2:] = 0
+        elif axid == 1:
+            cur_memap[:,:sid-thickX2] = 0
+            cur_memap[:,sid+thickX2:] = 0
+        elif axid == 2:
+            cur_memap[:,:,:sid-thickX2] = 0
+            cur_memap[:,:,sid+thickX2:] = 0
+        print(cur_memap.mean(), cur_memap.std())
+
+        mip = get_mip_image(cur_memap, axid)
+        
+        figname = f'{out_prefix}_{feat_type}_section{sid:03d}.png'
+        print(mip.shape, sub_mask.shape)
+        process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=5, b_scale=0.5)
+        # load and remove the zero-alpha block
+        img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
+        wnz = np.nonzero(img[img.shape[0]//2,:,-1])[0]
+        ws, we = wnz[0], wnz[-1]
+        hnz = np.nonzero(img[:,img.shape[1]//2,-1])[0]
+        hs, he = hnz[0], hnz[-1]
+        img = img[hs:he+1, ws:we+1]
+        # set the alpha of non-brain region as 0
+        img[img[:,:,-1] == 1] = 0
+        if axid != 0:   # rotate 90
+            img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+            #
+        cv2.imwrite(figname, img)
     
 
 def plot_parcellations(parc_file, ccf_tree_file=ANATOMY_TREE_FILE, ccf_atlas_file=MASK_CCF25_FILE):
@@ -732,10 +859,12 @@ if __name__ == '__main__':
         #find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
         #plot_inter_regional_features(mefile)
         rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
-        rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
+        rname = 'VPL'
         #plot_MOB_features(mefile, 'MOB')
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
-        plot_region_feature_sections(mefile, 'ACB', feat_type='me')
+        #plot_region_feature_sections(mefile, rname, feat_type='local_me_pca')
+        plot_region_clusters_on_sections(mefile, rname, feat_type='single')
+        plot_region_clusters_on_sections(mefile, rname, feat_type='me')
    
     if 0:
         parc_file = 'intermediate_data/parc_r671_full.nrrd'
