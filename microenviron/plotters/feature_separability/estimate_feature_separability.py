@@ -55,7 +55,7 @@ def cortical_separability(mefile, regions, sname, disp_type, cnt_thres=20):
     print(f'--> Time used in loading and processing data: {time.time() - t0:.2f} seconds')
 
     # rename the columns 
-    sns.set_theme(style='ticks', font_scale=1.5)
+    sns.set_theme(style='ticks', font_scale=1.6)
     rmapper = {
         'Length_me': 'Length (µm)',
         'AverageFragmentation_me': 'Avg. Fragmentation',
@@ -66,14 +66,17 @@ def cortical_separability(mefile, regions, sname, disp_type, cnt_thres=20):
     # visualize using pairplot
     if disp_type == 'l':
         hue = 'lamination'
+        leg_title = 'Lamination'
         hue_order = laminations
         figname = f'lamination_{sname}.png'
     elif disp_type == 'r316':
         hue = 'region_name_r316'
+        leg_title = 'Region'
         hue_order = regions
         figname = f's-regions_{sname}.png'
     elif disp_type == 'r671':
         hue = 'region_name_r671'
+        leg_title = 'Region'
         hue_order = rnames
         figname = f'sl_regions_{sname}.png'
 
@@ -83,7 +86,9 @@ def cortical_separability(mefile, regions, sname, disp_type, cnt_thres=20):
     handles = g._legend_data.values()
     labels = g._legend_data.keys()
     g._legend.remove()
-    g.fig.legend(handles=handles, labels=labels, markerscale=2, loc='center right')
+    g.fig.legend(handles=handles, labels=labels, markerscale=3, loc='center right',
+                 labelspacing=0.4, handletextpad=-0.2, fontsize=15,
+                 title=leg_title)
     
     plt.savefig(figname, dpi=300)
     plt.close()
@@ -420,7 +425,7 @@ if __name__ == '__main__':
     if 0:
         #regions = ['FRP', 'MOp', 'SSp-n', 'SSs', 'GU', 'AUDd', 'VISp', 'ACAd', 'PL', 'ILA', 'ORBl', 'AId',
         #        'RSPd', 'TEa', 'PERI', 'ECT']
-        regions = ['SSp-n']
+        regions = ['SSp']
         cortical_separability(mefile, regions, sname='r671', disp_type='r671')
 
     if 0:

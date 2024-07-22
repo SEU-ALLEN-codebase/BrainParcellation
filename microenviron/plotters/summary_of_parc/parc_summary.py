@@ -356,8 +356,11 @@ class ParcSummary:
         for k, v in parc_vdict.items(): parc_vdict[k] /= 40**3
 
         ###### volume distribution
-        sns.histplot(x=ccf_vdict.values(), binrange=(0,1.5), bins=50, stat='probability', alpha=0.5, label='CCFv3')
-        sns.histplot(x=parc_vdict.values(), binrange=(0,1.5), bins=50, stat='probability', alpha=0.5, label='Ours')
+        sns.histplot(x=ccf_vdict.values(), binrange=(0,1.5), bins=50, stat='probability', 
+                     alpha=0.5, label='CCF atlas')
+        sns.histplot(x=parc_vdict.values(), binrange=(0,1.5), bins=50, stat='probability', 
+                     alpha=0.5, label='ME atlas')
+        plt.yscale('log')
         plt.xlim(0, 1.5)
         plt.xlabel('Volume ($mm^3$)')
         plt.legend(frameon=False)
@@ -387,7 +390,7 @@ class ParcSummary:
         plt.plot(xg, yg, 'red', linewidth=2, label='Normal distribution\n' + r'$\mathcal{N}$' + f'({gmean:.2f},' + f'{gstd:.2f})')
 
         plt.xlabel('Gini coefficient of subregion volumes')
-        plt.legend(loc='best', 
+        plt.legend(loc='upper right', bbox_to_anchor=(1., 0.8),
                    frameon=False, handlelength=1, handletextpad=0.3, alignment='center')
         plt.tight_layout()
         plt.savefig('gini_of_subregions.png', dpi=300)
@@ -441,10 +444,10 @@ if __name__ == '__main__':
     if 0:   # region distribution
         ps.region_distributions()
 
-    if 1: 
+    if 0: 
         ps.correlation_of_subparcs(me_file=me_file)
 
-    if 0:
+    if 1:
         ps.volume_statistics()
 
     if 0:

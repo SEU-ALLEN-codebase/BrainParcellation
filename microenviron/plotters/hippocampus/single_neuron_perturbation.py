@@ -258,5 +258,5 @@ if __name__ == '__main__':
         lm_dir = 'ION_HIP/point_perturbation'
         fe = FeatureEvolution(lm_dir)
         fe.plot_features()
-        fe.plot_statistics()
+        #fe.plot_statistics()
 

@@ -279,10 +279,10 @@ def compare_spatial_statis(params):
         plt.xlim(params['xlim0'], params['xlim1'])
         plt.legend(frameon=False)
     else:
-        sns.histplot(x=svalues, fill=True, color='coral', binrange=(params['xmin'], params['xmax']), 
+        sns.histplot(x=svalues, fill=True, color='blueviolet', binrange=(params['xmin'], params['xmax']), 
                      alpha=0.7, bins=50, kde=True, stat='proportion', label='Single neuron', 
                      line_kws={'alpha':1., 'lw':2})
-        sns.histplot(x=mvalues, fill=True, color='royalblue', binrange=(params['xmin'], params['xmax']), 
+        sns.histplot(x=mvalues, fill=True, color='orange', binrange=(params['xmin'], params['xmax']), 
                      alpha=0.7, bins=50, kde=True, stat='proportion', label='Microenvironment', 
                      line_kws={'alpha':1., 'lw':2})
         # customize the legend
@@ -331,6 +331,6 @@ if __name__ == '__main__':
             'xmin': 0.05,
             'xmax': 0.4,
         }
-        compare_spatial_statis(params1)
+        compare_spatial_statis(params2)
 
 

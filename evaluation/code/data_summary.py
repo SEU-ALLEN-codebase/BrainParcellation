@@ -64,7 +64,7 @@ class NeuronDistribution:
         colors = [self.COLORS[bname] for bname in bnames]
         explode = [0, 0, 0, 0.3, 0.3, 0, 0]
 
-        plt.pie(counts, labels=bnames, colors=colors, autopct='%1.1f%%', explode=explode)
+        plt.pie(counts, colors=colors, explode=explode)
         plt.axis('equal')
         plt.savefig('neuron_distr_among_structures.png', dpi=300)
         plt.close()
@@ -100,10 +100,15 @@ class NeuronDistribution:
             df_cur = self.df[['region_name_r671', 'bstruct']][self.df.bstruct.isin(bnames)]
             vcur = [tuple(vi) for vi in df_cur.values]
             cnter = Counter(vcur)
-            col1, col2 = 'Brain Structure', 'Num of Neurons'
+            col1, col2 = 'Brain structure', 'Num of neurons'
             df_t = pd.DataFrame(np.array([[k[1], v] for k,v in cnter.items()]), columns=[col1, col2])
-            import ipdb; ipdb.set_trace()
-            print()
+            df_t = df_t.astype({'Num of neurons': int})
+            g = sns.boxplot(data=df_t, x='Brain structure', y='Num of neurons', width=0.35, 
+                            color='black', fill=False, order=sorted(np.unique(df_t['Brain structure'])))
+            plt.yscale('log')
+            plt.subplots_adjust(left=0.15, bottom=0.15)
+            plt.savefig('neuron_distribution_across_structures.png', dpi=300)
+            plt.close()
         print()
 
 class QualityEstimation:

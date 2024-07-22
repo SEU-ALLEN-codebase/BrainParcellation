@@ -15,7 +15,7 @@ from config import mRMR_f3, mRMR_f3me, moranI_score, load_features, standardize_
 
 # compare the statistics of ME features and original dendritic features
 feat_file = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
-rname = 'VPL'
+rname = 'CP'
 
 df, fnames = load_features(feat_file, feat_type='full')
 df_cp = df[df.region_name_r671 == rname]
@@ -48,9 +48,10 @@ moranI_de = np.array(moranI_score(coords, des, reduce_type='all'))
 print(f'Avg Moran Index for ME and DE are {moranI_me.mean():.2f}, {moranI_de.mean():.2f}')
 
 sns.set_theme(style='ticks', font_scale=1.6)
-plt.plot(range(len(moranI_me)), moranI_me, 'o-', color='orange', lw=2, label='Microenvironment')
-plt.plot(range(len(moranI_de)), moranI_de, 'o-', color='blueviolet', lw=2, label='Single neuron')
-plt.ylabel("Moran's Index")
+fig, ax = plt.subplots(figsize=(6,6))
+plt.plot(moranI_me, range(len(moranI_me)), 'o-', color='orange', lw=2)
+plt.plot(moranI_de, range(len(moranI_de)), 'o-', color='blueviolet', lw=2)
+plt.xlabel("Moran's Index")
 # processing the feature labels
 pf2label = {
     'AverageBifurcationAngleRemote': 'Bif angle remote',
@@ -78,22 +79,22 @@ for name in fn22:
         fn_ticks.append(pf2label[name])
     else:
         fn_ticks.append(name)
-plt.xticks(ticks=range(len(fn_ticks)), labels=fn_ticks, fontsize=12)
+plt.yticks(ticks=range(len(fn_ticks)), labels=fn_ticks, fontsize=12)
 
 axes = plt.gca()
 axes.spines['top'].set_visible(False)
 axes.spines['right'].set_visible(False)
 axes.spines['bottom'].set_linewidth(2)
 axes.spines['left'].set_linewidth(2)
-axes.xaxis.set_tick_params(width=2, direction='out')
-axes.yaxis.set_tick_params(width=2, direction='out')
-plt.setp(axes.get_xticklabels(), rotation=45, ha='right', rotation_mode='anchor')
+axes.xaxis.set_tick_params(width=2, direction='in')
+axes.yaxis.set_tick_params(width=2, direction='in')
+#plt.setp(axes.get_yticklabels(), rotation=45, ha='right', rotation_mode='anchor')
 
 
-plt.subplots_adjust(left=0.16, bottom=0.38)
-plt.xlabel('Morphological feature')
+plt.subplots_adjust(left=0.38, bottom=0.12)
+plt.ylabel('Morphological feature')
 
-plt.legend(frameon=False, loc='upper center')
+#plt.legend(frameon=False, loc='upper center')
 plt.savefig(f'MoranI_improvement_of_{rname}.png', dpi=300); plt.close()
 
 print()

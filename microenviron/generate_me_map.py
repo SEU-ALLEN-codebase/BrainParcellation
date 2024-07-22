@@ -712,12 +712,7 @@ def plot_region_clusters_on_sections(mefile, rname='MOB', r316=False, flipLR=Tru
     reducer = umap.UMAP(random_state=seed)
     embedding = reducer.fit_transform(dfr)
     # clustering
-    # load the parcellation file
-    #subparc_file = os.path.join(parc_dir, f'parc_region{ana_tree[rname]["id"]}.nrrd')
-    #subparc = load_image(subparc_file)
-    #nclusters = subparc.max()
     nclusters = 3
-    
 
     db = SpectralClustering(n_clusters=nclusters, random_state=seed).fit(embedding)
     labels = db.labels_
@@ -859,7 +854,7 @@ if __name__ == '__main__':
         #find_regional_representative(mefile, region=region, swcdir=swcdir, color=color)
         #plot_inter_regional_features(mefile)
         rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
-        rname = ''
+        rname = 'MOB'
         #plot_MOB_features(mefile, 'MOB')
         #plot_region_feature_in_ccf_space(mefile, 'CA1')
         #plot_region_feature_sections(mefile, rname, feat_type='local_me_pca')
