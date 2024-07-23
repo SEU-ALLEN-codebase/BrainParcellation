@@ -798,11 +798,11 @@ if __name__ == '__main__':
     axon_feat_file = './ION_HIP/lm_features_d28_axons_8um.csv'
     
     
-    if 0:
-        n = 40
-        axon_dir = f'./ION_HIP/point_perturbation/swc_dendrites_del_max{n}'
-        axon_gf_file = f'./ION_HIP/point_perturbation/gf_hip_dendrites_del_max{n}.csv'
-        calc_global_features_from_folder(axon_dir, outfile=axon_gf_file, robust=True)
+    if 1:
+        for n in range(5, 40+1, 5):
+            axon_dir = f'./ION_HIP/point_perturbation2/swc_dendrites_del_max{n}'
+            axon_gf_file = f'./ION_HIP/point_perturbation2/gf_hip_dendrites_del_max{n}.csv'
+            calc_global_features_from_folder(axon_dir, outfile=axon_gf_file, robust=True)
 
     if 0:
         #feat_names = ['Bifurcations', 'Length', 'AverageFragmentation']
@@ -814,7 +814,7 @@ if __name__ == '__main__':
         #dendrite_axon_correspondence(local_me_file, axon_feat_file, is_local_me=False)
         
         
-    if 1:
+    if 0:
         proj_csv = './ION_HIP/axon_proj_8um.csv'
         ap = AxonalProjection()
         #ap.calc_proj_matrix(axon_dir, proj_csv)

@@ -76,7 +76,7 @@ class MorphologyPerturbation:
         return pruned
         
 
-def perturbate_folder(swcdir, outswcdir, ratio):
+def perturbate_folder(swcdir, outswcdir, ratio, seed=1024):
 
     if not os.path.exists(outswcdir):
         os.mkdir(outswcdir)
@@ -84,7 +84,7 @@ def perturbate_folder(swcdir, outswcdir, ratio):
     t0 = time.time()
     for i, swcfile in enumerate(glob.glob(os.path.join(swcdir, '*swc'))):
         outswcfile = os.path.join(outswcdir, os.path.split(swcfile)[-1])
-        mp = MorphologyPerturbation(swcfile)
+        mp = MorphologyPerturbation(swcfile, seed=seed)
         if type(ratio) is int:
             f_random = mp.random_remove_points
         else:
@@ -200,35 +200,43 @@ class FeatureEvolution:
 
     def plot_statistics(self):
         # Spatial auto-correlation
-        moran_file = 'moran_cached_point_perturbation_withME.pkl'
-        moran_cached = os.path.exists(moran_file)
-        if moran_cached:
-            with open(moran_file, 'rb') as fp:
-                morans = pickle.load(fp)
-        else:
-            morans = []
-            for coords, feats in zip(self.coords_l, self.feats_l):
-                feats = feats.copy()
-                fnames = feats.columns
-                standardize_features(feats, fnames)
-                moran = moranI_score(coords, feats.values, reduce_type='all')
-                morans.append(moran)
-                print(len(morans))
-            # caching
-            with open(moran_file, 'wb') as fp:
-                pickle.dump(morans, fp)
+        moran_files = ['moran_cached_point_perturbation_withME.pkl',
+                       'moran_cached_point_perturbation_withME2.pkl',
+                       'moran_cached_point_perturbation_withME3.pkl']
+        #moran_files = ['moran_cached_point_perturbation_withME3.pkl']
+        morans_all = []
+        for moran_file in moran_files:
+            moran_cached = os.path.exists(moran_file)
+            if moran_cached:
+                with open(moran_file, 'rb') as fp:
+                    morans = pickle.load(fp)
+            else:
+                morans = []
+                for coords, feats in zip(self.coords_l, self.feats_l):
+                    feats = feats.copy()
+                    fnames = feats.columns
+                    standardize_features(feats, fnames)
+                    moran = moranI_score(coords, feats.values, reduce_type='all')
+                    morans.append(moran)
+                    print(len(morans))
+                # caching
+                with open(moran_file, 'wb') as fp:
+                    pickle.dump(morans, fp)
 
-        morans = np.array(morans)
-        print(morans.mean(axis=1))
-        print(morans)
+            morans_all.append(morans)
 
-        length_morans = morans[:, 0]
+        morans_all = np.array(morans_all)
+        print(morans_all.mean(axis=1))
+        print(morans_all)
+
+        length_morans = morans_all[:,:,0]
         xticks = range(0,40+1,5)
-        plt.plot(xticks, length_morans, 'o-', c='orchid')
+        
+        plt.errorbar(xticks, length_morans.mean(axis=0), length_morans.std(axis=0), marker='o', markersize=8, linestyle='-', capsize=5, color='orchid', ecolor='black', linewidth=2)
         plt.xticks(xticks, labels=[f'{r:d}' for r in xticks])
-        plt.xlabel('Maximal deleted nodes')
-        plt.ylabel('Moran')
-        plt.subplots_adjust(bottom=0.15, left=0.15)
+        plt.xlabel('Maximal number of deleted nodes')
+        plt.ylabel("Moran's Index")
+        plt.subplots_adjust(bottom=0.15, left=0.20)
         plt.savefig('moran_perturbation.png', dpi=300); plt.close()
 
         #----- STD -------#
@@ -250,13 +258,13 @@ if __name__ == '__main__':
     if 0:
         # random perturbation of swc files
         swcdir = './ION_HIP/swc_dendrites'
-        ratio = 40
-        outswcdir = f'./ION_HIP/point_perturbation/swc_dendrites_del_max{ratio}'
-        perturbate_folder(swcdir, outswcdir, ratio)
+        for ratio in range(5,40+1,5):
+            outswcdir = f'./ION_HIP/point_perturbation2/swc_dendrites_del_max{ratio}'
+            perturbate_folder(swcdir, outswcdir, ratio, seed=1026)
 
     if 1:
-        lm_dir = 'ION_HIP/point_perturbation'
+        lm_dir = 'ION_HIP/point_perturbation3'
         fe = FeatureEvolution(lm_dir)
-        fe.plot_features()
-        #fe.plot_statistics()
+        #fe.plot_features()
+        fe.plot_statistics()
 

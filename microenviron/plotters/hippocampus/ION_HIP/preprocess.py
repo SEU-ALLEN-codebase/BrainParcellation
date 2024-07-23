@@ -102,11 +102,12 @@ def aggregate_information(swc_dir, gf_file, reg_file, outfile):
 if __name__ == '__main__':
     if 1:
         #swc_dir = '/PBshare/SEU-ALLEN/Users/Sujun/ION_Hip_CCFv3_crop'
-        for ratio in [1,5,10,15,20,25,30,35,40]:
-            swc_dir = f'point_perturbation/swc_dendrites_del_max{ratio}'
-            gf_file = f'point_perturbation/gf_hip_dendrites_del_max{ratio}.csv'
+        dir0 = 'point_perturbation3'
+        for ratio in [5,10,15,20,25,30,35,40]:
+            swc_dir = f'{dir0}/swc_dendrites_del_max{ratio}'
+            gf_file = f'{dir0}/gf_hip_dendrites_del_max{ratio}.csv'
             reg_file = 'soma_region.csv'
-            outfile = f'point_perturbation/lm_features_d28_dendrites_del_max{ratio}.csv'
+            outfile = f'{dir0}/lm_features_d28_dendrites_del_max{ratio}.csv'
 
             aggregate_information(swc_dir, gf_file, reg_file, outfile)
 
