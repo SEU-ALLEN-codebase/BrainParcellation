@@ -532,8 +532,8 @@ def plot_region_feature_in_ccf_space(mefile, rname='MOB', r316=False, flipLR=Tru
     sc = ax.scatter(coords[:,0], coords[:,1], coords[:,2], s=10, c=dfc.values, marker='o', alpha=.75)
     label_size = 22
     ax.set_xlabel('AP axis (mm)', fontsize=label_size, labelpad=10)
-    ax.set_ylabel('LR axis (mm)', fontsize=label_size, labelpad=10)
-    ax.set_zlabel('DV axis (mm)', fontsize=label_size, labelpad=10)
+    ax.set_ylabel('DV axis (mm)', fontsize=label_size, labelpad=10)
+    ax.set_zlabel('LR axis (mm)', fontsize=label_size, labelpad=10)
 
     ax.tick_params(axis='both', which='major', labelsize=14)
 
