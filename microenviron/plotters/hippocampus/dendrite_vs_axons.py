@@ -742,11 +742,17 @@ class AxonalProjection:
         #                   figstr='Projection_by_regions', precomputed_labels=regions)
         
         # sankey correspondence
-        labels = [f'c{i}_ME' for i in np.unique(lab_l)] + [f'c{i}_proj' for i in np.unique(lab)]
+        labels_me = [f'c{i}_ME' for i in np.unique(lab_l)]
+        labels_proj = [f'c{i}_proj' for i in np.unique(lab)]
+        labels = labels_me + labels_proj
         # node colors
-        lut = dict(zip(np.unique(labels), sns.hls_palette(len(np.unique(labels)), l=0.5, s=0.8)))
+        #lut = dict(zip(np.unique(labels), sns.hls_palette(len(np.unique(labels)), l=0.5, s=0.8)))
+        lut_me = {lab:plt.cm.rainbow(each)[:3] for lab, each in zip(labels_me, np.linspace(0, 1, len(labels_me)))}
+        lut_proj = {lab:plt.cm.rainbow(each)[:3] for lab, each in zip(labels_proj, np.linspace(0, 1, len(labels_proj)))}
+        lut = lut_me | lut_proj
+        
         node_color_vs = pd.Series(labels, name='label').map(lut).values
-        np.random.shuffle(node_color_vs)
+        #np.random.shuffle(node_color_vs)
         node_colors = []
         for color in node_color_vs:
             r,g,b = color
@@ -798,7 +804,7 @@ if __name__ == '__main__':
     axon_feat_file = './ION_HIP/lm_features_d28_axons_8um.csv'
     
     
-    if 1:
+    if 0:
         for n in range(5, 40+1, 5):
             axon_dir = f'./ION_HIP/point_perturbation2/swc_dendrites_del_max{n}'
             axon_gf_file = f'./ION_HIP/point_perturbation2/gf_hip_dendrites_del_max{n}.csv'
@@ -814,7 +820,7 @@ if __name__ == '__main__':
         #dendrite_axon_correspondence(local_me_file, axon_feat_file, is_local_me=False)
         
         
-    if 0:
+    if 1:
         proj_csv = './ION_HIP/axon_proj_8um.csv'
         ap = AxonalProjection()
         #ap.calc_proj_matrix(axon_dir, proj_csv)
