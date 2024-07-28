@@ -279,19 +279,19 @@ def compare_spatial_statis(params):
         plt.xlim(params['xlim0'], params['xlim1'])
         plt.legend(frameon=False)
     else:
-        sns.histplot(x=svalues, fill=True, color='blueviolet', binrange=(params['xmin'], params['xmax']), 
+        sns.histplot(x=svalues, fill=True, color='royalblue', binrange=(params['xmin'], params['xmax']), 
                      alpha=0.7, bins=50, kde=True, stat='proportion', label='Single neuron', 
                      line_kws={'alpha':1., 'lw':2})
-        sns.histplot(x=mvalues, fill=True, color='orange', binrange=(params['xmin'], params['xmax']), 
+        sns.histplot(x=mvalues, fill=True, color='indianred', binrange=(params['xmin'], params['xmax']), 
                      alpha=0.7, bins=50, kde=True, stat='proportion', label='Microenvironment', 
                      line_kws={'alpha':1., 'lw':2})
         # customize the legend
         plt.legend().remove()
 
     plt.xlabel(params['xlabel'])
-    plt.ylabel('Proportion of regions')
+    plt.ylabel('Percentage of regions')
 
-    plt.subplots_adjust(left=0.18, bottom=0.16)
+    plt.subplots_adjust(left=0.18, bottom=0.20)
     plt.savefig(params['figname'], dpi=300)
     plt.close()
 
@@ -315,7 +315,7 @@ if __name__ == '__main__':
             'type': 'moran',
             'single_pkl': '../summary_of_parc/cache/moranI_of_singleneuron_avg_top3.pkl', 
             'me_pkl': '../summary_of_parc/cache/moranI_of_micro_environ_avg_top3.pkl',
-            'xlabel': u"Δ Spatial coherence",
+            'xlabel': u"Δ Spatial coherence\n(Δ Moran's Index)",
             'figname': 'moran_single_vs_me.png',
             'xmin': -0.15,
             'xmax': 0.4,
@@ -326,7 +326,8 @@ if __name__ == '__main__':
             'type': 'std',
             'single_pkl': './data/std_all_regions_avg3_single.pkl', 
             'me_pkl': './data/std_all_regions_avg3_me.pkl',
-            'xlabel': "Coefficient of variance",
+            #'xlabel': u"Coefficient of variance\n(CV=σ/μ)",
+            'xlabel': u"Coefficient of variance\n(CV=Standard Deviation / Mean)",
             'figname': 'std_single_vs_me.png',
             'xmin': 0.05,
             'xmax': 0.4,

@@ -71,15 +71,16 @@ def scatter_hist(x, y, colors, ax, ax_histx, ax_histy, xylims):
             
 
     # no labels
-    ax_histx.tick_params(axis="x", labelbottom=False)
+    #ax_histx.tick_params(axis="x", labelbottom=True)
     ax_histy.tick_params(axis="y", labelleft=False)
 
     # the scatter plot:
     xmin, xmax = x.min(), x.max()
     ax.scatter(x, y, c=colors, s=9)
     ax.set_xlim(*(xylims[0]))
+    ax.set_xticklabels([])
     ax.set_ylim(*(xylims[1]))
-    ax.set_xlabel('Longitudinal distance (mm)')
+    ax.set_ylabel('Transverse distance (mm)')
 
     nbins = 15
     ax_histx.plot(*get_values(x, colors[:,0], nbins), c='red')
@@ -91,12 +92,16 @@ def scatter_hist(x, y, colors, ax, ax_histx, ax_histy, xylims):
     
     ax_histx.set_ylabel('Feature')
     ax_histx.yaxis.set_label_position('right') 
+    ax_histx.yaxis.tick_right()
     ax_histx.set_ylim(0, 1)
-    ax_histx.set_yticks([0,1])
+    ax_histx.set_yticks([0,0.5,1])
+    ax_histx.set_xlabel('Longitudinal distance (mm)')
     
     ax_histy.set_xlabel('Feature')
+    ax_histy.xaxis.set_label_position('top') 
     ax_histy.set_xlim(0, 1)
-    ax_histy.set_xticks([0,1])
+    ax_histy.set_xticks([0,0.5,1])
+    ax_histy.xaxis.tick_top()
 
 
 def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10, debug=True):
@@ -247,7 +252,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
             fig = plt.figure(layout='constrained')
             # Create the main axes, leaving 25% of the figure space at the top and on the
             # right to position marginals.
-            ax = fig.add_gridspec(top=0.75, right=0.75).subplots()
+            ax = fig.add_gridspec(bottom=0.25, top=1.0, right=0.75).subplots()
             # The main axes' aspect can be fixed.
             ax.set(aspect=1)
             # Create marginal axes, which have 25% of the size of the main axes.  Note that
@@ -255,7 +260,7 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
             # main axes, by specifying axes coordinates greater than 1.  Axes coordinates
             # less than 0 would likewise specify positions on the left and the bottom of
             # the main axes.
-            ax_histx = ax.inset_axes([0, 1.05, 1, 0.25], sharex=ax)
+            ax_histx = ax.inset_axes([0, -0.3, 1, 0.25], sharex=ax)
             ax_histy = ax.inset_axes([1.05, 0, 0.25, 1], sharey=ax)
             # Draw the scatter plot and marginals.
             # transform the coordinates from pixel space to physical space
@@ -323,6 +328,6 @@ if __name__ == '__main__':
 
         #rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
         rname = ['CA1', 'CA2', 'CA3', 'ProS', 'SUB', 'DG-mo', 'DG-po', 'DG-sg']
-        #plot_region_feature_sections(mefile, rname)
-        calc_feat_statistics(mefile, rname)
+        plot_region_feature_sections(mefile, rname)
+        #calc_feat_statistics(mefile, rname)
    

@@ -15,7 +15,7 @@ from config import mRMR_f3, mRMR_f3me, moranI_score, load_features, standardize_
 
 # compare the statistics of ME features and original dendritic features
 feat_file = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
-rname = 'CP'
+rname = 'MOB'
 
 df, fnames = load_features(feat_file, feat_type='full')
 df_cp = df[df.region_name_r671 == rname]
@@ -49,8 +49,8 @@ print(f'Avg Moran Index for ME and DE are {moranI_me.mean():.2f}, {moranI_de.mea
 
 sns.set_theme(style='ticks', font_scale=1.6)
 fig, ax = plt.subplots(figsize=(6,6))
-plt.plot(moranI_me, range(len(moranI_me)), 'o-', color='orange', lw=2)
-plt.plot(moranI_de, range(len(moranI_de)), 'o-', color='blueviolet', lw=2)
+plt.plot(moranI_me, range(len(moranI_me)), 'o-', color='indianred', lw=2)
+plt.plot(moranI_de, range(len(moranI_de)), 'o-', color='royalblue', lw=2)
 plt.xlabel("Moran's Index")
 # processing the feature labels
 pf2label = {

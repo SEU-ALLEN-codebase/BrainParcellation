@@ -290,7 +290,7 @@ class ParcSummary:
         nsub = 'No. of \nsubregions'
         vol_name = r'Volume ($mm^3$)'
         std_name = 'Feature STD'
-        moran_name = 'Moran_I'
+        moran_name = "Moran's Index"
         nme = 'No. of neurons'
         data = pd.DataFrame(data, columns=(vol_name, nsub, std_name, moran_name, nme))
         
@@ -444,10 +444,10 @@ if __name__ == '__main__':
     if 0:   # region distribution
         ps.region_distributions()
 
-    if 0: 
+    if 1: 
         ps.correlation_of_subparcs(me_file=me_file)
 
-    if 1:
+    if 0:
         ps.volume_statistics()
 
     if 0:

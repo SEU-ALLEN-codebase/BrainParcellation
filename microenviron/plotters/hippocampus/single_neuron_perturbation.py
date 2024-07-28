@@ -226,7 +226,7 @@ class FeatureEvolution:
             morans_all.append(morans)
 
         morans_all = np.array(morans_all)
-        print(morans_all.mean(axis=1))
+        print(morans_all.mean(axis=0))
         print(morans_all)
 
         length_morans = morans_all[:,:,0]
