@@ -70,17 +70,15 @@ def scatter_hist(x, y, colors, ax, ax_histx, ax_histy, xylims):
         return xys, data
             
 
-    # no labels
-    #ax_histx.tick_params(axis="x", labelbottom=True)
-    ax_histy.tick_params(axis="y", labelleft=False)
 
     # the scatter plot:
     xmin, xmax = x.min(), x.max()
     ax.scatter(x, y, c=colors, s=9)
     ax.set_xlim(*(xylims[0]))
-    ax.set_xticklabels([])
+    ax_xtls = ax.get_xticklabels()
+    ax_xticks = ax.get_xticks()
     ax.set_ylim(*(xylims[1]))
-    ax.set_ylabel('Transverse distance (mm)')
+    ax.set_ylabel(' Transverse distance (mm)')
 
     nbins = 15
     ax_histx.plot(*get_values(x, colors[:,0], nbins), c='red')
@@ -90,18 +88,25 @@ def scatter_hist(x, y, colors, ax, ax_histx, ax_histy, xylims):
     ax_histy.plot(*get_values(y, colors[:,1], nbins)[::-1], c='green')
     ax_histy.plot(*get_values(y, colors[:,2], nbins)[::-1], c='blue')
     
-    ax_histx.set_ylabel('Feature')
-    ax_histx.yaxis.set_label_position('right') 
-    ax_histx.yaxis.tick_right()
+    ax_histx.set_ylabel('Normalized\nfeature')
+    ax_histx.yaxis.set_label_position('left') 
     ax_histx.set_ylim(0, 1)
     ax_histx.set_yticks([0,0.5,1])
-    ax_histx.set_xlabel('Longitudinal distance (mm)')
+    # no labels
+    ax_histx.xaxis.set_ticks(ax_xticks)
+    ax_histx.set_xticklabels(ax_xtls)
+    # add a "\n" to invoid incorrect cut of figure
+    ax_histx.set_xlabel('Longitudinal distance (mm)\n')
     
-    ax_histy.set_xlabel('Feature')
-    ax_histy.xaxis.set_label_position('top') 
+    ax_histy.set_xlabel('Normalized\nfeature')
+    #ax_histy.xaxis.set_label_position('top') 
     ax_histy.set_xlim(0, 1)
     ax_histy.set_xticks([0,0.5,1])
-    ax_histy.xaxis.tick_top()
+    #ax_histy.xaxis.tick_top()
+    ax_histy.tick_params(axis="y", labelleft=False)
+
+    # remove xticklabels of ax
+    ax.tick_params(axis='x', labelbottom=False)
 
 
 def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, thickX2=10, debug=True):
@@ -248,13 +253,13 @@ def plot_region_feature_sections(mefile, rname='MOB', r316=False, flipLR=True, t
         
         if debug:
             # Create a Figure, which doesn't have to be square.
-            sns.set_theme(style="ticks", font_scale=1.4)
-            fig = plt.figure(layout='constrained')
+            sns.set_theme(style="ticks", font_scale=1.5)
+            fig = plt.figure(layout='constrained', figsize=(8,5))
             # Create the main axes, leaving 25% of the figure space at the top and on the
             # right to position marginals.
             ax = fig.add_gridspec(bottom=0.25, top=1.0, right=0.75).subplots()
             # The main axes' aspect can be fixed.
-            ax.set(aspect=1)
+            #ax.set(aspect=1)
             # Create marginal axes, which have 25% of the size of the main axes.  Note that
             # the inset axes are positioned *outside* (on the right and the top) of the
             # main axes, by specifying axes coordinates greater than 1.  Axes coordinates
