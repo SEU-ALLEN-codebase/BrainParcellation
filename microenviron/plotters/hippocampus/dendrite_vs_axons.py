@@ -742,14 +742,21 @@ class AxonalProjection:
         #                   figstr='Projection_by_regions', precomputed_labels=regions)
         
         # sankey correspondence
+        import ipdb; ipdb.set_trace()
+        lab_r = local.region_name[na_flag]
+        lab_ru = np.unique(lab_r)
+        lab_ru_d = dict(zip(lab_ru, range(len(lab_ru))))
+        
         labels_me = [f'c{i}_ME' for i in np.unique(lab_l)]
+        labels_reg = [f'c{i}_reg' for i in lab_ru]
         labels_proj = [f'c{i}_proj' for i in np.unique(lab)]
-        labels = labels_me + labels_proj
+        labels = labels_me + labels_reg + labels_proj
         # node colors
         #lut = dict(zip(np.unique(labels), sns.hls_palette(len(np.unique(labels)), l=0.5, s=0.8)))
         lut_me = {lab:plt.cm.rainbow(each)[:3] for lab, each in zip(labels_me, np.linspace(0, 1, len(labels_me)))}
+        lut_reg = {lab:plt.cm.rainbow(each)[:3] for lab, each in zip(labels_reg, np.linspace(0, 1, len(labels_reg)))}
         lut_proj = {lab:plt.cm.rainbow(each)[:3] for lab, each in zip(labels_proj, np.linspace(0, 1, len(labels_proj)))}
-        lut = lut_me | lut_proj
+        lut = lut_me | lut_reg | lut_proj
         
         node_color_vs = pd.Series(labels, name='label').map(lut).values
         #np.random.shuffle(node_color_vs)
@@ -762,11 +769,24 @@ class AxonalProjection:
             node_colors.append(f'rgb({r},{g},{b})')
         
         import plotly.graph_objects as go
-        pairs = np.vstack((lab_l, lab+len(np.unique(lab_l)))).transpose()
-        pindices, pcounts = np.unique(pairs, axis=0, return_counts=True)
-        sources = pindices[:,0]
-        targets = pindices[:,1]
-        values = pcounts
+        lab_ri = lab_r.map(lab_ru_d) + len(np.unique(lab_l))
+        lab_i = lab + len(lab_ru) + len(np.unique(lab_l))
+        
+        # get the connections
+        pairs = np.vstack((lab_l, lab_ri, lab_i)).transpose()
+        pindices1, pcounts1 = np.unique(pairs[:,:2], axis=0, return_counts=True)
+        pindices2, pcounts2 = np.unique(pairs[:,1:], axis=0, return_counts=True)
+        sources1 = pindices1[:,0]
+        targets1 = pindices1[:,1]
+        values1 = pcounts1
+
+        sources2 = pindices2[:,0]
+        targets2 = pindices2[:,1]
+        values2 = pcounts2
+
+        sources = sources1.tolist() + sources2.tolist()
+        targets = targets1.tolist() + targets2.tolist()
+        values = values1.tolist() + values2.tolist()
 
         # Customize the link color
         link_colors = []
