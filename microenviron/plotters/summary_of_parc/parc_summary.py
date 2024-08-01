@@ -105,13 +105,13 @@ class ParcSummary:
             subparcs = []
             for idx in r2s.keys():
                 subparcs.append([idx, len(s2p[idx]), r2s[idx]])
-            subparcs = pd.DataFrame(subparcs, columns=('Region', 'No. of subregions', 'Brain structure'))
+            subparcs = pd.DataFrame(subparcs, columns=('Region', 'No. of subregions', 'Brain area'))
             
-            sns.boxplot(data=subparcs, x='Brain structure', y='No. of subregions', fill=False, 
+            sns.boxplot(data=subparcs, x='Brain area', y='No. of subregions', fill=False, 
                         color='black', order=sorted(BSTRUCTS7.values()), width=0.35)
             plt.yticks(range(0,subparcs['No. of subregions'].max()+1, 2), fontsize=16)
             plt.xticks(sorted(BSTRUCTS7.values()), fontsize=16)
-            plt.xlabel('Brain structure', fontsize=18)
+            plt.xlabel('Brain area', fontsize=18)
             plt.ylabel('No. of subregions', fontsize=18)
             plt.subplots_adjust(bottom=0.15)
             ax = plt.gca()
@@ -441,10 +441,10 @@ if __name__ == '__main__':
 
     ps = ParcSummary(parc_file, is_ccf=is_ccf)
 
-    if 0:   # region distribution
+    if 1:   # region distribution
         ps.region_distributions()
 
-    if 1: 
+    if 0: 
         ps.correlation_of_subparcs(me_file=me_file)
 
     if 0:
