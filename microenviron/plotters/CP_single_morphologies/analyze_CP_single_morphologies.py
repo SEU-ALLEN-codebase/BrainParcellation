@@ -43,7 +43,7 @@ from global_features import calc_global_features_from_folder, __FEAT_NAMES22__
 sys.path.append('../..')
 from config import mRMR_f3 as __MAP_FEATS__
 from config import __FEAT24D__
-from generate_me_map import plot_region_feature_sections
+from generate_me_map import plot_region_feature_sections, process_mip
 
 def standardize_features(dfc, feat_names, epsilon=1e-8):
     fvalues = dfc[feat_names]
@@ -279,8 +279,72 @@ def comp_parc_and_ptype(parc_file, meta_file):
     in_zyx = zyx[in_indices]
     cp_parc = parc[in_zyx[:,0], in_zyx[:,1], in_zyx[:,2]] - 1 # start from 0
     ptypes = cp_neurons.iloc[in_indices]['Projection class']
+
+    # plot the ptype on ccf-space
+    display_on_ccf = True
+    if display_on_ccf:
+        atlas = load_image(MASK_CCF25_FILE)
+        rmask = atlas == 672    # CP
+        zdim = 456
+        rmask[:zdim//2] = 0
+        # colorize the neurons
+        uniq_ptypes = np.unique(ptypes)
+        colors = {uniq_ptypes[ie]: plt.cm.rainbow(each, bytes=True) 
+                  for ie, each in enumerate(np.linspace(0, 1, len(uniq_ptypes)))}
+        for k, v in colors.items():
+            colors[k] = [v[0], v[1], v[2], 192]
+        all_colors = np.array([colors[ptype] for ptype in ptypes])
+        # Get the sub-mask and map 
+        nzcoords = rmask.nonzero()
+        nzcoords_t = np.array(nzcoords).transpose()
+        zmin, ymin, xmin = nzcoords_t.min(axis=0)
+        zmax, ymax, xmax = nzcoords_t.max(axis=0)
+        sub_mask = rmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+        memap = np.zeros((*sub_mask.shape, 4), dtype=np.uint8)
+        # 
+        #import ipdb; ipdb.set_trace()
+        memap[in_zyx[:,0]-zmin, in_zyx[:,1]-ymin, in_zyx[:,2]-xmin] = all_colors
+        axid = 2
+        thickX2 = 10
+        dmax, dmin = nzcoords_t.max(axis=0)[axid], nzcoords_t.min(axis=0)[axid]
+        for sid in range(0, dmax-dmin-thickX2-1, thickX2*2):
+            sid = sid + thickX2
+            cur_memap = memap.copy()
+            if axid == 0:
+                cur_memap[:sid-thickX2] = 0
+                cur_memap[sid+thickX2:] = 0
+            elif axid == 1:
+                cur_memap[:,:sid-thickX2] = 0
+                cur_memap[:,sid+thickX2:] = 0
+            elif axid == 2:
+                cur_memap[:,:,:sid-thickX2] = 0
+                cur_memap[:,:,sid+thickX2:] = 0
+            print(cur_memap.mean(), cur_memap.std())
+
+            mip = get_mip_image(cur_memap, axid)
+
+            figname = f'cp_ptype_section{sid:03d}.png'
+            print(mip.shape, sub_mask.shape)
+            process_mip(mip, sub_mask, axis=axid, figname=figname, sectionX=sid, with_outline=False, pt_scale=10, b_scale=0.5)
+            # load and remove the zero-alpha block
+            img = cv2.imread(figname, cv2.IMREAD_UNCHANGED)
+            wnz = np.nonzero(img[img.shape[0]//2,:,-1])[0]
+            ws, we = wnz[0], wnz[-1]
+            hnz = np.nonzero(img[:,img.shape[1]//2,-1])[0]
+            hs, he = hnz[0], hnz[-1]
+            img = img[hs:he+1, ws:we+1]
+            # set the alpha of non-brain region as 0
+            img[img[:,:,-1] == 1] = 0
+            if axid != 0:   # rotate 90
+                img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+                # mirror
+                img = cv2.flip(img, flipCode=1)
+            cv2.imwrite(figname, img)
+
+        print()
+
     # sankey plot
-    labels = [f'R{i}' for i in range(16)] + ['CP_GPe', 'CP_SNr', 'CP_others']
+    labels = [f'R{i+1}' for i in range(parc.max())] + ['CP_GPe', 'CP_SNr', 'CP_others']
     # node colors
     lut = dict(zip(np.unique(labels), sns.hls_palette(len(np.unique(labels)), l=0.5, s=0.8)))
     node_color_vs = pd.Series(labels, name='label').map(lut).values
@@ -307,7 +371,7 @@ def comp_parc_and_ptype(parc_file, meta_file):
     link_colors = []
     for target in targets:
         rgb = node_colors[target]
-        rgba = 'rgba' + rgb[3:-1] + f',{160})'
+        rgba = 'rgba' + rgb[3:-1] + f',{0.5})'
         link_colors.append(rgba)
 
     fig = go.Figure(data=[go.Sankey(
@@ -363,7 +427,7 @@ if 0:
 
 #--------------- Section III ---------------#
 # dendrite vs axon 
-if 1:
+if 0:
     swc_dir = '../../data/S3_1um_final/'
     axon_dir = 'cp_axons'
     axon_gf_file = 'cp_axon_gf_1876.csv'
@@ -409,7 +473,7 @@ if 1:
 
 # ---------------- Section IV --------------#
 # compare with existing neuron types
-if 0:
+if 1:
     parc_file = '../../output_full_r671/parc_region672.nrrd'
     meta_file = 'TableS6_Full_morphometry_1222.xlsx'
     comp_parc_and_ptype(parc_file, meta_file)

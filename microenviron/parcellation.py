@@ -215,7 +215,7 @@ class BrainParcellation:
 
         return sub_mask, cc_mask, cc_ids, cc_cnts
         
-    def save_colorized_images(self, cmask, mask, out_image_file, thickX2=10):
+    def save_colorized_images(self, cmask, mask, reg_sub_parc, out_image_file, thickX2=10, plot_regid=False):
         zdim, ydim, xdim = mask.shape
         zdim2, ydim2, xdim2 = zdim // 2, ydim // 2, xdim // 2
         # visualize
@@ -235,6 +235,19 @@ class BrainParcellation:
                 p1[edges] = np.array([0,0,0,255])
                 outfile = f'{fprefix}_axid{i}_{isec:02d}.png'
                 p1 = cv2.flip(p1, 0)
+                # write the regid
+                if plot_regid:
+                    reg2d = cv2.flip(np.take(reg_sub_parc, k, i), 0)
+                    for cur_regid in np.unique(reg2d):
+                        if cur_regid == 0:
+                            continue
+                        cur_mask = reg2d == cur_regid
+                        yy, xx = np.nonzero(cur_mask)
+                        yc, xc = int(yy.mean()), int(xx.mean())
+                        center = (xc, yc)
+                        print(isec, cur_regid, center)
+                        cv2.putText(p1, str(cur_regid), center, cv2.FONT_HERSHEY_DUPLEX, 0.8, (0,0,255), 2)
+
                 cv2.imwrite(outfile, p1)
                 if i != 0:
                     #print(f'Rotate by 90 degree')
@@ -604,7 +617,7 @@ class BrainParcellation:
 
         if self.debug:
             cmask = cmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
-            self.save_colorized_images(cmask, reg_sub_mask, out_image_file)
+            self.save_colorized_images(cmask, reg_sub_mask, sub_mask, out_image_file)
         
         if save_mask:
             save_image(out_image_file, cur_mask, useCompression=True)
@@ -671,7 +684,7 @@ class BrainParcellation:
         with open(f'{parc_file}.pkl', 'wb') as fp:
             pickle.dump(parcs2ccf, fp)
 
-    def plot_parc_sections(self, parc_file):
+    def plot_parc_sections(self, parc_file, plot_regid=False):
         parc = load_image(parc_file)
         # get the subregion
         reg_mask = parc > 0
@@ -681,10 +694,11 @@ class BrainParcellation:
         zmin, ymin, xmin = nzcoords_t.min(axis=0)
         zmax, ymax, xmax = nzcoords_t.max(axis=0)
         reg_sub_mask = reg_mask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
+        reg_sub_parc = parc[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
 
         cmask = random_colorize(nzcoords_t, parc[nzcoords], self.mask.shape, parc.max())
         sub_parc = cmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
-        self.save_colorized_images(sub_parc, reg_sub_mask, parc_file, thickX2=10)
+        self.save_colorized_images(sub_parc, reg_sub_mask, reg_sub_parc, parc_file, thickX2=10, plot_regid=plot_regid)
     
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
@@ -708,5 +722,5 @@ if __name__ == '__main__':
     #bp.parcellate_brain()
     #bp.merge_parcs(parc_file=parc_file)
     
-    bp.plot_parc_sections('output_full_r671/parc_region672.nrrd')
+    bp.plot_parc_sections('output_full_r671/parc_region672.nrrd', plot_regid=True)
 
