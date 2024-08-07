@@ -281,7 +281,7 @@ def comp_parc_and_ptype(parc_file, meta_file):
     ptypes = cp_neurons.iloc[in_indices]['Projection class']
 
     # plot the ptype on ccf-space
-    display_on_ccf = True
+    display_on_ccf = False
     if display_on_ccf:
         atlas = load_image(MASK_CCF25_FILE)
         rmask = atlas == 672    # CP
@@ -344,11 +344,18 @@ def comp_parc_and_ptype(parc_file, meta_file):
         print()
 
     # sankey plot
-    labels = [f'R{i+1}' for i in range(parc.max())] + ['CP_GPe', 'CP_SNr', 'CP_others']
+    labels_subg = [f'R{i+1}' for i in range(parc.max())]
+    labels_comm = ['CP.r', 'CP.ri', 'CP.i', 'CP.ic', 'CP.c']
+    labels_ptype = ['CP_GPe', 'CP_SNr', 'CP_others']
+    labels = labels_subg + labels_ptype + labels_comm
     # node colors
-    lut = dict(zip(np.unique(labels), sns.hls_palette(len(np.unique(labels)), l=0.5, s=0.8)))
+    #lut = dict(zip(np.unique(labels), sns.hls_palette(len(np.unique(labels)), l=0.5, s=0.8)))
+    lut_subg = {lab:plt.cm.rainbow(each)[:3] for lab,each in zip(labels_subg, np.linspace(0,1,len(labels_subg)))}
+    lut_comm = {lab:plt.cm.rainbow(each)[:3] for lab,each in zip(labels_comm, np.linspace(0,1,len(labels_comm)))}
+    lut_ptype = {lab:plt.cm.rainbow(each)[:3] for lab,each in zip(labels_ptype, np.linspace(0,1,len(labels_ptype)))}
+    lut = lut_subg | lut_ptype | lut_comm
+
     node_color_vs = pd.Series(labels, name='label').map(lut).values
-    np.random.shuffle(node_color_vs)
     node_colors = []
     for color in node_color_vs:
         r,g,b = color
@@ -357,21 +364,52 @@ def comp_parc_and_ptype(parc_file, meta_file):
         b = int(255 * b)
         node_colors.append(f'rgb({r},{g},{b})')
     
-    lmap = {'CP_GPe': len(labels)-3, 'CP_SNr': len(labels)-2, 'CP_others': len(labels)-1}
+    ncomm = len(labels_comm)
+    nptype = len(labels_ptype)
+    lmap = {'CP_GPe': len(labels)-3-ncomm, 'CP_SNr': len(labels)-2-ncomm, 'CP_others': len(labels)-1-ncomm}
     ptypes_np = ptypes.map(lmap).values
 
     import plotly.graph_objects as go
-    pairs = np.vstack((cp_parc, ptypes_np)).transpose()
-    pindices, pcounts = np.unique(pairs, axis=0, return_counts=True)
-    sources = pindices[:,0]
-    targets = pindices[:,1]
-    values = pcounts
+    # get the connections
+    nmax_cur = ptypes_np.max()
+    subg2comm = {
+        0: nmax_cur+4, #CP.ic
+        1: nmax_cur+1,  # CP.r
+        2: nmax_cur+1,
+        3: nmax_cur+1,
+        4: nmax_cur+3,   # CP.i
+        5: nmax_cur+3,
+        6: nmax_cur+4,
+        7: nmax_cur+2,   # CP.ri
+        8: nmax_cur+5,  # CP.c
+        9: nmax_cur+4,
+        10: nmax_cur+4,
+        11: nmax_cur+3,
+        12: nmax_cur+3,
+    }
+    comm = [subg2comm[ii] for ii in cp_parc]
+
+    pairs = np.vstack((cp_parc, ptypes_np, comm)).transpose()
+    pindices1, pcounts1 = np.unique(pairs[:,:2], axis=0, return_counts=True)
+    pindices2, pcounts2 = np.unique(pairs[:,1:], axis=0, return_counts=True)
+    
+    sources1 = pindices1[:,0]
+    targets1 = pindices1[:,1]
+    values1 = pcounts1
+
+    sources2 = pindices2[:,0]
+    targets2 = pindices2[:,1]
+    values2 = pcounts2
+
+    sources = sources1.tolist() + sources2.tolist()
+    targets = targets1.tolist() + targets2.tolist()
+    values = values1.tolist() + values2.tolist()
 
     # Customize the link color
     link_colors = []
     for target in targets:
         rgb = node_colors[target]
-        rgba = 'rgba' + rgb[3:-1] + f',{0.5})'
+        rgba = 'rgba' + rgb[3:-1] + f',{0.65})'
         link_colors.append(rgba)
 
     fig = go.Figure(data=[go.Sankey(
@@ -379,7 +417,7 @@ def comp_parc_and_ptype(parc_file, meta_file):
             pad =15,
             thickness = 25,
             line = dict(color = "black", width = 0.5),
-            label = labels,
+            label = ['' for i in range(len(labels))],#labels,
             color = node_colors
             ),
         link = dict(
@@ -389,7 +427,7 @@ def comp_parc_and_ptype(parc_file, meta_file):
             color = link_colors
     ))])
 
-    fig.update_layout(title_text="", font_size=16, width=500, height=500)
+    fig.update_layout(title_text="", font_size=16, width=800, height=600)
     fig.write_image('parc_vs_ptypes.png', scale=2)
 
     print()
