@@ -1,4 +1,4 @@
-neuro_morpho_toolbox
+#neuro_morpho_toolbox
 leidenalg==0.10.2
 cc3d==3.12.4
 opencv-python
@@ -9,3 +9,4 @@ skan==0.11.1
 thin-plate-spline==1.1.0
 adjustText==1.1.1
 pysal==24.01
+vtk==9.3.1

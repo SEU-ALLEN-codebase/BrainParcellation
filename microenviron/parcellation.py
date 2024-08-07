@@ -722,5 +722,5 @@ if __name__ == '__main__':
     #bp.parcellate_brain()
     #bp.merge_parcs(parc_file=parc_file)
     
-    bp.plot_parc_sections('output_full_r671/parc_region672.nrrd', plot_regid=True)
+    bp.plot_parc_sections('output_full_r671/parc_region1022.nrrd', plot_regid=False)
 
