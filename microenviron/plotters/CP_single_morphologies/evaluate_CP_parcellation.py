@@ -230,12 +230,21 @@ class EvalParcellation:
             #row_colors1 = pd.Series(cp_comms, name='Subregions\nof CP').map(lut_cp).values
 
             # plot
-            g = sns.clustermap(sub_projs, cmap='hot_r',
-                               cbar_pos=(0.65,0.1,0.03,0.15), 
+            sub_projs_t = sub_projs.transpose()
+            g = sns.clustermap(sub_projs_t, cmap='hot_r',
+                               cbar_pos=(0.8,0.1,0.03,0.2), 
+                               figsize=(10,8)
                                )
-            g.ax_heatmap.tick_params(axis='y', right=True, labelright=False)
-            g.ax_heatmap.set_ylabel(ylabel)
-            g.ax_heatmap.set_xlabel(xlabel)
+            g.ax_heatmap.tick_params(axis='x', bottom=False, labelbottom=False)
+            g.ax_heatmap.tick_params(axis='y', left=True, labelleft=True, right=False, 
+                                     labelright=False)
+            g.ax_heatmap.set_ylabel(xlabel, fontsize=26)
+            g.ax_heatmap.yaxis.set_label_position("left")
+            for label in g.ax_heatmap.get_yticklabels():
+                label.set_rotation(0)  # Rotate y-tick labels by 90 degrees
+
+            g.ax_heatmap.set_xlabel(ylabel, labelpad=6, fontsize=26)
+            # spines
             g.ax_heatmap.spines['left'].set_visible(True)
             g.ax_heatmap.spines['left'].set_linewidth(1)
             g.ax_heatmap.spines['right'].set_visible(True)
@@ -246,22 +255,21 @@ class EvalParcellation:
             g.ax_heatmap.spines['bottom'].set_linewidth(1)
             # colorbar configuration
             #g.cax.tick_params(direction='in')
-            #print(sub_projs.max())
-            yticks = np.arange(0,sub_projs.max(axis=None),2)
-            g.cax.set_yticks(yticks, yticks)
-            g.cax.set_ylabel(r'$Ln(L+1)$')
-            g.cax.yaxis.set_label_position("left")
+            cyticks = np.arange(0,sub_projs_t.max(axis=None),2)
+            g.cax.set_yticks(cyticks, cyticks)
+            g.cax.set_ylabel(r'$\ln(L+1)$')
+            #g.cax.yaxis.set_label_position("left")
             # hide the dendrogram
             g.ax_col_dendrogram.set_visible(False)
             g.ax_row_dendrogram.set_visible(False)
 
             #plt.subplots_adjust(bottom=0.08)
             plt.savefig(figname, dpi=300); plt.close()
-
+            
 
             # ------------------#
             # estimate the projection density across different subregions
-            plt.figure(figsize=(8,2.5))
+            plt.figure(figsize=(6,2.4))
             vol_dict = {}
             for subregid in sub_ids:
                 vol = (self.cp_parc == subregid).sum() / 2 / 40**3
@@ -271,17 +279,26 @@ class EvalParcellation:
             projs_os = sub_projs.reset_index().melt(id_vars='index', var_name='Subregions', value_name='Projection')
             # re-ordering to match with clustermap
             sids = []
-            for xtl in g.ax_heatmap.get_xticklabels():
+            for xtl in g.ax_heatmap.get_yticklabels():
                 sids.append(np.nonzero(projs_os.Subregions == xtl.get_text())[0])
             sids = np.hstack(sids)
             projs_os = projs_os.iloc[sids]
             g2 = sns.lineplot(projs_os, x='Subregions', y='Projection', 
                          markers=True, errorbar=('ci', 95), sort=False,
                          color='fuchsia')
-            plt.xlim(-0.5, len(g.ax_heatmap.get_xticklabels())-0.5)
-            plt.ylabel(r'$Ln(L+1)$')
+            # to make it suitable for rotation
+            plt.tick_params('x', labelrotation=90)
+            plt.tick_params('y', left=False, labelleft=False, right=True, labelright=True, 
+                            labelrotation=90)
+            plt.xlim(-0.5, len(g.ax_heatmap.get_yticklabels())-0.5)
+            plt.ylabel(r'$\ln(L+1)$')
+
+            ax = plt.gca()
+            ax.yaxis.set_label_position("right")
+            plt.xlabel('')
+
             g2.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=4))
-            plt.subplots_adjust(bottom=0.15)
+            plt.subplots_adjust(bottom=0.4, right=0.8)
             plt.savefig(f'proj_distribution_subregions_{tname}.png', dpi=300); plt.close()
                 
 

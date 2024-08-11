@@ -407,8 +407,13 @@ def comp_parc_and_ptype(parc_file, meta_file):
 
     # Customize the link color
     link_colors = []
-    for target in targets:
+    for target in targets1:
         rgb = node_colors[target]
+        rgba = 'rgba' + rgb[3:-1] + f',{0.65})'
+        link_colors.append(rgba)
+
+    for source in sources2:
+        rgb = node_colors[source]
         rgba = 'rgba' + rgb[3:-1] + f',{0.65})'
         link_colors.append(rgba)
 
@@ -427,7 +432,7 @@ def comp_parc_and_ptype(parc_file, meta_file):
             color = link_colors
     ))])
 
-    fig.update_layout(title_text="", font_size=16, width=800, height=600)
+    fig.update_layout(title_text="", font_size=16, width=800, height=650)
     fig.write_image('parc_vs_ptypes.png', scale=2)
 
     print()
