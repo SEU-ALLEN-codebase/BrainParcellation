@@ -20,6 +20,7 @@ from anatomy.anatomy_config import REGION671, MASK_CCF25_FILE
 
 data_path = '/home/sujun/parcellation_data'
 t0 = time.time()
+##### ---- Loading the data -------#
 parc_id_table_path = os.path.join(data_path, 'parcellation_to_parcellation_term_membership_acronym.csv')
 print(f'--> [{time.time() - t0:.2f} sec] Loading the parcellation hierarchy...')
 parc_id_table = pd.read_csv(parc_id_table_path)
@@ -109,62 +110,66 @@ Gcluster_label = []
 col_s = T1.columns[1:1123]
 
 print(f'--> [{time.time() - t0:.2f} sec] Groupby the CCF-ME atlas')
-full_parc = load_image(merged_parc_path)
-ccf_atlas = load_image(MASK_CCF25_FILE)
-ccf_atlas_salient = ccf_atlas.copy()
-ccf_atlas_salient[full_parc < 0] = 0
-
 t1 = time.time()
-for n in R_name_list:
-    print(n)
-    if n not in parc_id_match_reverse:
-        acronym_name = n+"-unassigned"
-    else:
-        acronym_name = n
-    if acronym_name in parc_id_match_reverse:
-        nid = parc_id_match_reverse[acronym_name]
-        rows1 = T1[T1['parcellation_index']==nid]
-        s_names = np.array(rows1['cell_label'])
-        c_df = c1_table[c1_table['cell_label'].isin(s_names)]
-        R_df_tmp = pd.merge(c_df,rows1,on='cell_label')
-        
-        if len(rows1) > 0:
-            region_id = id_to_brain[n]
-            mask_path = os.path.join(parc_path, 'parc_region'+str(region_id)+'.nrrd')
-            if not os.path.exists(mask_path):
-                print(region_id)
-                continue
-            
-            mask_binary = ccf_atlas_salient == region_id
-            parc_mask_tmp = np.zeros_like(full_parc)
-            tmp2 = full_parc[mask_binary]
-            parc_mask_tmp[mask_binary] = tmp2 - tmp2.min() + 1
-            
-            #parc_mask_tmp = load_image(mask_path)
-            print(f'>> region={region_id}: {time.time() - t1:.2f} sec')
 
-            tmp_df = R_df_tmp.copy()
-            tmp_df['x_y'] = round(tmp_df['x_y']*40).astype(int)
-            tmp_df['y_y'] = round(tmp_df['y_y']*40).astype(int)
-            tmp_df['z_y'] = round(tmp_df['z_y']*40)
-            tmp_df['z_y'] = tmp_df['z_y'].apply(lambda x: 456-x if x<228 else x)
-            tmp_df['z_y'] = tmp_df['z_y'].astype(int)
-            label_tmp = parc_mask_tmp[tmp_df['z_y'],tmp_df['y_y'],tmp_df['x_y']]
-            # print(np.unique(label_tmp))
-            gclass = tmp_df['class'].apply(lambda x:x.split(' ')[0])
-            gsubclass = tmp_df['subclass'].apply(lambda x:x.split(' ')[0])
-            gcluster = tmp_df['cluster_alias']
-            for j in range(1,np.max(label_tmp)+1):
-                rows_parc = tmp_df[label_tmp == j]
-                if len(rows_parc) > 0:
-                    exp_regions.append(n)
-                    exp_parc_ids.append(j)
-                    expression_df.append(np.array(rows_parc[col_s].mean()))
-                    Gclass_label.append(gclass[label_tmp == j])
-                    Gsubclass_label.append(gsubclass[label_tmp == j]) 
-                    Gcluster_label.append(gcluster[label_tmp == j])   
-            selected_R.append(n) 
-            print(f'<< {time.time() - t1:.2f} sec')
+#### --------------- Preprocessing the transcriptomic data ----------#
+regional_expression_file = 'regional_expression.pkl'
+if os.path.exists(regional_expression_file):
+    with open(regional_expression_file, 'rb') as fp:
+        exp_regions, exp_parc_ids, expression_df, Gclass_label, Gsubclass_label, Gcluster_label, selected_R = \
+            pickle.load(fp)
+else:
+    for n in R_name_list:
+        print(n)
+        if n not in parc_id_match_reverse:
+            acronym_name = n+"-unassigned"
+        else:
+            acronym_name = n
+        if acronym_name in parc_id_match_reverse:
+            nid = parc_id_match_reverse[acronym_name]
+            rows1 = T1[T1['parcellation_index']==nid]
+            s_names = np.array(rows1['cell_label'])
+            c_df = c1_table[c1_table['cell_label'].isin(s_names)]
+            R_df_tmp = pd.merge(c_df,rows1,on='cell_label')
+            
+            if len(rows1) > 0:
+                region_id = id_to_brain[n]
+                mask_path = os.path.join(parc_path, 'parc_region'+str(region_id)+'.nrrd')
+                if not os.path.exists(mask_path):
+                    print(region_id)
+                    continue
+                
+                parc_mask_tmp = load_image(mask_path)
+                print(f'>> region={region_id}: {time.time() - t1:.2f} sec')
+
+                tmp_df = R_df_tmp.copy()
+                tmp_df['x_y'] = round(tmp_df['x_y']*40).astype(int)
+                tmp_df['y_y'] = round(tmp_df['y_y']*40).astype(int)
+                tmp_df['z_y'] = round(tmp_df['z_y']*40)
+                tmp_df['z_y'] = tmp_df['z_y'].apply(lambda x: 456-x if x<228 else x)
+                tmp_df['z_y'] = tmp_df['z_y'].astype(int)
+                label_tmp = parc_mask_tmp[tmp_df['z_y'],tmp_df['y_y'],tmp_df['x_y']]
+                # print(np.unique(label_tmp))
+                gclass = tmp_df['class'].apply(lambda x:x.split(' ')[0])
+                gsubclass = tmp_df['subclass'].apply(lambda x:x.split(' ')[0])
+                gcluster = tmp_df['cluster_alias']
+                for j in range(1,np.max(label_tmp)+1):
+                    rows_parc = tmp_df[label_tmp == j]
+                    if len(rows_parc) > 0:
+                        exp_regions.append(n)
+                        exp_parc_ids.append(j)
+                        expression_df.append(np.array(rows_parc[col_s].mean()))
+                        Gclass_label.append(gclass[label_tmp == j])
+                        Gsubclass_label.append(gsubclass[label_tmp == j]) 
+                        Gcluster_label.append(gcluster[label_tmp == j])
+                selected_R.append(n) 
+                print(f'<< {time.time() - t1:.2f} sec')
+
+    # dump this data for caching
+    with open(regional_expression_file, 'wb') as fp:
+        var = (exp_regions, exp_parc_ids, expression_df, Gclass_label, Gsubclass_label, Gcluster_label, selected_R)
+        pickle.dump(var, fp)
+
 print('<-- Finished grouping the expression data')
 
 expression_df = np.array(expression_df)
@@ -177,7 +182,7 @@ D_exp2 = (D_exp.max()-D_exp)/D_exp.max()
 
 R_gene_parc = [region_Rough[x] for x in exp_regions]
 
-
+##### --------------- plotting of regional correspondence #######
 cmap = mpl.cm.rainbow
 color_hm = cmap(np.linspace(0,1,len(major_BS_name)))
 color_hm2 = [mpl.colors.rgb2hex(i,keep_alpha=False) for i in color_hm]
@@ -205,8 +210,10 @@ g_exp.ax_heatmap.set_yticklabels(
 )
 
 g_exp.ax_heatmap.tick_params(length=0)
-plt.savefig('figures/gene_matrix_full2_avgLog.png',dpi=300)
+plt.savefig('figures/gene_matrix_full2_avgLog.png',dpi=300); plt.close()
 
+
+####### class
 class_stats = np.zeros((len(D_exp2),29))
 reordered_index = g_exp.dendrogram_col.reordered_ind
 for i in range(len(reordered_index)):
@@ -227,8 +234,36 @@ class_stats_reorder = class_stats[:,reordered_cg]
 
 plt.figure(figsize=(3,8))
 sns.heatmap(class_stats_reorder,cmap='Reds')
-plt.savefig('figures/Gclass.png',dpi=300)
+plt.savefig('figures/Gclass.png',dpi=300); plt.close()
 
+
+#### Neighborhood 
+neighborhood_num = {'Pallium-Glut':0,'Subpallium-GABA':1,
+                    'HY-EA-Glut-GABA':2,'TH-EPI-Glut':3,
+                    'MB-HB-Glut-Sero-Dopa':4,'MB-HB-CB-GABA':5}
+
+neighborhood_stats = np.zeros((len(D_exp2),6))
+for i in range(len(reordered_index)):
+     subclass_rows = np.array(Gsubclass_label[reordered_index[i]])
+     tmp_subclasses = np.unique(subclass_rows)
+     total_N = len(subclass_rows)
+     tmp_neigh = {}
+     for j in tmp_subclasses:
+          tmp_n = subclass_to_neighborhood[int(j)]
+          if ";" in tmp_n:
+               tmp_n = tmp_n.split(";")[0]
+          n = len(subclass_rows[subclass_rows == j])
+          if tmp_n not in neighborhood_num:
+               total_N = total_N - n
+               continue
+          if tmp_n not in tmp_neigh:
+               tmp_neigh[neighborhood_num[tmp_n]] = n
+          else:
+               tmp_neigh[neighborhood_num[tmp_n]] += n
+               
+     for k,v in tmp_neigh.items(): 
+          neighborhood_stats[i,k] = v/total_N*100
+neighborhood_stats = np.array(neighborhood_stats)
 
 ng = sns.clustermap(neighborhood_stats,row_cluster=False,col_cluster=True)
 
@@ -238,9 +273,12 @@ neighborhood_stats_reorder = neighborhood_stats[:,ng_reorder]
 plt.figure(figsize=(1,8))
 sns.heatmap(neighborhood_stats_reorder,cmap='Reds')
 plt.savefig('figures/Gneighborhood.png',dpi=300)
+print(f'Finished plotting heatmaps: {time.time() - t0:.2f} sec')
 
-sys.exit()
+import ipdb; ipdb.set_trace()
 
+
+#################### SECTION II: Moran's Index ##############################
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
@@ -248,6 +286,7 @@ from esda.moran import Moran
 import pysal.lib as pslib
 # import warnings
 from scipy.spatial import distance_matrix
+
 def moran_calc2(num_cluster,labels, coords):
     # warnings.filterwarnings('ignore',category=UserWarning)
     N = len(coords)
@@ -264,9 +303,108 @@ def moran_calc2(num_cluster,labels, coords):
     zI = moran.z_norm
     return avgI,pI,zI
 
-T_info1 = pd.read_csv('gene/screened_info1.csv')
+T_info1 = pd.read_csv(os.path.join(data_path, 'screened_info1.csv'))
 
-get_ipython().run_cell_magic('capture', '', '\nmoran_func = True\nif moran_func:\n    moran_r, moran_scores,moran_r_parc, moran_scores_parc, moran_parc_ids = [],[],[],[],[]\nelse:\n    std_r, std_scores,std_r_parc, std_scores_parc, std_parc_ids, std_delta_parc, cv_parc= [],[],[],[],[],[],[]\n\nfor i in REGION671:\n    mask_path = \'lyf/output_full_r671/parc_region\'+str(i)+\'.nrrd\'\n    if not os.path.exists(mask_path):\n        continue\n    parc_mask_tmp = load_image(mask_path)\n    N_parc = np.max(parc_mask_tmp)\n    if N_parc <2:\n        continue\n    region_id = i\n    acronym_name = brain_to_id[region_id]\n    if acronym_name not in id_parc_match:\n        acronym_name = acronym_name+"-unassigned"\n    if acronym_name not in id_parc_match:\n        continue\n    r_name = id_parc_match[acronym_name]\n    \n    if moran_func:\n        t_tmp_df = T_info1[T_info1[\'parcellation_index\']==r_name]\n        if len(t_tmp_df) < 10:\n            continue\n        s_names = np.array(t_tmp_df[\'cell_label\'])\n        c_tmp_df = c1_table[c1_table[\'cell_label\'].isin(s_names)]\n        R_df_tmp = pd.merge(c_tmp_df,t_tmp_df,on=\'cell_label\')\n        coords = R_df_tmp[[\'x_y\',\'y_y\',\'z_y\']].values\n        R_df_tmp[\'x_y\'] = round(R_df_tmp[\'x_y\']*40).astype(int)\n        R_df_tmp[\'y_y\'] = round(R_df_tmp[\'y_y\']*40).astype(int)\n        R_df_tmp[\'z_y\'] = round(R_df_tmp[\'z_y\']*40)\n        R_df_tmp[\'z_y\'] = R_df_tmp[\'z_y\'].apply(lambda x: 456-x if x<228 else x)\n        R_df_tmp[\'z_y\'] = R_df_tmp[\'z_y\'].astype(int)    \n        g_labels = R_df_tmp[\'cluster\'].apply(lambda x: int(x.split(\' \')[0]))\n        num_cluster = len(np.unique(g_labels))\n        \n        parc_labels = parc_mask_tmp[R_df_tmp[\'z_y\'],R_df_tmp[\'y_y\'],R_df_tmp[\'x_y\']]\n    \n        moran_score,moran_pi,moran_zi = moran_calc2(num_cluster,g_labels, coords)\n        moran_scores.append(moran_score)\n        moran_r.append(brain_to_id[region_id])  \n        \n        del t_tmp_df,c_tmp_df, parc_mask_tmp\n    else:\n        t_tmp_df = T1[T1[\'parcellation_index\']==r_name]\n        if len(t_tmp_df) < 10:\n            continue\n\n        R_df_tmp = t_tmp_df\n\n        R_df_tmp[\'x\'] = round(R_df_tmp[\'x\']*40).astype(int)\n        R_df_tmp[\'y\'] = round(R_df_tmp[\'y\']*40).astype(int)\n        R_df_tmp[\'z\'] = round(R_df_tmp[\'z\']*40)\n        R_df_tmp[\'z\'] = R_df_tmp[\'z\'].apply(lambda x: 456-x if x<228 else x)\n        R_df_tmp[\'z\'] = R_df_tmp[\'z\'].astype(int)\n\n        parc_labels = parc_mask_tmp[R_df_tmp[\'z\'],R_df_tmp[\'y\'],R_df_tmp[\'x\']]\n     \n        ss = StandardScaler()\n        R_df_scaled = ss.fit_transform(R_df_tmp[col_s])\n        pca = PCA(n_components=3)\n        R_df_trans = pca.fit_transform(R_df_scaled)\n        std_r.append(brain_to_id[region_id])\n        top_std = np.std(R_df_trans,axis=0)\n        std_scores.append(np.mean(top_std))\n        \n        # col_sum = np.sum(R_df_tmp[col_s])\n        # col_sum_sorted = np.sort(col_sum)\n        # nc = len(col_sum_sorted)\n        # count_add = 0\n        # col_ids = []\n        # for c in range(3):\n        #     v = col_sum_sorted[nc-c-1]\n        #     idlist = np.where(col_sum == v)[0]\n        #     for d in idlist:\n        #         col_ids.append(col_s[d])\n        #         count_add += 1\n        #         if count_add  > 3:\n        #             break\n        #     if count_add > 3: \n        #         break\n        \n        # cv_overall = np.std(R_df_tmp[col_ids],axis=0)/np.mean(R_df_tmp[col_ids],axis=0)\n    \n        del t_tmp_df,parc_mask_tmp\n    \n    for j in range(1,N_parc+1):\n        if moran_func:\n            g2 = g_labels[parc_labels == j]\n            if len(g2) <10:\n                continue\n            num_cluster_tmp = len(np.unique(g2))\n            coords_tmp = coords[parc_labels == j,:]\n            moran_score2,moran_pi2,moran_zi2 = moran_calc2(num_cluster_tmp,g2, coords_tmp)\n            moran_scores_parc.append(moran_score2)\n            moran_parc_ids.append(j)\n            moran_r_parc.append(brain_to_id[region_id])\n            \n            del coords_tmp\n        else: \n            tmp_rows = R_df_trans[parc_labels == j]\n            if len(tmp_rows) <10:\n                continue\n            std_r_parc.append(brain_to_id[region_id])\n            std_parc_ids.append(j)\n        \n            top_std_tmp = np.std(tmp_rows,axis=0)\n            std_scores_parc.append(np.mean(top_std_tmp))\n            std_delta_parc.append(np.mean(top_std_tmp)-np.mean(top_std))\n            \n            tmp_rows2 = R_df_tmp[parc_labels == j][col_ids]\n            # cv_org = np.std(tmp_rows2,axis=0)/np.mean(tmp_rows2,axis=0)\n            # cv_parc.append(np.mean(cv_org-cv_overall))\n            del tmp_rows,tmp_rows2\n    del R_df_tmp\n')
+moran_func = True
+if moran_func:
+    moran_r, moran_scores,moran_r_parc, moran_scores_parc, moran_parc_ids = [],[],[],[],[]
+else:
+    std_r, std_scores,std_r_parc, std_scores_parc, std_parc_ids, std_delta_parc, cv_parc= [],[],[],[],[],[],[]
+
+for i in REGION671:
+    mask_path = '../../output_full_r671/parc_region'+str(i)+'.nrrd'
+    if not os.path.exists(mask_path):
+        continue
+    parc_mask_tmp = load_image(mask_path)
+    N_parc = np.max(parc_mask_tmp)
+    if N_parc <2:
+        continue
+    region_id = i
+    acronym_name = brain_to_id[region_id]
+    if acronym_name not in id_parc_match:
+        acronym_name = acronym_name+"-unassigned"
+    if acronym_name not in id_parc_match:
+        continue
+    r_name = id_parc_match[acronym_name]
+    
+    if moran_func:
+        t_tmp_df = T_info1[T_info1['parcellation_index']==r_name]
+        if len(t_tmp_df) < 10:
+            continue
+        s_names = np.array(t_tmp_df['cell_label'])
+        c_tmp_df = c1_table[c1_table['cell_label'].isin(s_names)]
+        R_df_tmp = pd.merge(c_tmp_df,t_tmp_df,on='cell_label')
+        coords = R_df_tmp[['x_y','y_y','z_y']].values
+        R_df_tmp['x_y'] = round(R_df_tmp['x_y']*40).astype(int)
+        R_df_tmp['y_y'] = round(R_df_tmp['y_y']*40).astype(int)
+        R_df_tmp['z_y'] = round(R_df_tmp['z_y']*40)
+        R_df_tmp['z_y'] = R_df_tmp['z_y'].apply(lambda x: 456-x if x<228 else x)
+        R_df_tmp['z_y'] = R_df_tmp['z_y'].astype(int)    
+        g_labels = R_df_tmp['cluster'].apply(lambda x: int(x.split(' ')[0]))
+        num_cluster = len(np.unique(g_labels))
+        
+        parc_labels = parc_mask_tmp[R_df_tmp['z_y'],R_df_tmp['y_y'],R_df_tmp['x_y']]
+    
+        moran_score,moran_pi,moran_zi = moran_calc2(num_cluster,g_labels, coords)
+        moran_scores.append(moran_score)
+        moran_r.append(brain_to_id[region_id])  
+        
+        del t_tmp_df,c_tmp_df, parc_mask_tmp
+    else:
+        t_tmp_df = T1[T1['parcellation_index']==r_name]
+        if len(t_tmp_df) < 10:
+            continue
+
+        R_df_tmp = t_tmp_df
+
+        R_df_tmp['x'] = round(R_df_tmp['x']*40).astype(int)
+        R_df_tmp['y'] = round(R_df_tmp['y']*40).astype(int)
+        R_df_tmp['z'] = round(R_df_tmp['z']*40)
+        R_df_tmp['z'] = R_df_tmp['z'].apply(lambda x: 456-x if x<228 else x)
+        R_df_tmp['z'] = R_df_tmp['z'].astype(int)
+
+        parc_labels = parc_mask_tmp[R_df_tmp['z'],R_df_tmp['y'],R_df_tmp['x']]
+     
+        ss = StandardScaler()
+        R_df_scaled = ss.fit_transform(R_df_tmp[col_s])
+        pca = PCA(n_components=3)
+        R_df_trans = pca.fit_transform(R_df_scaled)
+        std_r.append(brain_to_id[region_id])
+        top_std = np.std(R_df_trans,axis=0)
+        std_scores.append(np.mean(top_std))
+        
+        del t_tmp_df,parc_mask_tmp
+    
+    for j in range(1,N_parc+1):
+        if moran_func:
+            g2 = g_labels[parc_labels == j]
+            if len(g2) <10:
+                continue
+            num_cluster_tmp = len(np.unique(g2))
+            coords_tmp = coords[parc_labels == j,:]
+            moran_score2,moran_pi2,moran_zi2 = moran_calc2(num_cluster_tmp,g2, coords_tmp)
+            moran_scores_parc.append(moran_score2)
+            moran_parc_ids.append(j)
+            moran_r_parc.append(brain_to_id[region_id])
+            
+            del coords_tmp
+        else: 
+            tmp_rows = R_df_trans[parc_labels == j]
+            if len(tmp_rows) <10:
+                continue
+            std_r_parc.append(brain_to_id[region_id])
+            std_parc_ids.append(j)
+        
+            top_std_tmp = np.std(tmp_rows,axis=0)
+            std_scores_parc.append(np.mean(top_std_tmp))
+            std_delta_parc.append(np.mean(top_std_tmp)-np.mean(top_std))
+            
+            tmp_rows2 = R_df_tmp[parc_labels == j][col_ids]
+            # cv_org = np.std(tmp_rows2,axis=0)/np.mean(tmp_rows2,axis=0)
+            # cv_parc.append(np.mean(cv_org-cv_overall))
+            del tmp_rows,tmp_rows2
+    del R_df_tmp
+
 
 def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True):
     df = pd.read_csv(mefile, index_col=0, comment='#')
@@ -308,7 +446,7 @@ def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True):
 
     return df, fnames
 
-me_file_path = 'BrainParcellation/microenviron/data/mefeatures_100K_with_PCAfeatures3.csv'
+me_file_path = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
 me_df_new, fnames_new = load_features(me_file_path, scale=25., feat_type='full', flipLR=True)
 
 import pymrmr
@@ -329,7 +467,89 @@ def moran_calc_me(df, fnames):
         zI.append(moran.z_norm)
     return avgI,pI,zI
 
-get_ipython().run_cell_magic('capture', '', "moran_func2 = True\nif moran_func2:\n    moran_regions,moran_parcID,moran_I_all,moran_me_I,moran_me_r= [],[],[],[],[]\nelse:\n    fstd_regions,fstd_parcID,fstd_I_all,fstd_me_I,fstd_me_r,fstd_delta_all,cv_parc_me= [],[],[],[],[],[],[]\n\nfor i in REGION671:\n    mask_file = 'lyf/output_full_r671/parc_region'+str(i)+'.nrrd'\n    if os.path.exists(mask_file):\n        mask = load_image(mask_file)\n        N_parc = np.max(mask)\n        \n        me_df_r = me_df_new[me_df_new['region_id_r671']==i]\n        print(len(me_df_r))\n        if len(me_df_r) < 10:\n            continue\n        if N_parc <2:\n            continue\n        \n        me_df_r2 = me_df_r.copy()\n        me_df_r2['soma_z'] = round(me_df_r2['soma_z']).astype(int)\n        me_df_r2['soma_x'] = round(me_df_r2['soma_x']).astype(int)\n        me_df_r2['soma_y'] = round(me_df_r2['soma_y']).astype(int)\n    \n        parc_labels = mask[me_df_r2['soma_z'],me_df_r2['soma_y'],me_df_r2['soma_x']]\n        \n        del mask\n        \n        if moran_func2:\n            me_df_r2 = me_df_r2[fnames_new]\n            me_df_r2.insert(loc=0,column='parc_id',value=parc_labels)\n        \n            mrmr_F = pymrmr.mRMR(me_df_r2,'MIQ',3)\n        \n            avgI_me,pI_me,zI_me = moran_calc_me(me_df_r, mrmr_F)\n            moran_me_I.append(np.mean(avgI_me))\n            moran_me_r.append(brain_to_id[i]) \n                \n        else:\n            tmp_scaled = StandardScaler().fit_transform(me_df_r[fnames_new])\n        \n            pca = PCA(n_components=3)\n            tmp_trans = pca.fit_transform(tmp_scaled)\n            top_std = np.std(tmp_trans,axis=0)\n            meanSTD = np.mean(top_std)\n            fstd_me_I.append(meanSTD)\n            fstd_me_r.append(brain_to_id[i]) \n            \n            me_df_r2 = me_df_r2[fnames_new]\n            me_df_r2.insert(loc=0,column='parc_id',value=parc_labels)\n        \n            mrmr_F = pymrmr.mRMR(me_df_r2,'MIQ',3)\n            \n            cv_overall = np.std(me_df_r[mrmr_F],axis=0)/np.mean(me_df_r[mrmr_F],axis=0)\n            del tmp_scaled\n\n        for j in range(1,N_parc+1):\n            if len(me_df_r[parc_labels == j]) < 10:\n                continue\n            \n            if moran_func2:\n                me_tmp = me_df_r[parc_labels == j]            \n                avgI,pI,zI = moran_calc_me(me_tmp, mrmr_F)\n                \n                moran_I_all.append(np.mean(avgI))\n                moran_regions.append(brain_to_id[i])\n                moran_parcID.append(j)\n                \n                del me_tmp\n            else:\n                me_tmp = tmp_trans[parc_labels==j,:]\n                top_std_tmp = np.std(me_tmp,axis=0)\n                fstd_I_all.append(np.mean(top_std_tmp))\n                fstd_regions.append(brain_to_id[i])\n                fstd_parcID.append(j)\n                fstd_delta_all.append(np.mean(top_std_tmp) - meanSTD)\n                \n                me_tmp2 = me_df_r[parc_labels == j][mrmr_F]\n                cv_org = np.std(me_tmp2,axis=0)/np.mean(me_tmp2,axis=0)\n                cv_parc_me.append(np.mean(cv_org-cv_overall))\n                del me_tmp\n        del me_df_r, me_df_r2\n")
+moran_func2 = True
+if moran_func2:
+    moran_regions,moran_parcID,moran_I_all,moran_me_I,moran_me_r= [],[],[],[],[]
+else:
+    fstd_regions,fstd_parcID,fstd_I_all,fstd_me_I,fstd_me_r,fstd_delta_all,cv_parc_me= [],[],[],[],[],[],[]
+
+for i in REGION671:
+    mask_file = '../../output_full_r671/parc_region'+str(i)+'.nrrd'
+    if os.path.exists(mask_file):
+        mask = load_image(mask_file)
+        N_parc = np.max(mask)
+        
+        me_df_r = me_df_new[me_df_new['region_id_r671']==i]
+        print(len(me_df_r))
+        if len(me_df_r) < 10:
+            continue
+        if N_parc <2:
+            continue
+        
+        me_df_r2 = me_df_r.copy()
+        me_df_r2['soma_z'] = round(me_df_r2['soma_z']).astype(int)
+        me_df_r2['soma_x'] = round(me_df_r2['soma_x']).astype(int)
+        me_df_r2['soma_y'] = round(me_df_r2['soma_y']).astype(int)
+    
+        parc_labels = mask[me_df_r2['soma_z'],me_df_r2['soma_y'],me_df_r2['soma_x']]
+        
+        del mask
+        
+        if moran_func2:
+            me_df_r2 = me_df_r2[fnames_new]
+            me_df_r2.insert(loc=0,column='parc_id',value=parc_labels)
+        
+            mrmr_F = pymrmr.mRMR(me_df_r2,'MIQ',3)
+        
+            avgI_me,pI_me,zI_me = moran_calc_me(me_df_r, mrmr_F)
+            moran_me_I.append(np.mean(avgI_me))
+            moran_me_r.append(brain_to_id[i]) 
+                
+        else:
+            tmp_scaled = StandardScaler().fit_transform(me_df_r[fnames_new])
+        
+            pca = PCA(n_components=3)
+            tmp_trans = pca.fit_transform(tmp_scaled)
+            top_std = np.std(tmp_trans,axis=0)
+            meanSTD = np.mean(top_std)
+            fstd_me_I.append(meanSTD)
+            fstd_me_r.append(brain_to_id[i]) 
+            
+            me_df_r2 = me_df_r2[fnames_new]
+            me_df_r2.insert(loc=0,column='parc_id',value=parc_labels)
+        
+            mrmr_F = pymrmr.mRMR(me_df_r2,'MIQ',3)
+            
+            cv_overall = np.std(me_df_r[mrmr_F],axis=0)/np.mean(me_df_r[mrmr_F],axis=0)
+            del tmp_scaled
+
+        for j in range(1,N_parc+1):
+            if len(me_df_r[parc_labels == j]) < 10:
+                continue
+            
+            if moran_func2:
+                me_tmp = me_df_r[parc_labels == j]            
+                avgI,pI,zI = moran_calc_me(me_tmp, mrmr_F)
+                
+                moran_I_all.append(np.mean(avgI))
+                moran_regions.append(brain_to_id[i])
+                moran_parcID.append(j)
+                
+                del me_tmp
+            else:
+                me_tmp = tmp_trans[parc_labels==j,:]
+                top_std_tmp = np.std(me_tmp,axis=0)
+                fstd_I_all.append(np.mean(top_std_tmp))
+                fstd_regions.append(brain_to_id[i])
+                fstd_parcID.append(j)
+                fstd_delta_all.append(np.mean(top_std_tmp) - meanSTD)
+                
+                me_tmp2 = me_df_r[parc_labels == j][mrmr_F]
+                cv_org = np.std(me_tmp2,axis=0)/np.mean(me_tmp2,axis=0)
+                cv_parc_me.append(np.mean(cv_org-cv_overall))
+                del me_tmp
+        del me_df_r, me_df_r2
+
 
 ### match rows
 moran_I_all2 = []
@@ -406,6 +626,8 @@ moran_R2 = np.array(moran_R2)
 moran_R_full2 = np.array(moran_R_full2)
 moran_me_R2 = np.array(moran_me_R2)
 
+
+######################## Plotting ########################
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib as mpl

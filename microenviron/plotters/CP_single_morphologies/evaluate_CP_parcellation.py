@@ -179,14 +179,14 @@ class EvalParcellation:
             'GPe': {
                 'neurons': gpe,
                 'xlabel': 'Subregions of GPe',
-                'ylabel': 'GPe-projecting neuron',
+                'ylabel': 'GPe-projecting CP neurons',
                 'figname': 'GPe-projecting_subregions.png',
                 'ccf_id': 1022
             },
             'SNr': {
                 'neurons': snr,
                 'xlabel': 'Subregions of SNr',
-                'ylabel': 'SNr-projecting neuron',
+                'ylabel': 'SNr-projecting CP neurons',
                 'figname': 'SNr-projecting_subregions.png',
                 'ccf_id': 381
             },

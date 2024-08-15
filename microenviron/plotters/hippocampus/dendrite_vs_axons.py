@@ -25,6 +25,7 @@ from scipy.spatial import distance_matrix
 from scipy import stats
 import matplotlib
 import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 from matplotlib.ticker import MaxNLocator
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import cv2
@@ -54,8 +55,9 @@ from configs import __FEAT_NAMES__
 from hpf_config import __RNAMES__, __RIDS__
 
 
-sns.set_theme(style='ticks', font_scale=1.7)
-
+sns.set_theme(style='ticks', font_scale=1.6)
+_PROJ_COLORS = [mcolors.to_rgba(c) for c in ('blue', 'red', 'orange', 'magenta', 'dodgerblue', 'lime', 'olive', 'green', 'blueviolet')]
+_ME_COLORS = [mcolors.to_rgba(c) for c in ('blueviolet', 'lime', 'red')]
 
 def aggregate_meta_information(swc_dir, gf_file, out_file):
     atlas = load_image(MASK_CCF25_FILE)
@@ -410,8 +412,12 @@ def clustering_on_umap(df, feat_names=None, nclusters=4, plot=False, figstr='', 
     # visualize
     # plotting
     unique_labels = sorted(set(labels))
-    #colors = [plt.cm.Spectral(each) for each in np.linspace(0, 1, len(unique_labels))]
     colors = [plt.cm.rainbow(each) for each in np.linspace(0, 1, len(unique_labels))]
+    if figstr == 'Projection':
+        colors = _PROJ_COLORS
+    elif figstr == ('Microenvironment') or (figstr == 'Projection_by_Microenvironment'):
+        colors = _ME_COLORS
+
     if plot:
         # map the features to 2D for better visualization
         fig, ax = plt.subplots(figsize=(6,6))
@@ -742,7 +748,6 @@ class AxonalProjection:
         #                   figstr='Projection_by_regions', precomputed_labels=regions)
         
         # sankey correspondence
-        import ipdb; ipdb.set_trace()
         lab_r = local.region_name[na_flag]
         lab_ru = np.unique(lab_r)
         lab_ru_d = dict(zip(lab_ru, range(len(lab_ru))))
@@ -752,10 +757,13 @@ class AxonalProjection:
         labels_proj = [f'c{i}_proj' for i in np.unique(lab)]
         labels = labels_me + labels_reg + labels_proj
         # node colors
-        #lut = dict(zip(np.unique(labels), sns.hls_palette(len(np.unique(labels)), l=0.5, s=0.8)))
-        lut_me = {lab:plt.cm.rainbow(each)[:3] for lab, each in zip(labels_me, np.linspace(0, 1, len(labels_me)))}
+        #lut_me = {lab:plt.cm.rainbow(each)[:3] for lab, each in zip(labels_me, np.linspace(0, 1, len(labels_me)))}
         lut_reg = {lab:plt.cm.rainbow(each)[:3] for lab, each in zip(labels_reg, np.linspace(0, 1, len(labels_reg)))}
-        lut_proj = {lab:plt.cm.rainbow(each)[:3] for lab, each in zip(labels_proj, np.linspace(0, 1, len(labels_proj)))}
+        #lut_proj = {lab:plt.cm.rainbow(each)[:3] for lab, each in zip(labels_proj, np.linspace(0, 1, len(labels_proj)))}
+        # use pre-defined colors
+        lut_me = {lab:col[:3] for lab, col in zip(labels_me, _ME_COLORS)}
+        lut_proj = {lab:col[:3] for lab, col in zip(labels_proj, _PROJ_COLORS)}
+
         lut = lut_me | lut_reg | lut_proj
         
         node_color_vs = pd.Series(labels, name='label').map(lut).values
@@ -790,8 +798,12 @@ class AxonalProjection:
 
         # Customize the link color
         link_colors = []
-        for source in sources:
-            rgb = node_colors[source]
+        for source1 in sources1:
+            rgb = node_colors[source1]
+            rgba = 'rgba' + rgb[3:-1] + f',{0.5})'
+            link_colors.append(rgba)
+        for target2 in targets2:
+            rgb = node_colors[target2]
             rgba = 'rgba' + rgb[3:-1] + f',{0.5})'
             link_colors.append(rgba)
 
