@@ -4,8 +4,10 @@
 #Description:               
 ##########################################################
 import os
+import cv2
 import glob
 import pickle
+import random
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -21,8 +23,9 @@ from swc_handler import get_soma_from_swc
 from file_io import load_image
 from anatomy.anatomy_config import MASK_CCF25_FILE
 from anatomy.anatomy_core import parse_ana_tree
+from anatomy.anatomy_vis import detect_edges2d
 from projection.projection import Projection
-from config_CP import SUBREGIONS2COMMU, COMMU2SUBREGIONS, CCF_ID_CP
+from config_CP import SUBREGIONS2COMMU, COMMU2SUBREGIONS, CCF_ID_CP, COMMU2INDS, INDS2COMMU
 
 sns.set_theme(style='ticks', font_scale=1.8)
 _COMM_COLORS = {
@@ -153,7 +156,6 @@ class EvalParcellation:
         sns.clustermap(df_mcorr, cmap='hot_r')
         plt.savefig('subregion_vs_projection.png', dpi=300); plt.close()
         
-        #import ipdb; ipdb.set_trace()
         print()
         
 
@@ -218,6 +220,11 @@ class EvalParcellation:
             },
         }
 
+        slice_file = './data/cp_slice_lr.png'
+        tmp = cv2.imread(slice_file)
+        slice_img = np.zeros((*tmp.shape[:2],4), dtype=np.uint8)
+        slice_img[:,:,:3] = tmp
+
         for tname, ptype in ptype_params.items():
             # projections for each ptype
             xlabel = ptype['xlabel']
@@ -255,13 +262,34 @@ class EvalParcellation:
                       for lab,each in zip(COMMU2SUBREGIONS.keys(), np.linspace(0,1,len(COMMU2SUBREGIONS)))}
             col_colors1 = pd.Series(cp_comms, name='Subregions\nof CP').map(lut_cp).values
 
-            # plot
+            # Generate the dendrogram
             sub_projs_t = sub_projs.transpose()
+            g = sns.clustermap(sub_projs_t,
+                               figsize=(2,2)
+                               )
+            reordered_ind_col = g.dendrogram_col.reordered_ind
+            reordered_ind_row = g.dendrogram_row.reordered_ind
+            plt.close()
+            
+            # generate clusters from the linkage
+            col_linkage = g.dendrogram_col.linkage
+            threshold = 8.0
+            clusters = fcluster(col_linkage, threshold, criterion='distance')
+            uniq_cids = np.unique(clusters)
+            col_clusters = clusters[reordered_ind_col]
+            # regenerate clustermap
+            uniq_cids_tmp = uniq_cids.copy()
+            random.shuffle(uniq_cids_tmp)   # shuffle the color for better differentiation
+            col_cluster_colors = {lab:plt.cm.jet(each)[:3]
+                                  for lab,each in zip(uniq_cids_tmp, np.linspace(0,1,len(uniq_cids)))}
+            col_colors1 = [col_cluster_colors[c] for c in clusters]
             g = sns.clustermap(sub_projs_t, cmap='hot_r',
                                col_colors=col_colors1,
                                cbar_pos=(0.8,0.05,0.025,0.15), 
                                figsize=(10,8)
                                )
+
+
             g.ax_heatmap.tick_params(axis='x', bottom=False, labelbottom=False)
             g.ax_heatmap.tick_params(axis='y', left=True, labelleft=True, right=False, 
                                      labelright=False)
@@ -287,7 +315,7 @@ class EvalParcellation:
             g.cax.set_ylabel(r'$\ln(L+1)$')
             #g.cax.yaxis.set_label_position("left")
             # hide the dendrogram
-            #g.ax_col_dendrogram.set_visible(False)
+            g.ax_col_dendrogram.set_visible(False)
             g.ax_row_dendrogram.set_visible(False)
 
             #plt.subplots_adjust(bottom=0.08)
@@ -295,8 +323,6 @@ class EvalParcellation:
 
 
             ################# Composition of CP regions to each target subregions
-            reordered_ind_col = g.dendrogram_col.reordered_ind
-            reordered_ind_row = g.dendrogram_row.reordered_ind
             cp_comm_names = sorted(_COMM_COLORS.keys())
             df_tsreg = pd.DataFrame(np.zeros((len(sub_ids), len(cp_comm_names))), columns=cp_comm_names, index=rndict.values())
             for tsreg in sub_projs_t.index:
@@ -328,23 +354,28 @@ class EvalParcellation:
             
                 
             ################ projection clusters vs CP regions ##################
-            col_linkage = g.dendrogram_col.linkage
-            threshold = 8.0
-            clusters = fcluster(col_linkage, threshold, criterion='distance')
-            uniq_cids = np.unique(clusters)
-            col_clusters = clusters[reordered_ind_col]
             for idx in range(1,uniq_cids.max()+1):
                 cp_comms_n, cp_comms_c = np.unique(cp_comms[clusters == idx], return_counts=True)
-                cp_comms_n_colors = [lut_cp[cname] for cname in cp_comms_n]
-                fig_pie = plt.pie(cp_comms_c, colors=cp_comms_n_colors)
+                #cp_comms_n_colors = [lut_cp[cname] for cname in cp_comms_n]
+                #fig_pie = plt.pie(cp_comms_c, colors=cp_comms_n_colors)
+                p_distr = np.zeros(len(_COMM_COLORS))
+                for icpn, cpc in zip(cp_comms_n, cp_comms_c):
+                    icp = COMMU2INDS[icpn]
+                    p_distr[icp-1] = cpc
+                p_distr /= p_distr.sum()
+                # colorize onto the mask
+                cp_comms_n_colors = (plt.cm.Reds(p_distr)*255).astype(np.uint8)
+                # RGBA to BGRA to adapt to cv2's convention
+                cp_comms_n_colors[:,:3] = cp_comms_n_colors[:,:3][:,::-1]
+                mask_n = slice_img.copy()
+                for i in range(1, p_distr.shape[0]+1):
+                    mask_n[slice_img[:,:,0] == i] = cp_comms_n_colors[i-1]
+                # highlight the boundaries
+                edges = detect_edges2d(tmp[:,:,0])
+                mask_n[edges] = [0,0,0,255]
 
-                plt.axis('equal')
-                plt.tight_layout()
-                plt.savefig(f'{tname}_cluster{idx}_cp_subregion_distr.png', dpi=300)
-                plt.close()
+                cv2.imwrite(f'{tname}_cluster{idx}_cp_subregion_distr.png', mask_n)
                 
-
-            import ipdb; ipdb.set_trace()
             
 
             # ------------------#

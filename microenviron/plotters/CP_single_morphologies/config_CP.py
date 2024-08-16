@@ -36,7 +36,7 @@ COMMU2INDS = {
     'CP.c': 5
 }
 
-IDS2COMMU = {
+INDS2COMMU = {
     1: 'CP.r',
     2: 'CP.ri',
     3: 'CP.i',
@@ -53,9 +53,8 @@ def get_comm_slice(parc_file='../../output_full_r671/parc_region672.nrrd', sub_m
     from image_utils import crop_nonzero_mask
 
     parc = load_image(parc_file)
-    print(parc.shape)
     if sub_mask:
-        parc,_ = crop_nonzero_mask(parc, pad=0)
+        parc,_ = crop_nonzero_mask(parc, pad=1)
 
     # map subregions to communities
     parc_c = parc.copy()
@@ -70,8 +69,9 @@ if __name__ == '__main__':
     import cv2
     import numpy as np
 
-    simg = get_comm_slice()
+    simg = get_comm_slice().astype(np.uint8)
     print(np.unique(simg, return_counts=True))
-    simg = (simg / simg.max() * 255).astype(np.uint8)
+    print(simg.shape, simg.dtype)
+    #simg = (simg / simg.max() * 255).astype(np.uint8)
     cv2.imwrite('cp_slice_lr.png', simg)
 
