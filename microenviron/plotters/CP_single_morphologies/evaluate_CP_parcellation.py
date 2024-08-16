@@ -11,6 +11,9 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from matplotlib.colors import ListedColormap
+from matplotlib.colorbar import ColorbarBase
+import matplotlib.cm as cm
 import seaborn as sns
 
 from swc_handler import get_soma_from_swc
@@ -21,6 +24,28 @@ from projection.projection import Projection
 from config_CP import SUBREGIONS2COMMU, COMMU2SUBREGIONS, CCF_ID_CP
 
 sns.set_theme(style='ticks', font_scale=1.8)
+_COMM_COLORS = {
+    'CP.r': 'red',
+    'CP.ri': 'orange',
+    'CP.i': 'yellow',
+    'CP.ic': 'green',
+    'CP.c': 'cyan'
+}
+_PARC_COLORS = {
+    1: 'red',
+    2: 'orange',
+    3: 'yellow',
+    4: 'green',
+    5: 'cyan',
+    6: 'blue',
+    7: 'purple',
+    8: 'sienna',
+    9: 'gold',
+    10: 'lime',
+    11: 'deepskyblue',
+    12: 'violet',
+    13: 'dimgray'
+}
 
 class EvalParcellation:
     def __init__(self, cp_parc_file):
@@ -134,9 +159,9 @@ class EvalParcellation:
     def projected_subregions(self, proj_csv, file_me2ccf, meta_table):
         projs = pd.read_csv(proj_csv, index_col=0)
         projs.columns = projs.columns.astype(int)
-        #projs[projs < 1000] = 0
+        projs[projs < 100] = 0
         log_projs = np.log(projs+1)
-        # laod the meta information for cp neurons
+        # load the meta information for cp neurons
         meta = pd.read_excel(meta_table, index_col=0)
         cp_neurons = meta[meta['Projection class'].isin(['CP_SNr', 'CP_GPe', 'CP_others'])]
         
@@ -216,18 +241,18 @@ class EvalParcellation:
             sub_projs.rename(columns=rndict, inplace=True)
             
             # evaluate the relationship between projection patterns and CP subregions
-            #cur_zyx = self.df_slocs.loc[sub_projs.index]
-            #cp_subregions = self.cp_parc[cur_zyx.z, cur_zyx.y, cur_zyx.x] - min(ccf2me[CCF_ID_CP]) + 1
+            cur_zyx = self.df_slocs.loc[sub_projs.index]
+            cp_subregions = self.cp_parc[cur_zyx.z, cur_zyx.y, cur_zyx.x] - min(ccf2me[CCF_ID_CP]) + 1
             # coloring by cp subregions
             #lut_cp = {lab:plt.cm.rainbow(each)[:3] 
             #          for lab,each in zip(range(1, len(ccf2me[CCF_ID_CP])+1), np.linspace(0,1,len(ccf2me[CCF_ID_CP])))}
-            #row_colors1 = pd.Series(cp_subregions, name='Subregions\nof CP').map(lut_cp).values
+            #col_colors1 = pd.Series(cp_subregions, name='Subregions\nof CP').map(lut_cp).values
             
             # coloring by community
-            #cp_comms = [SUBREGIONS2COMMU[i] for i in cp_subregions]
-            #lut_cp = {lab:plt.cm.rainbow(each)[:3]
-            #          for lab,each in zip(COMMU2SUBREGIONS.keys(), np.linspace(0,1,len(COMMU2SUBREGIONS)))}
-            #row_colors1 = pd.Series(cp_comms, name='Subregions\nof CP').map(lut_cp).values
+            cp_comms = np.array([SUBREGIONS2COMMU[i] for i in cp_subregions])
+            lut_cp = {lab:plt.cm.rainbow(each)[:3]
+                      for lab,each in zip(COMMU2SUBREGIONS.keys(), np.linspace(0,1,len(COMMU2SUBREGIONS)))}
+            col_colors1 = pd.Series(cp_comms, name='Subregions\nof CP').map(lut_cp).values
 
             # plot
             sub_projs_t = sub_projs.transpose()
@@ -265,44 +290,66 @@ class EvalParcellation:
 
             #plt.subplots_adjust(bottom=0.08)
             plt.savefig(figname, dpi=300); plt.close()
+
+
+            ################# Composition of CP regions to each target subregions
+            #reordered_ind_col = g.dendrogram_col.reordered_ind
+            #reordered_ind_row = g.dendrogram_row.reordered_ind
+            for tsreg in sub_projs_t.index:
+                # projection in current region
+                cur_cp_sregs = cp_subregions[sub_projs_t.loc[tsreg] > 0]
+                cur_cp_comms = cp_comms[sub_projs_t.loc[tsreg] > 0]
+                # pie chart for comm
+                snames_comm, scnts_comm = np.unique(cur_cp_comms, return_counts=True)
+                colors_comm = [_COMM_COLORS[comm] for comm in snames_comm]
+                fig_pie = plt.pie(scnts_comm, colors=colors_comm)
+                
+                plt.axis('equal')
+                plt.tight_layout()
+                plt.savefig(f'{tname}_{tsreg}_cp_subregion_distr.png', dpi=300)
+                plt.close()
+                
+            ################ projection clusters vs CP regions ##################
+            #import ipdb; ipdb.set_trace()
+            print()
+            
             
 
             # ------------------#
-            # estimate the projection density across different subregions
-            plt.figure(figsize=(6,2.4))
-            vol_dict = {}
-            for subregid in sub_ids:
-                vol = (self.cp_parc == subregid).sum() / 2 / 40**3
-                vol_dict[subregid] = vol
-            # original scale of projection: total length
-            #projs_o = np.exp(sub_projs) - 1
-            projs_os = sub_projs.reset_index().melt(id_vars='index', var_name='Subregions', value_name='Projection')
-            # re-ordering to match with clustermap
-            sids = []
-            for xtl in g.ax_heatmap.get_yticklabels():
-                sids.append(np.nonzero(projs_os.Subregions == xtl.get_text())[0])
-            sids = np.hstack(sids)
-            projs_os = projs_os.iloc[sids]
-            g2 = sns.lineplot(projs_os, x='Subregions', y='Projection', 
-                         markers=True, errorbar=('ci', 95), sort=False,
-                         color='fuchsia')
-            # to make it suitable for rotation
-            plt.tick_params('x', labelrotation=90)
-            plt.tick_params('y', left=False, labelleft=False, right=True, labelright=True, 
-                            labelrotation=90)
-            plt.xlim(-0.5, len(g.ax_heatmap.get_yticklabels())-0.5)
-            plt.ylabel(r'$\ln(L+1)$')
+            if False:
+                # estimate the projection density across different subregions
+                plt.figure(figsize=(6,2.4))
+                vol_dict = {}
+                for subregid in sub_ids:
+                    vol = (self.cp_parc == subregid).sum() / 2 / 40**3
+                    vol_dict[subregid] = vol
+                # original scale of projection: total length
+                #projs_o = np.exp(sub_projs) - 1
+                projs_os = sub_projs.reset_index().melt(id_vars='index', var_name='Subregions', value_name='Projection')
+                # re-ordering to match with clustermap
+                sids = []
+                for xtl in g.ax_heatmap.get_yticklabels():
+                    sids.append(np.nonzero(projs_os.Subregions == xtl.get_text())[0])
+                sids = np.hstack(sids)
+                projs_os = projs_os.iloc[sids]
+                g2 = sns.lineplot(projs_os, x='Subregions', y='Projection', 
+                             markers=True, errorbar=('ci', 95), sort=False,
+                             color='fuchsia')
+                # to make it suitable for rotation
+                plt.tick_params('x', labelrotation=90)
+                plt.tick_params('y', left=False, labelleft=False, right=True, labelright=True, 
+                                labelrotation=90)
+                plt.xlim(-0.5, len(g.ax_heatmap.get_yticklabels())-0.5)
+                plt.ylabel(r'$\ln(L+1)$')
 
-            ax = plt.gca()
-            ax.yaxis.set_label_position("right")
-            plt.xlabel('')
+                ax = plt.gca()
+                ax.yaxis.set_label_position("right")
+                plt.xlabel('')
 
-            g2.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=4))
-            plt.subplots_adjust(bottom=0.4, right=0.8)
-            plt.savefig(f'proj_distribution_subregions_{tname}.png', dpi=300); plt.close()
+                g2.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=4))
+                plt.subplots_adjust(bottom=0.4, right=0.8)
+                plt.savefig(f'proj_distribution_subregions_{tname}.png', dpi=300); plt.close()
                 
-
-            print()
 
        
 
