@@ -15,6 +15,7 @@ from matplotlib.colors import ListedColormap
 from matplotlib.colorbar import ColorbarBase
 import matplotlib.cm as cm
 import seaborn as sns
+from scipy.cluster.hierarchy import fcluster, linkage
 
 from swc_handler import get_soma_from_swc
 from file_io import load_image
@@ -257,7 +258,8 @@ class EvalParcellation:
             # plot
             sub_projs_t = sub_projs.transpose()
             g = sns.clustermap(sub_projs_t, cmap='hot_r',
-                               cbar_pos=(0.8,0.1,0.03,0.2), 
+                               col_colors=col_colors1,
+                               cbar_pos=(0.8,0.05,0.025,0.15), 
                                figsize=(10,8)
                                )
             g.ax_heatmap.tick_params(axis='x', bottom=False, labelbottom=False)
@@ -285,7 +287,7 @@ class EvalParcellation:
             g.cax.set_ylabel(r'$\ln(L+1)$')
             #g.cax.yaxis.set_label_position("left")
             # hide the dendrogram
-            g.ax_col_dendrogram.set_visible(False)
+            #g.ax_col_dendrogram.set_visible(False)
             g.ax_row_dendrogram.set_visible(False)
 
             #plt.subplots_adjust(bottom=0.08)
@@ -293,26 +295,56 @@ class EvalParcellation:
 
 
             ################# Composition of CP regions to each target subregions
-            #reordered_ind_col = g.dendrogram_col.reordered_ind
-            #reordered_ind_row = g.dendrogram_row.reordered_ind
+            reordered_ind_col = g.dendrogram_col.reordered_ind
+            reordered_ind_row = g.dendrogram_row.reordered_ind
+            cp_comm_names = sorted(_COMM_COLORS.keys())
+            df_tsreg = pd.DataFrame(np.zeros((len(sub_ids), len(cp_comm_names))), columns=cp_comm_names, index=rndict.values())
             for tsreg in sub_projs_t.index:
                 # projection in current region
                 cur_cp_sregs = cp_subregions[sub_projs_t.loc[tsreg] > 0]
                 cur_cp_comms = cp_comms[sub_projs_t.loc[tsreg] > 0]
                 # pie chart for comm
                 snames_comm, scnts_comm = np.unique(cur_cp_comms, return_counts=True)
-                colors_comm = [_COMM_COLORS[comm] for comm in snames_comm]
-                fig_pie = plt.pie(scnts_comm, colors=colors_comm)
-                
-                plt.axis('equal')
-                plt.tight_layout()
-                plt.savefig(f'{tname}_{tsreg}_cp_subregion_distr.png', dpi=300)
+                df_tsreg.loc[tsreg,snames_comm] = scnts_comm
+            
+            # plot
+            df_tsreg = df_tsreg / df_tsreg.sum(axis=1).values.reshape(-1, 1)
+            # reorder according clustermap
+            df_tsreg = df_tsreg.iloc[reordered_ind_row].iloc[:,[3,4,1,2,0]]
+            ax_tsreg = df_tsreg.plot(kind='bar', stacked=True, colormap='rainbow', figsize=(6,2), legend=False)
+            # handling 
+            plt.tick_params(axis='both', bottom=False, labelbottom=False, rotation=90)
+            plt.ylim(0, 1)
+            plt.subplots_adjust(bottom=0.15)
+            plt.savefig(f'{tname}_cp_comm.png', dpi=300)
+            plt.close()
+            
+            # generate legend
+            if tname == 'GPe':
+                tmp_ax = df_tsreg.plot(kind='bar', stacked=True, colormap='rainbow', figsize=(6,6))
+                plt.ylim(0, 3)
+                plt.savefig('colorbar_cp_comm.png', dpi=300)
                 plt.close()
+            
                 
             ################ projection clusters vs CP regions ##################
-            #import ipdb; ipdb.set_trace()
-            print()
-            
+            col_linkage = g.dendrogram_col.linkage
+            threshold = 8.0
+            clusters = fcluster(col_linkage, threshold, criterion='distance')
+            uniq_cids = np.unique(clusters)
+            col_clusters = clusters[reordered_ind_col]
+            for idx in range(1,uniq_cids.max()+1):
+                cp_comms_n, cp_comms_c = np.unique(cp_comms[clusters == idx], return_counts=True)
+                cp_comms_n_colors = [lut_cp[cname] for cname in cp_comms_n]
+                fig_pie = plt.pie(cp_comms_c, colors=cp_comms_n_colors)
+
+                plt.axis('equal')
+                plt.tight_layout()
+                plt.savefig(f'{tname}_cluster{idx}_cp_subregion_distr.png', dpi=300)
+                plt.close()
+                
+
+            import ipdb; ipdb.set_trace()
             
 
             # ------------------#

@@ -375,14 +375,14 @@ def comp_parc_and_ptype(parc_file, meta_file):
     subg2comm = {
         0: nmax_cur+4, #CP.ic
         1: nmax_cur+1,  # CP.r
-        2: nmax_cur+1,
+        2: nmax_cur+2,
         3: nmax_cur+1,
         4: nmax_cur+3,   # CP.i
-        5: nmax_cur+3,
+        5: nmax_cur+2,
         6: nmax_cur+4,
         7: nmax_cur+2,   # CP.ri
         8: nmax_cur+5,  # CP.c
-        9: nmax_cur+4,
+        9: nmax_cur+3,
         10: nmax_cur+4,
         11: nmax_cur+3,
         12: nmax_cur+3,
