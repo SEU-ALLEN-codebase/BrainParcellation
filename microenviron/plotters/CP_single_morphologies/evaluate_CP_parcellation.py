@@ -323,35 +323,64 @@ class EvalParcellation:
 
 
             ################# Composition of CP regions to each target subregions
-            cp_comm_names = sorted(_COMM_COLORS.keys())
-            df_tsreg = pd.DataFrame(np.zeros((len(sub_ids), len(cp_comm_names))), columns=cp_comm_names, index=rndict.values())
-            for tsreg in sub_projs_t.index:
-                # projection in current region
-                cur_cp_sregs = cp_subregions[sub_projs_t.loc[tsreg] > 0]
-                cur_cp_comms = cp_comms[sub_projs_t.loc[tsreg] > 0]
-                # pie chart for comm
-                snames_comm, scnts_comm = np.unique(cur_cp_comms, return_counts=True)
-                df_tsreg.loc[tsreg,snames_comm] = scnts_comm
-            
-            # plot
-            df_tsreg = df_tsreg / df_tsreg.sum(axis=1).values.reshape(-1, 1)
-            # reorder according clustermap
-            df_tsreg = df_tsreg.iloc[reordered_ind_row].iloc[:,[3,4,1,2,0]]
-            ax_tsreg = df_tsreg.plot(kind='bar', stacked=True, colormap='rainbow', figsize=(6,2), legend=False)
-            # handling 
-            plt.tick_params(axis='both', bottom=False, labelbottom=False, rotation=90)
-            plt.ylim(0, 1)
-            plt.subplots_adjust(bottom=0.15)
-            plt.savefig(f'{tname}_cp_comm.png', dpi=300)
-            plt.close()
-            
-            # generate legend
-            if tname == 'GPe':
-                tmp_ax = df_tsreg.plot(kind='bar', stacked=True, colormap='rainbow', figsize=(6,6))
-                plt.ylim(0, 3)
-                plt.savefig('colorbar_cp_comm.png', dpi=300)
+            use_bar_plot = False
+            if use_bar_plot:
+                cp_comm_names = sorted(_COMM_COLORS.keys())
+                df_tsreg = pd.DataFrame(np.zeros((len(sub_ids), len(cp_comm_names))), 
+                                        columns=cp_comm_names, index=rndict.values())
+                for tsreg in sub_projs_t.index:
+                    # projection in current region
+                    cur_cp_sregs = cp_subregions[sub_projs_t.loc[tsreg] > 0]
+                    cur_cp_comms = cp_comms[sub_projs_t.loc[tsreg] > 0]
+                    # pie chart for comm
+                    snames_comm, scnts_comm = np.unique(cur_cp_comms, return_counts=True)
+                    df_tsreg.loc[tsreg,snames_comm] = scnts_comm
+                
+                # plot
+                df_tsreg = df_tsreg / df_tsreg.sum(axis=1).values.reshape(-1, 1)
+                # reorder according clustermap
+                df_tsreg = df_tsreg.iloc[reordered_ind_row].iloc[:,[3,4,1,2,0]]
+                ax_tsreg = df_tsreg.plot(kind='bar', stacked=True, colormap='rainbow', 
+                                         figsize=(6,2), legend=False)
+                # handling 
+                plt.tick_params(axis='both', bottom=False, labelbottom=False, rotation=90)
+                plt.ylim(0, 1)
+                plt.subplots_adjust(bottom=0.15)
+                plt.savefig(f'{tname}_cp_comm.png', dpi=300)
                 plt.close()
-            
+                
+                # generate legend
+                if tname == 'GPe':
+                    tmp_ax = df_tsreg.plot(kind='bar', stacked=True, 
+                                           colormap='rainbow', figsize=(6,6))
+                    plt.ylim(0, 3)
+                    plt.savefig('colorbar_cp_comm.png', dpi=300)
+                    plt.close()
+            else:
+                for tsreg in sub_projs_t.index:
+                    # projection in current target subregion
+                    cur_cp_sregs = cp_subregions[sub_projs_t.loc[tsreg] > 0]
+                    cur_cp_comms = cp_comms[sub_projs_t.loc[tsreg] > 0]
+                    snames_comm, scnts_comm = np.unique(cur_cp_comms, return_counts=True)
+                    p_distr = np.zeros(len(_COMM_COLORS))
+                    for icpc, cpc in zip(snames_comm, scnts_comm):
+                        icp = COMMU2INDS[icpc]
+                        p_distr[icp-1] = cpc
+                    p_distr /= p_distr.sum()
+                    # colorize onto the mask
+                    cp_comms_colors = (plt.cm.Reds(p_distr)*255).astype(np.uint8)
+                    # RGBA to BGRA to adapt to cv2's convention
+                    cp_comms_colors[:,:3] = cp_comms_colors[:,:3][:,::-1]
+                    mask_n = slice_img.copy()
+                    for i in range(1, p_distr.shape[0]+1):
+                        mask_n[slice_img[:,:,0] == i] = cp_comms_colors[i-1]
+                    # highlight the boundaries
+                    edges = detect_edges2d(tmp[:,:,0])
+                    mask_n[edges] = [0,0,0,255]
+
+                    cv2.imwrite(f'{tname}_{tsreg}_cp_comm_distr.png', mask_n)
+
+
                 
             ################ projection clusters vs CP regions ##################
             for idx in range(1,uniq_cids.max()+1):
@@ -388,7 +417,8 @@ class EvalParcellation:
                     vol_dict[subregid] = vol
                 # original scale of projection: total length
                 #projs_o = np.exp(sub_projs) - 1
-                projs_os = sub_projs.reset_index().melt(id_vars='index', var_name='Subregions', value_name='Projection')
+                projs_os = sub_projs.reset_index().melt(id_vars='index', 
+                                var_name='Subregions', value_name='Projection')
                 # re-ordering to match with clustermap
                 sids = []
                 for xtl in g.ax_heatmap.get_yticklabels():
