@@ -60,8 +60,9 @@ if __name__ == '__main__':
 
     if 1: 
         # resample manual morphologies
-        indir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/1891_CCFv3_local_100um'#'./data/S3_1um_final'
-        outdir = '../evaluation/data/1891_100um_2um' #'./data/S3_2um_final'
+        #indir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/1891_CCFv3_local_100um'#'./data/S3_1um_final'
+        indir = '/PBshare/SEU-ALLEN/Users/yfliu/transtation/Research/data/ION_PFC_CCFv3_swc'
+        outdir = '/data/lyf/data/fullNeurons/all_neurons/ion_pfc_2um'
         step = 2
         args_list = []
         for swcfile in glob.glob(os.path.join(indir, '*.swc')):

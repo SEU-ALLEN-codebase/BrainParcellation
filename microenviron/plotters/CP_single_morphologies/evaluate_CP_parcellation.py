@@ -283,7 +283,7 @@ class EvalParcellation:
             col_cluster_colors = {lab:plt.cm.jet(each)[:3]
                                   for lab,each in zip(uniq_cids_tmp, np.linspace(0,1,len(uniq_cids)))}
             col_colors1 = [col_cluster_colors[c] for c in clusters]
-            g = sns.clustermap(sub_projs_t, cmap='hot_r',
+            g = sns.clustermap(sub_projs_t, cmap='BuGn',
                                col_colors=col_colors1,
                                cbar_pos=(0.8,0.05,0.025,0.15), 
                                figsize=(10,8)
@@ -380,6 +380,13 @@ class EvalParcellation:
 
                     cv2.imwrite(f'{tname}_{tsreg}_cp_comm_distr.png', mask_n)
 
+                    if tname == 'GPe' and tsreg == 'GPe1':
+                        # save an empty for illustration
+                        empty_mask = np.zeros_like(mask_n)
+                        empty_mask[edges] = [0,0,0,255]
+                        cv2.imwrite('empty_mask.png', empty_mask)
+                        #sys.exit()
+
 
                 
             ################ projection clusters vs CP regions ##################
@@ -404,6 +411,14 @@ class EvalParcellation:
                 mask_n[edges] = [0,0,0,255]
 
                 cv2.imwrite(f'{tname}_cluster{idx}_cp_subregion_distr.png', mask_n)
+            
+            # Generate the colorbar for the regional distribution
+            if tname == 'GPe':
+                htmp = np.random.random((5,5))
+                htmp = (htmp - htmp.min()) / (htmp.max() - htmp.min())
+                sns.clustermap(htmp, cmap='Reds', cbar=True)
+                plt.savefig('region_distr_along_mask_cbar.png', dpi=300)
+                plt.close()
                 
             
 

@@ -5,8 +5,10 @@
 ##########################################################
 import numpy as np
 import pandas as pd
+import pickle
 import pysal.lib as pslib
 from esda.moran import Moran
+
 
 mRMR_f3 = ['Length', 'AverageContraction', 'AverageFragmentation']
 mRMR_f3me = ['Length_me', 'AverageContraction_me', 'AverageFragmentation_me']
@@ -112,4 +114,18 @@ def moranI_score(coords, feats, eval_ids=None, reduce_type='average', threshold=
     else:
         raise NotImplementedError
     return avgI
+
+def get_me_ccf_mapper(me2ccf_file):
+    # load the me to ccf correspondence file
+    with open(me2ccf_file, 'rb') as fm2c:
+        me2ccf = pickle.load(fm2c)
+    # get the reverse map
+    ccf2me = {}
+    for k, v in me2ccf.items():
+        if v in ccf2me:
+            ccf2me[v].append(k)
+        else:
+            ccf2me[v] = [k]
+
+    return me2ccf, ccf2me
 
