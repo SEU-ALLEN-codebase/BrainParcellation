@@ -4,11 +4,13 @@
 #Description:               
 ##########################################################
 import os, glob
+import random
 import sys
 import pickle
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import seaborn as sns
 
 from anatomy.anatomy_config import MASK_CCF25_FILE, SALIENT_REGIONS, \
@@ -98,6 +100,8 @@ def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=Tru
         # for ME projection, we use the extracted regions for CCF projection directly, no need and incorrect
         # to independently thresholding like this.
         projs[projs < thresh] = 0
+    else:
+        projs[projs < thresh/4.] = 0
         
     # to log space
     log_projs = np.log(projs+1)
@@ -166,8 +170,25 @@ def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=Tru
 
     return log_projs, bstructs
     
-           
+# NOT working!
+def cbar_for_row_colors(g, uniq_cls, cm_name, loc='center left', bbox_to_anchor=(1,0.5)):
+    cmap = mpl.colormaps.get_cmap(cm_name)
+    norm = plt.Normalize(vmin=0, vmax=len(uniq_cls))
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    # remove the axis from the colorbar
+    sm.set_array([])
+    # Add colorbar to the plot
+    #import ipdb; ipdb.set_trace()
+    g.cax.figure.colorbar(sm, ax=g.ax_heatmap, orientation='vertical', ticks=range(len(uniq_cls)))
+    # Adjusting the colorbar labels
+    #g.cax.yaxis.set_tick_params(labelsize=10)
+    g.cax.set_yticklabels(uniq_cls)
+
+
 def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100, min_neurons=5):
+    random.seed(1024)
+    np.random.seed(1024)
+
     print('load the meta data...')
     meta = pd.read_csv(meta_file, index_col=0)
     # skip neurons in regions containing few neurons
@@ -188,8 +209,11 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
     print('load the projection on CCF-ME space data...')
     proj_me, bstructs_me = preprocess_proj(proj_me_file, thresh, me2ccf=me2ccf, ccf2me=ccf2me, 
                                             is_me=True, ana_tree=ana_tree, meta=meta, ccf_regions=proj_ccf.columns)
+    print(np.unique(bstructs_ccf))
 
-    cmap = 'bwr'
+    cmap = plt.get_cmap('Reds')
+    cmap = mpl.colors.ListedColormap(cmap(np.linspace(0, 0.8, 256)))
+    
     if 0:
         print(f'Visualize projection matrix of neurons...')
         # col_colors
@@ -219,37 +243,102 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
         plt.savefig('proj_me_neurons.png', dpi=300)
         plt.close()
 
-    if 1:
+    
+    # group by regions
+    proj_ccf_r = proj_ccf.copy()
+    proj_ccf_r['region_ccf'] = meta.region_name_ccf.loc[proj_ccf_r.index]
+    proj_ccf_r = proj_ccf_r.groupby('region_ccf').mean()
+    # for me
+    proj_me_r = proj_me.copy()
+    proj_me_r['region_me'] = meta.region_name_me.loc[proj_me_r.index]
+    proj_me_r = proj_me_r.groupby('region_me').mean()
+    print(proj_ccf_r.shape, proj_me_r.shape)
+
+
+    if 0:
         print(f'Visualize projection matrix of regions')
-        # group by regions
-        proj_ccf_r = proj_ccf.copy()
-        proj_ccf_r['region_ccf'] = meta.region_name_ccf.loc[proj_ccf_r.index]
-        proj_ccf_r = proj_ccf_r.groupby('region_ccf').mean()
         # col_colors
         uniq_bs = np.unique(bstructs_ccf)
+        rnd_ids = np.arange(len(uniq_bs))
+        random.shuffle(rnd_ids)
+        uniq_bs_rnd = uniq_bs[rnd_ids]
+        print(uniq_bs, uniq_bs_rnd)
         lut_col = {bs: plt.cm.rainbow(each, bytes=False)
-                  for bs, each in zip(uniq_bs, np.linspace(0, 1, len(uniq_bs)))}
+                  for bs, each in zip(uniq_bs_rnd, np.linspace(0, 1, len(uniq_bs_rnd)))}
         col_colors_ccf = np.array([lut_col[bs] for bs in bstructs_ccf])
         
-        # for me
-        proj_me_r = proj_me.copy()
-        proj_me_r['region_me'] = meta.region_name_me.loc[proj_me_r.index]
-        proj_me_r = proj_me_r.groupby('region_me').mean()
-
-        print(proj_ccf_r.shape, proj_me_r.shape)
-        
         # plotting
-        g1 = sns.clustermap(proj_ccf_r, cmap=cmap, col_cluster=False, col_colors=col_colors_ccf, row_cluster=False)
+        g1 = sns.clustermap(proj_ccf_r, cmap=cmap, col_cluster=False, col_colors=col_colors_ccf, 
+                            row_cluster=False, yticklabels=1, vmin=0, vmax=11)
+        #cbar_for_row_colors(g1, uniq_bs, cm_name='rainbow')
         plt.savefig('proj_ccf_regions.png', dpi=300)
         plt.close()
 
         col_colors_me = np.array([lut_col[bs] for bs in bstructs_me])
-        g2 = sns.clustermap(proj_me_r, cmap=cmap, col_cluster=False, row_cluster=False, col_colors=col_colors_me)
+        g2 = sns.clustermap(proj_me_r, cmap=cmap, col_cluster=False, row_cluster=False, 
+                            col_colors=col_colors_me, yticklabels=1, vmin=0, vmax=11)
         plt.savefig('proj_me_regions.png', dpi=300)
         plt.close()
+        
+    if 1:
+        print(f'--> Projection heatmap for subregions')
+        r_src = 'CA3'
+        r_tgts = ['CA1', 'CA3']
         #import ipdb; ipdb.set_trace()
-        print()
-    
+        r_tgts = [hemi+rn for hemi in ('contra_', 'ipsi_') for rn in r_tgts]
+        
+        #proj_ccf_s = proj_ccf_r.loc[r_src, r_tgts]
+        #g3 = sns.clustermap(proj_ccf_s, cmap=cmap, col_cluster=False, row_cluster=False, yticklabels=1, 
+        #               xticklabels=1, vmin=0, vmax=11)
+        #plt.savefig(f'proj_ccf_{r_src}.png', dpi=300)
+        #plt.close()
+        
+        for r_tgt in r_tgts:
+            # for me
+            rmes = []
+            for rme in proj_me_r.index:
+                if rme.startswith(r_src):
+                    rmes.append(rme)
+            tgts_me = []
+            for tgt in proj_me_r.columns:
+                if '-'.join(tgt.split('-')[:-1]) == r_tgt:
+                    tgts_me.append(tgt)
+
+            proj_me_s = proj_me_r.loc[rmes, tgts_me].transpose()
+            g4 = sns.clustermap(proj_me_s, cmap=cmap, col_cluster=False, row_cluster=False, 
+                           yticklabels=1, xticklabels=1, vmin=0, vmax=11)
+            ax4 = g4.ax_heatmap
+            
+            # mark the high projection subregions
+            markers = proj_me_s.copy(); markers.iloc[:,:] = 0
+            for isubg, subg in enumerate(proj_me_s.columns):
+                top2i = np.argpartition(proj_me_s.iloc[:,isubg], -2)[-2:]
+                markers.iloc[top2i, isubg] = 1
+                   
+            ys, xs = np.nonzero(markers)
+            ax4.plot(xs+0.5, ys+0.5, 'ko', markersize=8)
+
+            # customize the ticks and labels
+            tick_font = 16
+            label_font = 22
+            g4.ax_heatmap.tick_params(axis='y', labelsize=tick_font, rotation=0, direction='in')
+            g4.ax_heatmap.tick_params(axis='x', direction='in')
+            plt.setp(g4.ax_heatmap.get_xticklabels(), rotation=45, rotation_mode='anchor', 
+                     ha='right', fontsize=tick_font)
+            g4.ax_heatmap.set_xlabel('Soma subregions of CA3', fontsize=label_font)
+            g4.ax_heatmap.set_ylabel(f'Projected subregions of {r_tgt}', fontsize=label_font)
+            g4.ax_heatmap.set_aspect('equal')
+
+            plt.subplots_adjust(left=0, right=0.75, bottom=0.13)
+            
+            # configuring the colorbar
+            g4.cax.set_position([0.02, 0.1, 0.03, 0.15])
+            g4.cax.tick_params(axis='y', labelsize=tick_font)
+            g4.cax.set_ylabel(r'$ln(L+1)$', fontsize=label_font)
+            
+            plt.savefig(f'proj_me_{r_src}_{r_tgt}', dpi=300)
+            plt.close()
+            #import ipdb; ipdb.set_trace()
 
 
 if __name__ == '__main__':
