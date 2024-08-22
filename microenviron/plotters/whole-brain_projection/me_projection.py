@@ -66,7 +66,7 @@ def get_meta_information(axon_dir, dataset, me_atlas_file, me2ccf_file, meta_fil
         if rid_me in me2ccf:
             rid_ccf = me2ccf[rid_me]
             rname_ccf = ana_tree[rid_ccf]['acronym']
-            rname_me = f'{rname_ccf}{rid_me-min(ccf2me[rid_ccf])+1}'
+            rname_me = f'{rname_ccf}-{rid_me-min(ccf2me[rid_ccf])+1}'
             # get the brain structure
             id_path = ana_tree[rid_ccf]['structure_id_path']
             sid7 = get_struct_from_id_path(id_path, BSTRUCTS7)
@@ -89,10 +89,16 @@ def get_meta_information(axon_dir, dataset, me_atlas_file, me2ccf_file, meta_fil
     df_meta.to_csv(meta_file, index=True)
  
 def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=True, 
-                    is_me=False, me2ccf=None, ccf2me=None, ana_tree=None):
+                    is_me=False, me2ccf=None, ccf2me=None, ana_tree=None, meta=None, ccf_regions=None):
     projs = pd.read_csv(proj_file, index_col=0)
+    projs = projs[projs.index.isin(meta.index)] # remove neurons according meta information
+
     projs.columns = projs.columns.astype(int)
-    projs[projs < thresh] = 0
+    if not is_me:
+        # for ME projection, we use the extracted regions for CCF projection directly, no need and incorrect
+        # to independently thresholding like this.
+        projs[projs < thresh] = 0
+        
     # to log space
     log_projs = np.log(projs+1)
     # keep only projection in salient regions
@@ -108,7 +114,7 @@ def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=Tru
         
         if is_me:
             rid_ccf = me2ccf[rid]
-            rname = f'{name_prefix}_{ana_tree[rid_ccf]["acronym"]}{rid-min(ccf2me[rid_ccf])+1}'
+            rname = f'{name_prefix}_{ana_tree[rid_ccf]["acronym"]}-{rid-min(ccf2me[rid_ccf])+1}'
         else:
             rid_ccf = rid
             rname = f'{name_prefix}_{ana_tree[rid_ccf]["acronym"]}'
@@ -138,8 +144,21 @@ def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=Tru
     if normalize:
         log_projs = log_projs / log_projs.sum(axis=1).values.reshape(-1,1)
     # remove zero columns
-    if remove_empty_regions:
-        col_mask = log_projs.sum() != 0
+    if not is_me:
+        if remove_empty_regions:
+            col_mask = log_projs.sum() != 0
+            log_projs = log_projs[log_projs.columns[col_mask]]
+            bstructs = bstructs[col_mask]
+    else:
+        # keep only the regions kept in CCF regions
+        resv_regs = []
+        for rn in log_projs.columns:
+            ccf_rn = '-'.join(rn.split('-')[:-1])
+            if ccf_rn in ccf_regions:
+                resv_regs.append(True)
+            else:
+                resv_regs.append(False)
+        col_mask = np.array(resv_regs)
         log_projs = log_projs[log_projs.columns[col_mask]]
         bstructs = bstructs[col_mask]
 
@@ -148,9 +167,16 @@ def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=Tru
     return log_projs, bstructs
     
            
-def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100):
+def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100, min_neurons=5):
     print('load the meta data...')
     meta = pd.read_csv(meta_file, index_col=0)
+    # skip neurons in regions containing few neurons
+    meta = meta[~meta.region_name_ccf.isna()]
+    reg_names, reg_cnts = np.unique(meta.region_name_ccf, return_counts=True)
+    keep_names = reg_names[reg_cnts > min_neurons]
+    meta = meta[meta.region_name_ccf.isin(keep_names)]
+    
+
     print('load the tree ontology')
     ana_tree = parse_ana_tree()
     print('load the me2ccf mapping file')
@@ -158,33 +184,72 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
     
     print('load the projection on CCF space data...')
     proj_ccf, bstructs_ccf = preprocess_proj(proj_ccf_file, thresh, me2ccf=me2ccf, ccf2me=ccf2me, 
-                                             is_me=False, ana_tree=ana_tree)
+                                             is_me=False, ana_tree=ana_tree, meta=meta)
     print('load the projection on CCF-ME space data...')
     proj_me, bstructs_me = preprocess_proj(proj_me_file, thresh, me2ccf=me2ccf, ccf2me=ccf2me, 
-                                            is_me=True, ana_tree=ana_tree)
+                                            is_me=True, ana_tree=ana_tree, meta=meta, ccf_regions=proj_ccf.columns)
 
-    print('visualize')
-    # row_colors
-    uniq_bs = np.unique(bstructs_ccf)
-    lut = {bs: plt.cm.rainbow(each, bytes=False)
-              for bs, each in zip(uniq_bs, np.linspace(0, 1, len(uniq_bs)))}
+    cmap = 'bwr'
+    if 0:
+        print(f'Visualize projection matrix of neurons...')
+        # col_colors
+        uniq_bs = np.unique(bstructs_ccf)
+        lut_col = {bs: plt.cm.rainbow(each, bytes=False)
+                  for bs, each in zip(uniq_bs, np.linspace(0, 1, len(uniq_bs)))}
+        col_colors_ccf = np.array([lut_col[bs] for bs in bstructs_ccf])
+        # row colors
+        regnames = meta.region_name_ccf.loc[proj_ccf.index]
+        uniq_rn = np.unique(regnames)
+        lut_row = {rn: plt.cm.rainbow(each, bytes=False)
+                  for rn, each in zip(uniq_rn, np.linspace(0, 1, len(uniq_rn)))}
+        row_colors_ccf = np.array([lut_row[rn] for rn in regnames])
+        
+        g1 = sns.clustermap(proj_ccf, col_cluster=False, col_colors=col_colors_ccf, row_colors=row_colors_ccf, 
+                            cmap=cmap)
+        plt.savefig('proj_ccf_neurons.png', dpi=300)
+        plt.close()
+
+        # for me
+        reordered_ind = g1.dendrogram_row.reordered_ind
+        proj_me = proj_me.iloc[reordered_ind]
+        col_colors_me = np.array([lut_col[bs] for bs in bstructs_me])
+        row_colors_me = row_colors_ccf[reordered_ind]
+        g2 = sns.clustermap(proj_me, col_cluster=False, col_colors=col_colors_me, row_colors=row_colors_me,
+                            row_cluster=False, cmap=cmap)
+        plt.savefig('proj_me_neurons.png', dpi=300)
+        plt.close()
+
+    if 1:
+        print(f'Visualize projection matrix of regions')
+        # group by regions
+        proj_ccf_r = proj_ccf.copy()
+        proj_ccf_r['region_ccf'] = meta.region_name_ccf.loc[proj_ccf_r.index]
+        proj_ccf_r = proj_ccf_r.groupby('region_ccf').mean()
+        # col_colors
+        uniq_bs = np.unique(bstructs_ccf)
+        lut_col = {bs: plt.cm.rainbow(each, bytes=False)
+                  for bs, each in zip(uniq_bs, np.linspace(0, 1, len(uniq_bs)))}
+        col_colors_ccf = np.array([lut_col[bs] for bs in bstructs_ccf])
+        
+        # for me
+        proj_me_r = proj_me.copy()
+        proj_me_r['region_me'] = meta.region_name_me.loc[proj_me_r.index]
+        proj_me_r = proj_me_r.groupby('region_me').mean()
+
+        print(proj_ccf_r.shape, proj_me_r.shape)
+        
+        # plotting
+        g1 = sns.clustermap(proj_ccf_r, cmap=cmap, col_cluster=False, col_colors=col_colors_ccf, row_cluster=False)
+        plt.savefig('proj_ccf_regions.png', dpi=300)
+        plt.close()
+
+        col_colors_me = np.array([lut_col[bs] for bs in bstructs_me])
+        g2 = sns.clustermap(proj_me_r, cmap=cmap, col_cluster=False, row_cluster=False, col_colors=col_colors_me)
+        plt.savefig('proj_me_regions.png', dpi=300)
+        plt.close()
+        #import ipdb; ipdb.set_trace()
+        print()
     
-    col_colors_ccf = np.array([lut[bs] for bs in bstructs_ccf])
-    g1 = sns.clustermap(proj_ccf, col_cluster=False, col_colors=col_colors_ccf)
-    plt.savefig('proj_ccf.png', dpi=300)
-    plt.close()
-
-    # for me
-    reordered_ind = g1.dendrogram_row.reordered_ind
-    proj_me = proj_me.iloc[reordered_ind]
-    col_colors_me = np.array([lut[bs] for bs in bstructs_me])
-    g2 = sns.clustermap(proj_me, col_cluster=False, col_colors=col_colors_me, row_cluster=False)
-    plt.savefig('proj_me.png', dpi=300)
-
-    plt.close()
-    
-
-    print()
 
 
 if __name__ == '__main__':
@@ -221,5 +286,5 @@ if __name__ == '__main__':
         get_meta_information(axon_dir, dataset, me_atlas_file, me2ccf_file, meta_file)
         
     if 1:
-        analyze_proj(proj_csv, me_proj_csv, meta_file, me2ccf_file)
+        analyze_proj(proj_csv, me_proj_csv, meta_file, me2ccf_file, thresh=1000)
 
