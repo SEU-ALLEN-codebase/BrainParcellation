@@ -325,8 +325,8 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
             g4.ax_heatmap.tick_params(axis='x', direction='in')
             plt.setp(g4.ax_heatmap.get_xticklabels(), rotation=45, rotation_mode='anchor', 
                      ha='right', fontsize=tick_font)
-            g4.ax_heatmap.set_xlabel('Soma subregions of CA3', fontsize=label_font)
-            g4.ax_heatmap.set_ylabel(f'Projected subregions of {r_tgt}', fontsize=label_font)
+            g4.ax_heatmap.set_xlabel('Soma subregions', fontsize=label_font)
+            g4.ax_heatmap.set_ylabel(f'Target subregions', fontsize=label_font)
             g4.ax_heatmap.set_aspect('equal')
 
             plt.subplots_adjust(left=0, right=0.75, bottom=0.13)
