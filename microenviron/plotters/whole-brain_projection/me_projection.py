@@ -91,7 +91,8 @@ def get_meta_information(axon_dir, dataset, me_atlas_file, me2ccf_file, meta_fil
     df_meta.to_csv(meta_file, index=True)
  
 def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=True, 
-                    is_me=False, me2ccf=None, ccf2me=None, ana_tree=None, meta=None, ccf_regions=None):
+                    is_me=False, me2ccf=None, ccf2me=None, ana_tree=None, meta=None, ccf_regions=None,
+                    keep_structures=None):
     projs = pd.read_csv(proj_file, index_col=0)
     projs = projs[projs.index.isin(meta.index)] # remove neurons according meta information
 
@@ -101,7 +102,7 @@ def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=Tru
         # to independently thresholding like this.
         projs[projs < thresh] = 0
     else:
-        projs[projs < thresh/4.] = 0
+        projs[projs < thresh] = 0
         
     # to log space
     log_projs = np.log(projs+1)
@@ -111,10 +112,10 @@ def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=Tru
     for rid_ in log_projs.columns:
         if rid_ < 0:
             rid = -rid_
-            name_prefix = 'ipsi'
+            name_prefix = 'contra'
         else:
             rid = rid_
-            name_prefix = 'contra'
+            name_prefix = 'ipsi'
         
         if is_me:
             rid_ccf = me2ccf[rid]
@@ -153,6 +154,11 @@ def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=Tru
             col_mask = log_projs.sum() != 0
             log_projs = log_projs[log_projs.columns[col_mask]]
             bstructs = bstructs[col_mask]
+        # keep only permitted regions in `keep_structures`
+        nzbs = np.nonzero(pd.Series(bstructs).isin(keep_structures))[0]
+        log_projs = log_projs.iloc[:,nzbs]
+        bstructs = bstructs[nzbs]
+        print()
     else:
         # keep only the regions kept in CCF regions
         resv_regs = []
@@ -184,6 +190,15 @@ def cbar_for_row_colors(g, uniq_cls, cm_name, loc='center left', bbox_to_anchor=
     #g.cax.yaxis.set_tick_params(labelsize=10)
     g.cax.set_yticklabels(uniq_cls)
 
+def get_region_map(regs, all_subregs, diff_hemisphere=False):
+    subregs = []
+    if diff_hemisphere:
+        regs = [hemi+rn for hemi in ('contra_', 'ipsi_') for rn in regs]
+        
+    for cur_subreg in all_subregs:
+        if '-'.join(cur_subreg.split('-')[:-1]) in regs:
+            subregs.append(cur_subreg)
+    return subregs
 
 def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100, min_neurons=5):
     random.seed(1024)
@@ -205,15 +220,13 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
     
     print('load the projection on CCF space data...')
     proj_ccf, bstructs_ccf = preprocess_proj(proj_ccf_file, thresh, me2ccf=me2ccf, ccf2me=ccf2me, 
-                                             is_me=False, ana_tree=ana_tree, meta=meta)
+                                             is_me=False, ana_tree=ana_tree, meta=meta, 
+                                             keep_structures=('HPF', 'HY', 'STR'))
     print('load the projection on CCF-ME space data...')
     proj_me, bstructs_me = preprocess_proj(proj_me_file, thresh, me2ccf=me2ccf, ccf2me=ccf2me, 
                                             is_me=True, ana_tree=ana_tree, meta=meta, ccf_regions=proj_ccf.columns)
     print(np.unique(bstructs_ccf))
 
-    cmap = plt.get_cmap('Reds')
-    cmap = mpl.colors.ListedColormap(cmap(np.linspace(0, 0.8, 256)))
-    
     if 0:
         print(f'Visualize projection matrix of neurons...')
         # col_colors
@@ -253,10 +266,13 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
     proj_me_r['region_me'] = meta.region_name_me.loc[proj_me_r.index]
     proj_me_r = proj_me_r.groupby('region_me').mean()
     print(proj_ccf_r.shape, proj_me_r.shape)
+    #import ipdb; ipdb.set_trace()
 
-
-    if 0:
+    if 1:
         print(f'Visualize projection matrix of regions')
+        cmap = plt.get_cmap('bwr')
+        cmap = mpl.colors.ListedColormap(cmap(np.linspace(0.3, 1., 256)))
+
         # col_colors
         uniq_bs = np.unique(bstructs_ccf)
         rnd_ids = np.arange(len(uniq_bs))
@@ -269,22 +285,99 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
         
         # plotting
         g1 = sns.clustermap(proj_ccf_r, cmap=cmap, col_cluster=False, col_colors=col_colors_ccf, 
-                            row_cluster=False, yticklabels=1, vmin=0, vmax=11)
+                            row_cluster=False, yticklabels=1, vmin=0, vmax=11,
+                            xticklabels=3, cbar_pos={0.08,0.05,0.02,0.15})
         #cbar_for_row_colors(g1, uniq_bs, cm_name='rainbow')
         plt.savefig('proj_ccf_regions.png', dpi=300)
         plt.close()
 
         col_colors_me = np.array([lut_col[bs] for bs in bstructs_me])
         g2 = sns.clustermap(proj_me_r, cmap=cmap, col_cluster=False, row_cluster=False, 
-                            col_colors=col_colors_me, yticklabels=1, vmin=0, vmax=11)
+                            col_colors=col_colors_me, yticklabels=1, vmin=0, vmax=11, 
+                            figsize=(20,10), xticklabels=4)
+        g2.ax_heatmap.tick_params(left=True, right=False, labelleft=True, labelright=False)
+        g2.ax_heatmap.set_ylabel('Source subregions', fontsize=18)
+        g2.ax_heatmap.yaxis.set_label_position("left")
+        g2.ax_heatmap.set_xlabel('Target subregions', fontsize=18)
+
+        #g2.cax.set_position([0.05,0.05,0.03,0.15]) # why not working?!
+        g2.cax.set_visible(False)
+        plt.subplots_adjust(bottom=0.18)
         plt.savefig('proj_me_regions.png', dpi=300)
         plt.close()
+
+        # Analyze the divergence of source, target and source-target suregions
+        src_cc_means = []
+        ipsi_cc_means = []
+        contra_cc_means = []
+        st_cc_means = []
+        for reg in proj_ccf_r.index:
+            src_regs = get_region_map([reg], proj_me_r.index, diff_hemisphere=False)
+            if len(src_regs) == 1:
+                continue
+            # source divergence
+            corrs_src = proj_me_r.loc[src_regs].transpose().corr()
+            src_cc_mean = corrs_src.values[np.triu_indices_from(corrs_src, k=1)].mean()
+            src_cc_means.append(src_cc_mean)
         
-    if 1:
+        # target
+        for reg in proj_ccf_r.columns:
+            tgt_regs = get_region_map([reg], proj_me_r.columns, diff_hemisphere=False)
+            if len(tgt_regs) == 1:
+                continue
+            
+            if tgt_regs[0].startswith('ipsi'):
+                corrs_ipsi = proj_me_r.loc[:,tgt_regs].corr()
+                corrs_ipsi.fillna(0, inplace=True)
+                ipsi_cc_mean = corrs_ipsi.values[np.triu_indices_from(corrs_ipsi, k=1)].mean()
+                ipsi_cc_means.append(ipsi_cc_mean)
+            else:
+                corrs_contra = proj_me_r.loc[:,tgt_regs].corr()
+                corrs_contra.fillna(0, inplace=True)
+                contra_cc_mean = corrs_contra.values[np.triu_indices_from(corrs_contra, k=1)].mean()
+                contra_cc_means.append(contra_cc_mean)
+            # source-target pairs
+            #for reg_s in proj_ccf_r.index:
+            #    st_regs = get_region_map([reg_s], proj_me_r.index, diff_hemisphere=False)
+            #    if len(st_regs) == 1:
+            #        continue
+
+            #    corrs_st = proj_me_r.loc[st_regs, tgt_regs].transpose().corr()
+            #    st_cc_mean = corrs_st.values[np.triu_indices_from(corrs_st, k=1)].mean()
+            #    st_cc_means.append(st_cc_mean)
+
+            
+        sns.set_theme(style='ticks', font_scale=1.5)
+        # visualization
+        df_corrs = pd.DataFrame({
+            'Source': pd.Series(src_cc_means),
+            'Target-ipsi': pd.Series(ipsi_cc_means),
+            'Target-contra': pd.Series(contra_cc_means)
+        })
+        plt.figure(figsize=(6,6))
+        sns.stripplot(data=df_corrs, alpha=0.75, legend=False)
+        ax_pp = sns.pointplot(data=df_corrs, linestyle="none", errorbar=None, marker='_', 
+                              markersize=20, markeredgewidth=3, color='red')
+        # annotate
+        avg_ccs = df_corrs.mean()
+        for xc, yc in zip(range(df_corrs.shape[0]), avg_ccs):
+            # The first container is the axis, skip
+            txt = f'{yc:.2f}'
+            ax_pp.text(xc+0.25, yc, txt, ha='center', va='center', color='red')
+
+        plt.ylabel("Correlation between projections of subregions")
+        plt.savefig('correlations_between_subregions.png', dpi=300)
+        plt.close()
+
+        print()    
+
+        
+    if 0:
+        cmap = plt.get_cmap('Reds')
+        cmap = mpl.colors.ListedColormap(cmap(np.linspace(0, 0.8, 256)))
         print(f'--> Projection heatmap for subregions')
-        r_src = 'CA3'
-        r_tgts = ['CA1', 'CA3']
-        #import ipdb; ipdb.set_trace()
+        #r_src, r_tgts = 'CA3', ['CA1', 'CA3']
+        r_src, r_tgts = 'PRE', ['ENTm2', 'ENTm3', 'PAR']
         r_tgts = [hemi+rn for hemi in ('contra_', 'ipsi_') for rn in r_tgts]
         
         #proj_ccf_s = proj_ccf_r.loc[r_src, r_tgts]
@@ -295,14 +388,8 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
         
         for r_tgt in r_tgts:
             # for me
-            rmes = []
-            for rme in proj_me_r.index:
-                if rme.startswith(r_src):
-                    rmes.append(rme)
-            tgts_me = []
-            for tgt in proj_me_r.columns:
-                if '-'.join(tgt.split('-')[:-1]) == r_tgt:
-                    tgts_me.append(tgt)
+            rmes = get_region_map([r_src], proj_me_r.index, diff_hemisphere=False)
+            tgts_me = get_region_map([r_tgt], proj_me_r.columns, diff_hemisphere=False)
 
             proj_me_s = proj_me_r.loc[rmes, tgts_me].transpose()
             g4 = sns.clustermap(proj_me_s, cmap=cmap, col_cluster=False, row_cluster=False, 

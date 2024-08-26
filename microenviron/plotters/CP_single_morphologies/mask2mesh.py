@@ -63,8 +63,8 @@ def recon_mesh(img, fname_output, fname_tmp='./tmp.mhd', color=None, niter=200):
     writer.Update()
 
 if __name__ == '__main__':
-    rname = 'CP'
-    parc_file = '../../output_full_r671/parc_region672.nrrd'
+    rname = 'CA1'
+    parc_file = '../../output_full_r671/parc_region382.nrrd'
     
     img = load_image(parc_file)
     sub_ids = np.unique(img[img > 0])
