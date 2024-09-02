@@ -68,7 +68,7 @@ def get_meta_information(axon_dir, dataset, me_atlas_file, me2ccf_file, meta_fil
         if rid_me in me2ccf:
             rid_ccf = me2ccf[rid_me]
             rname_ccf = ana_tree[rid_ccf]['acronym']
-            rname_me = f'{rname_ccf}-{rid_me-min(ccf2me[rid_ccf])+1}'
+            rname_me = f'{rname_ccf}-R{rid_me-min(ccf2me[rid_ccf])+1}'
             # get the brain structure
             id_path = ana_tree[rid_ccf]['structure_id_path']
             sid7 = get_struct_from_id_path(id_path, BSTRUCTS7)
@@ -102,7 +102,7 @@ def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=Tru
         # to independently thresholding like this.
         projs[projs < thresh] = 0
     else:
-        projs[projs < thresh] = 0
+        projs[projs < thresh/4] = 0
         
     # to log space
     log_projs = np.log(projs+1)
@@ -119,7 +119,7 @@ def preprocess_proj(proj_file, thresh, normalize=False, remove_empty_regions=Tru
         
         if is_me:
             rid_ccf = me2ccf[rid]
-            rname = f'{name_prefix}_{ana_tree[rid_ccf]["acronym"]}-{rid-min(ccf2me[rid_ccf])+1}'
+            rname = f'{name_prefix}_{ana_tree[rid_ccf]["acronym"]}-R{rid-min(ccf2me[rid_ccf])+1}'
         else:
             rid_ccf = rid
             rname = f'{name_prefix}_{ana_tree[rid_ccf]["acronym"]}'
@@ -193,7 +193,7 @@ def cbar_for_row_colors(g, uniq_cls, cm_name, loc='center left', bbox_to_anchor=
 def get_region_map(regs, all_subregs, diff_hemisphere=False):
     subregs = []
     if diff_hemisphere:
-        regs = [hemi+rn for hemi in ('contra_', 'ipsi_') for rn in regs]
+        regs = [hemi+rn for hemi in ('ipsi_', 'contra_') for rn in regs]
         
     for cur_subreg in all_subregs:
         if '-'.join(cur_subreg.split('-')[:-1]) in regs:
@@ -268,7 +268,7 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
     print(proj_ccf_r.shape, proj_me_r.shape)
     #import ipdb; ipdb.set_trace()
 
-    if 1:
+    if 0:
         print(f'Visualize projection matrix of regions')
         cmap = plt.get_cmap('bwr')
         cmap = mpl.colors.ListedColormap(cmap(np.linspace(0.3, 1., 256)))
@@ -299,6 +299,8 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
         g2.ax_heatmap.set_ylabel('Source subregions', fontsize=18)
         g2.ax_heatmap.yaxis.set_label_position("left")
         g2.ax_heatmap.set_xlabel('Target subregions', fontsize=18)
+        plt.setp(g2.ax_heatmap.get_xticklabels(), rotation=45, rotation_mode='anchor',
+                     ha='right')
 
         #g2.cax.set_position([0.05,0.05,0.03,0.15]) # why not working?!
         g2.cax.set_visible(False)
@@ -306,78 +308,83 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
         plt.savefig('proj_me_regions.png', dpi=300)
         plt.close()
 
-        # Analyze the divergence of source, target and source-target suregions
-        src_cc_means = []
-        ipsi_cc_means = []
-        contra_cc_means = []
-        st_cc_means = []
-        for reg in proj_ccf_r.index:
-            src_regs = get_region_map([reg], proj_me_r.index, diff_hemisphere=False)
-            if len(src_regs) == 1:
-                continue
-            # source divergence
-            corrs_src = proj_me_r.loc[src_regs].transpose().corr()
-            src_cc_mean = corrs_src.values[np.triu_indices_from(corrs_src, k=1)].mean()
-            src_cc_means.append(src_cc_mean)
-        
-        # target
-        for reg in proj_ccf_r.columns:
-            tgt_regs = get_region_map([reg], proj_me_r.columns, diff_hemisphere=False)
-            if len(tgt_regs) == 1:
-                continue
+        ###### turn off  this part ########
+        if 0:
+            # Analyze the divergence of source, target and source-target suregions
+            src_cc_means = []
+            ipsi_cc_means = []
+            contra_cc_means = []
+            st_cc_means = []
+            for reg in proj_ccf_r.index:
+                src_regs = get_region_map([reg], proj_me_r.index, diff_hemisphere=False)
+                if len(src_regs) == 1:
+                    continue
+                # source divergence
+                corrs_src = proj_me_r.loc[src_regs].transpose().corr()
+                src_cc_mean = corrs_src.values[np.triu_indices_from(corrs_src, k=1)].mean()
+                src_cc_means.append(src_cc_mean)
             
-            if tgt_regs[0].startswith('ipsi'):
-                corrs_ipsi = proj_me_r.loc[:,tgt_regs].corr()
-                corrs_ipsi.fillna(0, inplace=True)
-                ipsi_cc_mean = corrs_ipsi.values[np.triu_indices_from(corrs_ipsi, k=1)].mean()
-                ipsi_cc_means.append(ipsi_cc_mean)
-            else:
-                corrs_contra = proj_me_r.loc[:,tgt_regs].corr()
-                corrs_contra.fillna(0, inplace=True)
-                contra_cc_mean = corrs_contra.values[np.triu_indices_from(corrs_contra, k=1)].mean()
-                contra_cc_means.append(contra_cc_mean)
-            # source-target pairs
-            #for reg_s in proj_ccf_r.index:
-            #    st_regs = get_region_map([reg_s], proj_me_r.index, diff_hemisphere=False)
-            #    if len(st_regs) == 1:
-            #        continue
+            # target
+            for reg in proj_ccf_r.columns:
+                tgt_regs = get_region_map([reg], proj_me_r.columns, diff_hemisphere=False)
+                if len(tgt_regs) == 1:
+                    continue
+                
+                if tgt_regs[0].startswith('ipsi'):
+                    corrs_ipsi = proj_me_r.loc[:,tgt_regs].corr()
+                    corrs_ipsi.fillna(0, inplace=True)
+                    ipsi_cc_mean = corrs_ipsi.values[np.triu_indices_from(corrs_ipsi, k=1)].mean()
+                    ipsi_cc_means.append(ipsi_cc_mean)
+                else:
+                    corrs_contra = proj_me_r.loc[:,tgt_regs].corr()
+                    corrs_contra.fillna(0, inplace=True)
+                    contra_cc_mean = corrs_contra.values[np.triu_indices_from(corrs_contra, k=1)].mean()
+                    contra_cc_means.append(contra_cc_mean)
+                # source-target pairs
+                #for reg_s in proj_ccf_r.index:
+                #    st_regs = get_region_map([reg_s], proj_me_r.index, diff_hemisphere=False)
+                #    if len(st_regs) == 1:
+                #        continue
 
-            #    corrs_st = proj_me_r.loc[st_regs, tgt_regs].transpose().corr()
-            #    st_cc_mean = corrs_st.values[np.triu_indices_from(corrs_st, k=1)].mean()
-            #    st_cc_means.append(st_cc_mean)
+                #    corrs_st = proj_me_r.loc[st_regs, tgt_regs].transpose().corr()
+                #    st_cc_mean = corrs_st.values[np.triu_indices_from(corrs_st, k=1)].mean()
+                #    st_cc_means.append(st_cc_mean)
 
-            
-        sns.set_theme(style='ticks', font_scale=1.5)
-        # visualization
-        df_corrs = pd.DataFrame({
-            'Source': pd.Series(src_cc_means),
-            'Target-ipsi': pd.Series(ipsi_cc_means),
-            'Target-contra': pd.Series(contra_cc_means)
-        })
-        plt.figure(figsize=(6,6))
-        sns.stripplot(data=df_corrs, alpha=0.75, legend=False)
-        ax_pp = sns.pointplot(data=df_corrs, linestyle="none", errorbar=None, marker='_', 
-                              markersize=20, markeredgewidth=3, color='red')
-        # annotate
-        avg_ccs = df_corrs.mean()
-        for xc, yc in zip(range(df_corrs.shape[0]), avg_ccs):
-            # The first container is the axis, skip
-            txt = f'{yc:.2f}'
-            ax_pp.text(xc+0.25, yc, txt, ha='center', va='center', color='red')
+                
+            sns.set_theme(style='ticks', font_scale=1.5)
+            # visualization
+            df_corrs = pd.DataFrame({
+                'Source': pd.Series(src_cc_means),
+                'Target-ipsi': pd.Series(ipsi_cc_means),
+                'Target-contra': pd.Series(contra_cc_means)
+            })
+            plt.figure(figsize=(6,6))
+            sns.stripplot(data=df_corrs, alpha=0.75, legend=False)
+            ax_pp = sns.pointplot(data=df_corrs, linestyle="none", errorbar=None, marker='_', 
+                                  markersize=20, markeredgewidth=3, color='red')
+            # annotate
+            avg_ccs = df_corrs.mean()
+            for xc, yc in zip(range(df_corrs.shape[0]), avg_ccs):
+                # The first container is the axis, skip
+                txt = f'{yc:.2f}'
+                ax_pp.text(xc+0.3, yc, txt, ha='center', va='center', color='red')
 
-        plt.ylabel("Correlation between projections of subregions")
-        plt.savefig('correlations_between_subregions.png', dpi=300)
-        plt.close()
+            plt.ylabel("Correlation between projections of subregions")
+            plt.savefig('correlations_between_subregions.png', dpi=300)
+            plt.close()
 
-        print()    
+            print()    
 
         
-    if 0:
+    if 1:
         cmap = plt.get_cmap('Reds')
         cmap = mpl.colors.ListedColormap(cmap(np.linspace(0, 0.8, 256)))
+        #cmap = plt.get_cmap('bwr')
+        #cmap = mpl.colors.ListedColormap(cmap(np.linspace(0.3, 1., 256)))
+
         print(f'--> Projection heatmap for subregions')
-        #r_src, r_tgts = 'CA3', ['CA1', 'CA3']
-        r_src, r_tgts = 'PRE', ['ENTm2', 'ENTm3', 'PAR']
+        r_src, r_tgts = 'CA3', ['CA1', 'CA3']
+        #r_src, r_tgts = 'PRE', ['ENTm2', 'ENTm3', 'PAR']
         r_tgts = [hemi+rn for hemi in ('contra_', 'ipsi_') for rn in r_tgts]
         
         #proj_ccf_s = proj_ccf_r.loc[r_src, r_tgts]
@@ -386,10 +393,22 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
         #plt.savefig(f'proj_ccf_{r_src}.png', dpi=300)
         #plt.close()
         
+        #CA3s = ['CA3-R7', 'CA3-R2', 'CA3-R6', 'CA3-R11', 'CA3-R4', 'CA3-R3', 'CA3-R10', 'CA3-R1', 'CA3-R12'
+        #        'CA3-R8', 'CA3-R9', 'CA3-R5']
+        CA3s = [7,11,10,3,0,1,5,6,2,8,4,9] #[9,4,8,2,6,5,1,0,3,10,11,7]
+        CA1s = [4,2,5,3,1,0] #[0,1,3,5,2,4]
         for r_tgt in r_tgts:
             # for me
-            rmes = get_region_map([r_src], proj_me_r.index, diff_hemisphere=False)
-            tgts_me = get_region_map([r_tgt], proj_me_r.columns, diff_hemisphere=False)
+            rmes = np.array(get_region_map([r_src], proj_me_r.index, diff_hemisphere=False))
+            tgts_me = np.array(get_region_map([r_tgt], proj_me_r.columns, diff_hemisphere=False))
+            if r_src == 'CA3':
+                rmes = rmes[CA3s]
+            elif r_src == 'CA1':
+                rmes = rmes[CA1s]
+            if 'CA1' in r_tgt:
+                tgts_me = tgts_me[CA1s]
+            elif 'CA3' in r_tgt:
+                tgts_me = tgts_me[CA3s]
 
             proj_me_s = proj_me_r.loc[rmes, tgts_me].transpose()
             g4 = sns.clustermap(proj_me_s, cmap=cmap, col_cluster=False, row_cluster=False, 
@@ -400,7 +419,9 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
             markers = proj_me_s.copy(); markers.iloc[:,:] = 0
             for isubg, subg in enumerate(proj_me_s.columns):
                 top2i = np.argpartition(proj_me_s.iloc[:,isubg], -2)[-2:]
-                markers.iloc[top2i, isubg] = 1
+                i_high = np.nonzero(proj_me_s.iloc[top2i, isubg] > 1)[0]
+                if i_high.shape[0] > 0:
+                    markers.iloc[top2i[i_high], isubg] = 1
                    
             ys, xs = np.nonzero(markers)
             ax4.plot(xs+0.5, ys+0.5, 'ko', markersize=8)
@@ -412,7 +433,7 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
             g4.ax_heatmap.tick_params(axis='x', direction='in')
             plt.setp(g4.ax_heatmap.get_xticklabels(), rotation=45, rotation_mode='anchor', 
                      ha='right', fontsize=tick_font)
-            g4.ax_heatmap.set_xlabel('Soma subregions', fontsize=label_font)
+            g4.ax_heatmap.set_xlabel('Source subregions', fontsize=label_font)
             g4.ax_heatmap.set_ylabel(f'Target subregions', fontsize=label_font)
             g4.ax_heatmap.set_aspect('equal')
 

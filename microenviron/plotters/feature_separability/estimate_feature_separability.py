@@ -343,16 +343,17 @@ def dsmatrix_of_all(mefile, ds_file1, ds_file2, metric='euclidean', cnt_thres=20
 
         # Drawing a line between categories
         x_values = [0, 1]  # Adjust these based on the number of categories
-        line_height = y_max + 0.2  # Adjust the line height as needed
-        plt.plot(x_values, [line_height] * 2, 'k-')  # 'k-' is for black solid line
+        line_height = y_max + 0.1  # Adjust the line height as needed
+        plt.plot(x_values, [line_height] * 2, 'k-', linewidth=2)  # 'k-' is for black solid line
         
         # Annotate the plot with the significance level as stars
         stars = p_value_to_stars(p_value)   # two-sided Wilcoxon rank sum test
         print(f'p_value={p_value}')
         e, m = get_exponent_and_mantissa(p_value)
         plt.annotate(stars + r'$ (p={%.1f}x10^{%d})$' % (m, e), xy=(0.5, 0.995), xycoords='axes fraction', 
-                     ha='center', va='top', fontsize=12, color='black')
+                     ha='center', va='top', fontsize=15, color='black')
         plt.xlim(-0.5, 1.5)
+        plt.ylim(0.75, 7.7)
 
         fig = plt.gcf()
         fig.set_size_inches(6,6)
@@ -405,7 +406,7 @@ def analyze_dsmatrix_vs_parcellations(dsmean_file, parc_file, atlas_file=None):
 if __name__ == '__main__':
     mefile = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
 
-    if 1:
+    if 0:
         region_dict = {
             'all':['FRP', 'MOp', 'MOs', 'SSp-n', 'SSp-bfd', 'SSp-ll', 'SSp-m', 'SSp-ul', 'SSp-tr',
                    'SSp-un', 'SSs', 'GU', 'VISC', 'AUDd', 'AUDp', 'AUDpo', 'AUDv', 'VISal', 
@@ -428,7 +429,7 @@ if __name__ == '__main__':
         regions = ['SSp']
         cortical_separability(mefile, regions, sname='r671', disp_type='r671')
 
-    if 0:
+    if 1:
         metric = 'euclidean'
         ds_file1 = f'dsmean_{metric}.csv'
         ds_file2 = f'dsstd_{metric}.csv'
