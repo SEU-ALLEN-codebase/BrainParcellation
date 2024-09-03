@@ -8,7 +8,7 @@ This is a comprehensive codebase designed for generating whole brain regional pa
 - Scipy
 - Scikit-learn
 - Pandas
-- pylib. `pylib` is a customized library developed by Yufeng Liu and Zuo-Han Zhao for manipulating neuronal file parsing, image processing, morphology analysis, anatomical processing, and other specialized utilities for neuron informatics. You can download it from GitHub and add the directory to your `$PYTHONPATH`.
+- pylib. `pylib` is a customized library developed by Yufeng Liu and Zuo-Han Zhao for manipulating neuronal file parsing, image processing, morphology analysis, anatomical processing, and other specialized utilities for neuron informatics. You can download it from GitHub (git@github.com:SEU-ALLEN-codebase/pylib.git) and add the directory to your `$PYTHONPATH`.
 - Other dependencies listed in `requirements.txt`
 
 ### Installation
