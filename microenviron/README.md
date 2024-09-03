@@ -1,5 +1,5 @@
 # Generation and analyses of CCF-ME atlas
-This is the major part of the project, containing the core scripts for microenvironment construction, whole-brain sub-parcellation, and subsequently analyses. 
+This is the major part of the project, containing the core scripts for microenvironment construction, whole-brain sub-parcellation, and subsequent analyses. 
 
 ### Code structure
 ```
@@ -29,8 +29,8 @@ microenviron/
 
 ### Usage
 #### Constructing of microenvironments from neuron morphologies
-1. Download the morphologies from NeuroXiv via this https://download.neuroxiv.org. Alternatively, you can use your own dendritic morphologies. Optionally, you may choose to spherically crop the morphologies to ensure they are isotropic. Ensure that the morphologies are aligned in the same standardized space, such as CCFv3.
-2. Resample the morphologies (skeletons) to achieve homogeneously spaced skeletons using the `resample_swc.py` script.
+1. Download the morphologies from NeuroXiv via https://download.neuroxiv.org. Alternatively, you can use your own dendritic morphologies. Optionally, you may choose to spherically crop the morphologies to ensure they are isotropic. Ensure that the morphologies are aligned in the same standardized space, such as CCFv3.
+2. Resample the morphologies (skeletons) to get homogeneously spaced skeletons using the `resample_swc.py` script.
 3. Calculate the global morphological features (similar to L-Measure) by using `get_global_features.py`.
 4. Aggregate additional features and metadata. This can be done with `preprocessing.py`, which will generate the full set of morphological features along with metadata, including brain regions, brain areas, and soma locations.
 5. Construct the microenvironments in feature space. First, estimate the appropriate radius (local neighborhood) within which the top 6 neurons are selected to construct the microenvironments using the `estimate_radius` method in `micro_env_features.py`. After determining the radius, calculate the microenvironments using `micro_env_features.py`.
