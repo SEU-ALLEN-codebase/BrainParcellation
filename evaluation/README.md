@@ -5,10 +5,10 @@
    <table frame=void border=0 cellspacing=1>
       <tr>
          <td>
-            <p>Total: 101,136 (`SWC` after filtering)</p>
+            <p>Total: 101,136</p>
             <p>Brain involved: 111</p>
             <p>Brain region involved: 528</p>
-            <p>Major Brain regions(#>10): 397</p>
+            <p>Brain regions (#>10): 397</p>
          </td>
          <td>
             <img src="https://github.com/SEU-ALLEN-codebase/BrainParcellation/blob/main/evaluation/figs/soma.png" width=350>
@@ -22,7 +22,7 @@
 Numbers of the reconstruction dataset:
 - 182,497 (182k): The total number of cell bodies (somas) identified semi-automatically. Please refer to the paper: https://www.researchsquare.com/article/rs-3146034/v1.
 - 179,568 (179k): The total number of neurons reconstructed successfully
-- 101,136 (101k): The neurons after pruning. Pruning criteria are: (1) A good reconstruction should be located in the 582 non-fiber-tract, non-ventricle salient CCF regions; (2) A good reconstruction should have morphological features similar to manually annotated morphologies.
+- 101,136 (101k): The neurons after Filtering. Filtering criteria are: (1) A good reconstruction should be located in the 582 non-fiber-tract, non-ventricle salient CCF regions; (2) A good reconstruction should have morphological features similar to manually annotated morphologies.
 - 103,603 (103k): Similar to the 101k set, but keeps the neurons within 50 μm of all salient regions.
 
 For more information, please refer to our paper: **To be updated when the manuscript submitted**
@@ -44,7 +44,7 @@ evaluation/
 │   ├── final_filtered_swc.txt      # Name list of the 103k neurons.
 │   ├── gf_1876_crop.csv            # Global features of the 1,876 annotated neurons.
 │   ├── region_match_table.csv      # The mapping of CCF brain regions to the CCF brain areas/structures.
-│   ├── so_match_table.txt          # The correspondence between 103k and SEU-A1876.
+│   └── so_match_table.txt          # The correspondence between 103k and SEU-A1876.
 ├── figs/                           # Figures showing the distribution of neurons across brain areas
 └── README.md                       # Instruction of this section
 ```

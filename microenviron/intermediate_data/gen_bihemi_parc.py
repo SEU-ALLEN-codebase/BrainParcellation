@@ -18,7 +18,7 @@ ccf = load_image(MASK_CCF25_FILE)
 zdim = 456
 z2 = zdim // 2
 parc[:z2] = np.flip(parc, 0)[:z2]
-save_image(out_file, parc)
+save_image(out_file, parc, useCompression=True)
 # check the symmetry in CCF
 for sreg in SALIENT_REGIONS:
     # extract the left and right mask in CCF
@@ -30,7 +30,7 @@ for sreg in SALIENT_REGIONS:
     #lm_parc = m_parc[:z2]
     #rm_parc = m_parc[z2:]
     # check
-    print(f'---> [Region: ] sreg')
+    print(f'---> [Region: ] {sreg}')
     if lm_ccf.sum() != rm_ccf.sum():
         print(f'No. of voxels in region {sreg} is not symmetry: left/all={100.*lm_ccf.sum()/(lm_ccf.sum()+rm_ccf.sum()):.2f}')
         continue
