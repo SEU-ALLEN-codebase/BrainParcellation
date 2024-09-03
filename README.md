@@ -1,5 +1,5 @@
 # BrainParcellation
-This is a comprehensive codebase designed for generating whole brain regional parcellation based on dendritic microenvironments. This repository is maintained mainly by Yufeng Liu from SEU-ALLEN.
+This is a comprehensive codebase designed for generating whole brain regional parcellation based on dendritic microenvironments. This repository is maintained mainly by Yufeng Liu (yufeng_liu@seu.edu.cn) from SEU-ALLEN, with the help from Sujun Zhao, Zuo-Han Zhao, and Zhixi Yun.
 
 ## Getting Started
 ### Prerequisites
@@ -8,7 +8,7 @@ This is a comprehensive codebase designed for generating whole brain regional pa
 - Scipy
 - Scikit-learn
 - Pandas
-- pylib. pylib is a customized library developed by Yufeng Liu and Zuo-Han Zhao for manipulating neuronal file parsing, image processing, morphology analysis, anatomical processing, and other specialized utilities for neuron informatics. You can download it from GitHub and add the directory to your $PYTHONPATH.
+- pylib. `pylib` is a customized library developed by Yufeng Liu and Zuo-Han Zhao for manipulating neuronal file parsing, image processing, morphology analysis, anatomical processing, and other specialized utilities for neuron informatics. You can download it from GitHub and add the directory to your `$PYTHONPATH`.
 - Other dependencies listed in `requirements.txt`
 
 ### Installation
@@ -24,7 +24,7 @@ This repository contains an analytical framework with various tools. You can sim
 
 ### Structure of the project
 The structure of the outermost levels of the source code and examples is as follows:
-
+```
 BrainParcellation/
 │
 ├── common_lib/              # Common tools and variables
@@ -32,12 +32,12 @@ BrainParcellation/
 ├── evaluation/              # Evaluation of the reconstructions
 ├── microenviron/            # The core scripts, including microenvironment construction and sub-parcellation.
 ├── reconstruction/          # Source codes and examples for neuron reconstruction.
-├── coplanarity              # Coplanarity of local branches. Deprecated
+├── coplanarity/             # Coplanarity of local branches. Deprecated
 ├── requirements.txt         # List of dependencies
 ├── README.md                # Project overview and instructions
 ├── LICENSE                  # License information
 └── .gitignore               # Git ignore file
-
+```
 For detailed information on each section, please refer to the README.md file located within that section.
 
 ### License
