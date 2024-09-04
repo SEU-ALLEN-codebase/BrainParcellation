@@ -1,6 +1,6 @@
 # Reconstruction evaluation
-## Data Preview
-### Data Description
+## Data
+### Data summary
 <div align="center">
    <table frame=void border=0 cellspacing=1>
       <tr>
@@ -19,11 +19,11 @@
 
 
 ### Evaluation of dataset
-Numbers of the reconstruction dataset:
-- 182,497 (182k): The total number of cell bodies (somas) identified semi-automatically. Please refer to the paper: https://www.researchsquare.com/article/rs-3146034/v1.
-- 179,568 (179k): The total number of neurons reconstructed successfully
-- 101,136 (101k): The neurons after Filtering. Filtering criteria are: (1) A good reconstruction should be located in the 582 non-fiber-tract, non-ventricle salient CCF regions; (2) A good reconstruction should have morphological features similar to manually annotated morphologies.
-- 103,603 (103k): Similar to the 101k set, but keeps the neurons within 50 μm of all salient regions.
+Numbers of the reconstructions:
+- 182,497 (182k): The total number of cell bodies (somas) utilized in this work. Please refer to the paper: https://www.researchsquare.com/article/rs-3146034/v1.
+- 179,568 (179k): The total number of neurons reconstructed successfully.
+- 101,136 (101k): The neurons after filtering. Filtering criteria are: (1) A good reconstruction should be located in the 582 non-fiber-tract, non-ventricle salient CCF regions; (2) A good reconstruction should have morphological features similar to manually annotated morphologies.
+- 103,603 (103k): Similar to the 101k set, but keeps the neurons within 50 μm of salient regions.
 
 For more information, please refer to our paper: **To be updated when the manuscript submitted**
 

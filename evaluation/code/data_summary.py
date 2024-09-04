@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from adjustText import adjust_text
+#from adjustText import adjust_text
 from collections import Counter
 
 from anatomy.anatomy_config import SALIENT_REGIONS

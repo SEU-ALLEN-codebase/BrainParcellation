@@ -17,7 +17,7 @@ config.read('./coplanarity_config.ini')
 __RES__ = float(config.get('GlobalParameter', 'resolution'))  # μm
 __RADIUS__ = float(config.get('GlobalParameter', 'radius'))  # μm
 
-import torch
+#import torch
 from multiprocessing import Pool, cpu_count
 
 
@@ -256,6 +256,7 @@ def compa_preprocess(compa: np.ndarray, resolution: float, gpu=False):
     compa = np.asarray(compa)
 
     if gpu:
+        import torch
         compa = torch.from_numpy(compa).to('cuda')
 
     col_indice = np.r_[0:3, 6, 7]

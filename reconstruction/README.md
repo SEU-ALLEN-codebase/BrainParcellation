@@ -1,4 +1,4 @@
-# Auto-tracing for 200K neurons
+# Auto-tracing for mouse neurons
 
 ### Structure
 #### Local repository: /PB/SEU-ALLEN/Users/Sujun/230k_organized_folder
@@ -12,17 +12,17 @@
 ├── 179k_CCFv3_25um_raw/        # Filtered reconstructions (`SWC`), in isotropic 25um CCFv3 space. [179K]
 ├── cropped_100um/              # Spherically cropped reconstructions, with radius = 100um [179568]
 ├── Code/
-│   ├── filter.py               # Image preprocessing and enhancing script
-│   ├── filter-job.sh           # Job schedular for `filter.py`
-│   ├── recon-job.sh            # Batch runner of APP2 tracing
-│   ├── soma_finder.py          # Script for soma position extraction
-│   ├── prune-job.sh            # Morphology pruning (e.g., short segments, multifurcations, errorous with small angles)
-│   └── seg_prune.py            # Pruning methods
-├── supp.csv                    # Meta information of brains
+│   ├── filter.py               # Image preprocessing and enhancement.
+│   ├── filter-job.sh           # Job schedular for `filter.py`.
+│   ├── recon-job.sh            # Batch runner of APP2 tracing.
+│   ├── soma_finder.py          # Script for soma position extraction.
+│   ├── prune-job.sh            # Morphology pruning (e.g., short segments, multifurcations, errorous with small angles).
+│   └── seg_prune.py            # Pruning methods.
+├── supp.csv                    # Meta information of brains.
 └── analysis/
-    ├── comparison_with_1876.py # script for comparison with gold standard dataset [1876]
-    ├── gf_179k_crop.csv        # L-measure(22 features) table for r=100um cropped sphere
-    └── gf_1876_crop.csv        
+    ├── comparison_with_1876.py # script for comparison with gold standard dataset. [1876]
+    ├── gf_179k_crop.csv        # L-Measure (22 features) table for r=100um cropped sphere.
+    └── gf_1876_crop.csv        # L-Measures for the gold standards.
 ```
 
 ### Reconstructed examples (2D image)

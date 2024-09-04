@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import sys
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+#from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import Pool
 sys.path.append('../../neuro_morpho_toolbox_20200908')
 import neuro_morpho_toolbox as nmt

@@ -28,8 +28,8 @@ import cv2
 import seaborn as sns
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from fil_finder import FilFinder2D
-import astropy.units as u
+#from fil_finder import FilFinder2D
+#import astropy.units as u
 from sklearn.neighbors import KDTree
 from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.metrics import r2_score
