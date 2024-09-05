@@ -12,6 +12,7 @@
 ├── 179k_CCFv3_25um_raw/        # Filtered reconstructions (`SWC`), in isotropic 25um CCFv3 space. [179K]
 ├── cropped_100um/              # Spherically cropped reconstructions, with radius = 100um [179568]
 ├── Code/
+│   ├── crop_local_swc2.sh      # Spherically crop the dendrites
 │   ├── filter.py               # Image preprocessing and enhancement.
 │   ├── filter-job.sh           # Job schedular for `filter.py`.
 │   ├── recon-job.sh            # Batch runner of APP2 tracing.
