@@ -37,6 +37,9 @@ def get_dataset(dataset, axon_dir):
             axon_files.extend(sorted(glob.glob(os.path.join(axon_dir, v, '*.swc'))))
     else:
         axon_files = sorted(glob.glob(os.path.join(axon_dir, datasets[dataset], '*.swc')))
+
+    #axon_files = axon_files[16680:]    # debug
+    print(f'Number of neurons to calculate: {len(axon_files)}')
     return axon_files
 
 
@@ -73,8 +76,14 @@ def get_meta_information(axon_dir, dataset, me_atlas_file, me2ccf_file, meta_fil
             id_path = ana_tree[rid_ccf]['structure_id_path']
             sid7 = get_struct_from_id_path(id_path, BSTRUCTS7)
             sid13 = get_struct_from_id_path(id_path, BSTRUCTS13)
-            sname7 = ana_tree[sid7]['acronym']
-            sname13 = ana_tree[sid13]['acronym']
+            if (sid7 == 0) or (sid13 == 0):
+                print(rname_ccf, rname_me, sid7, sid13, id_path, axon_file)
+                # This is a neuron located in the unclassified region `rrot`
+                sname7 = ''
+                sname13 = ''
+            else:
+                sname7 = ana_tree[sid7]['acronym']
+                sname13 = ana_tree[sid13]['acronym']
 
             df_meta.append([sloc[0], sloc[1], sloc[2], rid_ccf, rname_ccf, rid_me, 
                             rname_me, sid7, sname7, sid13, sname13])
@@ -456,7 +465,7 @@ if __name__ == '__main__':
     me_atlas_file = '../../intermediate_data/parc_r671_full_hemi2.nrrd'
     me2ccf_file = '../../intermediate_data/parc_r671_full.nrrd.pkl'
     axon_dir = '/data/lyf/data/fullNeurons/all_neurons_axons'
-    dataset = 'hip'
+    dataset = 'all'
 
     if dataset == 'all':
         me_proj_csv = './data/proj_ccf-me.csv'
@@ -478,10 +487,10 @@ if __name__ == '__main__':
             PJ = Projection(resample_scale=2., atlas_file=atlas_file)
             PJ.calc_proj_matrix(axon_files, proj_csv=proj_csv)
 
-    if 0:
+    if 1:
         # get the meta information for the neurons
         get_meta_information(axon_dir, dataset, me_atlas_file, me2ccf_file, meta_file)
         
-    if 1:
+    if 0:
         analyze_proj(proj_csv, me_proj_csv, meta_file, me2ccf_file, thresh=1000)
 

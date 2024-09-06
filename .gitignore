@@ -17,3 +17,8 @@ microenviron/plotters/feature_separability/*png
 microenviron/plotters/data/
 */**/*.swp
 */**/vis/
+*/**/log*
+*/**/*.log
+microenviron/plotters/hippocampus/del*/
+microenviron_old0520/
+microenviron/plotters/hippocampus/ION_HIP/tip_perturbation/
