@@ -13,6 +13,10 @@ import matplotlib.pyplot as plt
 from mvlearn.embed import CCA, MCCA
 from mvlearn.plotting import crossviews_plot
 
+from anatomy.anatomy_core import parse_ana_tree, get_struct_from_id_path
+from anatomy.anatomy_config import MASK_CCF25_FILE, SALIENT_REGIONS, \
+                                   BSTRUCTS4, BSTRUCTS7, BSTRUCTS13
+
 import sys
 sys.path.append('../../')
 from config import standardize_features
@@ -139,7 +143,7 @@ class MEProjAnalyzer:
             lr_fn = np.poly1d([slope, intercept])
             plt.plot(data[t].values, lr_fn(data[t]), '-r')
             plt.text(0.15, 0.8, r'$Coeff={:.3f}$'.format(lr.rvalue), transform=g.ax.transAxes, color='r')
-            plt.savefig(f'{t}_{dataset}.png')
+            plt.savefig(f'{t}_{dataset}.png', dpi=300)
             plt.close()
         # --------- End of helper functions ----------
 
@@ -169,28 +173,117 @@ class MEProjAnalyzer:
             emb_me = emb_me[dataset_ids]
             emb_dend = emb_dend[dataset_ids]
             emb_proj = emb_proj[dataset_ids]
+            curr_df = self.df_me.iloc[dataset_ids]
+        else:
+            curr_df = self.df_me
+
+        if 0:
+            # get the pairwise distance matrices
+            pd_me = pdist(emb_me)
+            pd_dend = pdist(emb_dend)
+            pd_proj = pdist(emb_proj)
+            # extract only a subset of the data
+            if nsub is not None:
+                nsub = min(nsub, len(pd_me))
+                sub_indices = random.sample(range(len(pd_me)), nsub)
+            displot_(pd_me, pd_proj, sub_indices, 'me', dataset)
+            displot_(pd_dend, pd_proj, sub_indices, 'dend', dataset)
+
+        if 0:
+            # plot all regions
+            regions, counts = np.unique(curr_df.region_name_r316, return_counts=True)
+            min_neurons = 30
+            for region in regions[counts > min_neurons]:
+                print(region)
+                region_ids = np.nonzero(curr_df.region_name_r316 == region)[0]
+                emb_me_curr = emb_me[region_ids]
+                emb_dend_curr = emb_dend[region_ids]
+                emb_proj_curr = emb_proj[region_ids]
+                # pairwise distance
+                pd_me = pdist(emb_me_curr)
+                pd_proj = pdist(emb_proj_curr)
+                max_num = 50000
+                if pd_me.shape[0] > max_num:
+                    # use randomly selected subsets
+                    sub_indices = random.sample(range(pd_me.shape[0]), max_num)
+                    pd_me = pd_me[sub_indices]
+                    pd_proj = pd_proj[sub_indices]
+                
+                # plotting
+                data = pd.DataFrame(np.array((pd_me, pd_proj)).transpose(), columns=('me', 'proj'))
+                g = sns.lmplot(
+                    data=data, x='me', y='proj', 
+                    scatter_kws={'s':1, 'edgecolor':None, 'alpha':0.8},
+                    line_kws={'color': 'r'}
+                )
+
+                # fitting the lines
+                lr = linregress(data['me'], data['proj'])
+                slope, intercept = lr.slope, lr.intercept
+                print(f'{region}: n={region_ids.shape[0]},  cc={lr.rvalue:.3f}')
+
+                plt.text(0.15, 0.8, r'$Coeff={:.3f}$'.format(lr.rvalue), transform=g.ax.transAxes, color='r')
+                
+                plt.title(region)
+                plt.savefig(f'me_{dataset}_{region.replace("/", "-")}.png', dpi=300)
+                plt.close()
+                #sys.exit()
+                
+
+        if 1:
+            ana_tree = parse_ana_tree()
+            # group by brain structure
+            bstructs = []
+            for reg_id, reg_name in zip(curr_df.region_id_r316, curr_df.region_name_r316):
+                id_path = ana_tree[reg_id]['structure_id_path']
+                sid13 = get_struct_from_id_path(id_path, BSTRUCTS13)
+                bstructs.append(sid13)
+            bstructs = np.array(bstructs)
+
+            bs_uniq, bs_counts = np.unique(bstructs, return_counts=True)
+            min_neurons = 30
+            for bs in bs_uniq[bs_counts > 30]:
+                if bs not in BSTRUCTS13:
+                    continue
+                bname = ana_tree[bs]["acronym"]
+                print(bname)
+                ids = np.nonzero(bstructs == bs)[0]
+                emb_me_curr = emb_me[ids]
+                emb_dend_curr = emb_dend[ids]
+                emb_proj_curr = emb_proj[ids]
+                # pairwise distance
+                pd_me = pdist(emb_me_curr)
+                pd_proj = pdist(emb_proj_curr)
+                max_num = 1000000
+                if pd_me.shape[0] > max_num:
+                    # use randomly selected subsets
+                    sub_indices = random.sample(range(pd_me.shape[0]), max_num)
+                    pd_me = pd_me[sub_indices]
+                    pd_proj = pd_proj[sub_indices]
+                
+                # plotting
+                data = pd.DataFrame(np.array((pd_me, pd_proj)).transpose(), columns=('me', 'proj'))
+                #g = sns.lmplot(
+                #    data=data, x='me', y='proj', 
+                #    scatter_kws={'s':0.2, 'edgecolor':None, 'alpha':0.8},
+                #    line_kws={'color': 'r'}
+                #)
+                g = sns.displot(data=data, x='me', y='proj', pthresh=0.01)
+
+                # fitting the lines
+                lr = linregress(data['me'], data['proj'])
+                slope, intercept = lr.slope, lr.intercept
+                print(f'{bname}: n={emb_me_curr.shape[0]},  cc={lr.rvalue:.3f}')
+                lr_fn = np.poly1d([slope, intercept])
+                plt.plot(data['me'].values, lr_fn(data['me']), '-r')
+                plt.text(0.15, 0.8, r'$Coeff={:.3f}$'.format(lr.rvalue), transform=g.ax.transAxes, color='r')
+                
+                plt.title(f'{bname} (n={emb_me_curr.shape[0]})')
+                plt.savefig(f'me_{dataset}_{bname}.png', dpi=300)
+                plt.close()
             print()
-
-        # Extract neurons according to their regions
-        region = 'DG-sg'
-        if region != 'all':
-            region_ids = np.nonzero(self.df_me.region_name_r316 == region)[0]
-            emb_me = emb_me[region_ids]
-            emb_dend = emb_dend[region_ids]
-            emb_proj = emb_proj[region_ids]
-
-        # get the pairwise distance matrices
-        pd_me = pdist(emb_me)
-        pd_dend = pdist(emb_dend)
-        pd_proj = pdist(emb_proj)
-        # extract only a subset of the data
-        if nsub is not None:
-            nsub = min(nsub, len(pd_me))
-            sub_indices = random.sample(range(len(pd_me)), nsub)
-        displot_(pd_me, pd_proj, sub_indices, 'me', dataset)
-        displot_(pd_dend, pd_proj, sub_indices, 'dend', dataset)
+            
         
-        print()
 
 
 if __name__ == '__main__':
