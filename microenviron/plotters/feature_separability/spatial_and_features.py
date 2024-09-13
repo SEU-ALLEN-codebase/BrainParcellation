@@ -107,10 +107,12 @@ def structral_distribution(feat_file):
         #plt.setp(g._legend.get_texts(), fontsize=fontsize+5, fontweight='bold')
         for i, feat in enumerate(mRMR_f3):
             if feat == 'AverageFragmentation':
-                feat = 'AvgFragmentation'
+                feat = 'Avg. Fragmentation'
             elif feat == 'AverageContraction':
-                feat = 'Straightness'
-            g.axes[-1,i].set_xlabel(feat, fontweight='normal', rotation=0)
+                feat = 'Avg. Straightness'
+            elif feat == 'Length':
+                feat = 'Total Length'
+            #g.axes[-1,i].set_xlabel(feat, fontweight='normal', rotation=25)
 
         g.despine(bottom=True, left=True)
         plt.subplots_adjust(left=-0.1, bottom=0.05)
@@ -120,7 +122,7 @@ def structral_distribution(feat_file):
         plt.close('all')
     
     if 1:
-        sns.set_theme(style="white", rc={"axes.facecolor": (0, 0, 0, 0)}, font_scale=1.4)
+        sns.set_theme(style="white", rc={"axes.facecolor": (0, 0, 0, 0)}, font_scale=1.35)
         # Part II: Pairwise similarity
         df_f = df_f.assign(struct=strs13)
         A = kneighbors_graph(df_f[mRMR_f3me].values, n_neighbors=1, include_self=False, 
@@ -140,6 +142,8 @@ def structral_distribution(feat_file):
         g = sns.heatmap(pmat, cmap='Reds', square=True,
                         cbar_kws={'aspect':6, 'shrink':0.3, 'pad':0.015})
         g.tick_params(axis='both', pad=-3)
+        plt.xticks(rotation=45, rotation_mode='anchor', ha='right', va='top')
+        
         cbar = g.collections[0].colorbar
         cbar.ax.tick_params(labelsize=10, direction='in')
         cbar.ax.set_yticks([0,0.2,0.4,0.6,0.8])
@@ -298,7 +302,7 @@ def compare_spatial_statis(params):
 
 if __name__ == '__main__':
     feat_file = '../../data/mefeatures_100K_with_PCAfeatures3.csv'
-    if 0:
+    if 1:
         structral_distribution(feat_file)
 
     if 0:
@@ -309,7 +313,7 @@ if __name__ == '__main__':
         sf = SpatialFeatures(feat_file, feat_type=feat_type, standardize=standardize)
         sf.calc_feature_std(outfile)
         
-    if 1:
+    if 0:
         # compare and plotting between different feature types
         params1 = {
             'type': 'moran',

@@ -54,24 +54,30 @@ plt.plot(range(len(moranI_de)), moranI_de, 'o-', color='royalblue', lw=2)
 plt.ylabel("Moran's Index")
 # processing the feature labels
 pf2label = {
-    'AverageBifurcationAngleRemote': 'Bif angle remote',
-    'AverageBifurcationAngleLocal': 'Bif angle local',
-    'AverageContraction': 'Contraction',
+    'AverageBifurcationAngleRemote': 'Avg. Bif. Angle Remote',
+    'AverageBifurcationAngleLocal': 'Avg. Bif. Angle Local',
+    'AverageContraction': 'Avg. Contraction',
     'AverageFragmentation': 'Avg. Fragmentation',
     'AverageParent-daughterRatio': 'Avg. PD ratio',
-    'Bifurcations': 'No. of bifs',
-    'Branches': 'No. of branches',
-    'HausdorffDimension': 'Hausdorff dimension',
-    'MaxBranchOrder': 'Max. branch order',
-    'Length': 'Total length',
-    'MaxEuclideanDistance': 'Max. Euc distance',
-    'MaxPathDistance': 'Max. path distance',
-    'Nodes': 'No. of nodes',
-    'OverallDepth': 'Overall z span',
-    'OverallHeight': 'Overall y span',
-    'OverallWidth': 'Overall x span',
-    'Stems': 'No. of stems',
-    'Tips': 'No. of tips',
+    'Bifurcations': '#Bifurcations',
+    'Branches': '#Branches',
+    'HausdorffDimension': 'Hausdorff Dimension',
+    'MaxBranchOrder': 'Max. Branch Order',
+    'Length': 'Total Length',
+    'MaxEuclideanDistance': 'Max. Euc. Distance',
+    'MaxPathDistance': 'Max. Path Distance',
+    'Volume': 'Volume',
+    'OverallDepth': 'Overall Depth',
+    'OverallHeight': 'Overall Height',
+    'OverallWidth': 'Overall Width',
+    'Stems': '#Stems',
+    'Tips': '#Tips',
+    'pc11': 'PC11',
+    'pc12': 'PC12',
+    'pc13': 'PC13',
+    'pca_vr1': 'PCA_variance_ratio1',
+    'pca_vr2': 'PCA_variance_ratio2',
+    'pca_vr3': 'PCA_variance_ratio3',
 }
 fn_ticks = []
 for name in fn22:
@@ -89,7 +95,7 @@ axes.spines['bottom'].set_linewidth(2)
 axes.spines['left'].set_linewidth(2)
 axes.xaxis.set_tick_params(width=2, direction='in', labelsize=17)
 axes.yaxis.set_tick_params(width=2, direction='in')
-plt.setp(axes.get_xticklabels(), rotation=65, ha='right', rotation_mode='anchor')
+plt.setp(axes.get_xticklabels(), rotation=52, ha='right', rotation_mode='anchor')
 
 
 plt.subplots_adjust(left=0.12, bottom=0.41)

@@ -438,7 +438,7 @@ def clustering_on_umap(df, feat_names=None, nclusters=4, plot=False, figstr='', 
                 c=tuple(col),
                 markersize=2,
                 alpha = 0.75,
-                label = f"cluster{k}"
+                label = f"cluster{k+1}"
             )
 
             xy = embedding[class_member_mask & ~core_samples_mask]

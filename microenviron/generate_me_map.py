@@ -46,10 +46,10 @@ from plotters.neurite_arbors import NeuriteArbors
 
 from config import mRMR_f3 as __MAP_FEATS__, standardize_features
 
-if __name__ == '__main__':
+#if __name__ == '__main__':
     # customize the fonts
-    plt.rcParams['font.family'] = 'Helvetica'
-    plt.rcParams['font.weight'] = 'light'
+    #plt.rcParams['font.family'] = 'Helvetica'
+    #plt.rcParams['font.weight'] = 'light'
 
 
 # features selected by mRMR
@@ -417,8 +417,8 @@ def plot_inter_regional_features(mefile, regions=('IC', 'SIM')):
     sc2 = ax.scatter(dfr2[n3], dfr2[n2], dfr2[n1]/1000, s=12, c='cyan', marker='o', alpha=1., label=regions[1])
 
     label_size = 22
-    ax.set_xlabel('Fragmentation', fontsize=label_size, labelpad=8)
-    ax.set_ylabel('Straightness', fontsize=label_size, labelpad=10)
+    ax.set_xlabel('Avg. Fragmentation', fontsize=label_size, labelpad=8)
+    ax.set_ylabel('Avg. Straightness', fontsize=label_size, labelpad=10)
     ax.set_zlabel('Total Length (mm)', fontsize=label_size, labelpad=10)
 
     ax.tick_params(axis='both', which='major', labelsize=14)
@@ -856,8 +856,8 @@ if __name__ == '__main__':
         rname = ['ACAv2/3', 'AIv2/3', 'GU2/3', 'MOp2/3', 'MOs2/3', 'ORBl2/3', 'ORBm2/3', 'ORBvl2/3', 'PL2/3', 'RSPv2/3', 'SSp-m2/3', 'SSp-n2/3']
         rname = 'ICc'
         #plot_MOB_features(mefile, 'MOB')
-        #plot_region_feature_in_ccf_space(mefile, 'MOB')
-        plot_region_feature_sections(mefile, rname, feat_type='local_me_pca')
+        plot_region_feature_in_ccf_space(mefile, 'ACB')
+        #plot_region_feature_sections(mefile, rname, feat_type='local_me_pca')
         #plot_region_clusters_on_sections(mefile, rname, feat_type='single')
         #plot_region_clusters_on_sections(mefile, rname, feat_type='me')
    
