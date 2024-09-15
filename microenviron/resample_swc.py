@@ -62,9 +62,10 @@ if __name__ == '__main__':
         # resample manual morphologies
         #indir = '/PBshare/SEU-ALLEN/Users/Sujun/230k_organized_folder/1891_CCFv3_local_100um'#'./data/S3_1um_final'
         #indir = '/PBshare/SEU-ALLEN/Users/yfliu/transtation/Research/data/ION_PFC_CCFv3_swc'
-        indir = './data/S3_1um_final'
-        outdir = '/data/lyf/data/fullNeurons/all_neurons/seu-allen1876_2um'
-        step = 2
+        #indir = './data/S3_1um_final'
+        indir = '/data/lyf/data/fullNeurons/all_neurons_axons/ion_hip_2um'
+        outdir = '/data/lyf/data/fullNeurons/all_neurons_axons/ion_hip_8um'
+        step = 8
         args_list = []
         for swcfile in glob.glob(os.path.join(indir, '*.swc')):
             fn = os.path.split(swcfile)[-1]
