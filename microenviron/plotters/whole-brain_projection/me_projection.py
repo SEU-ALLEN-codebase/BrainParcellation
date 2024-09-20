@@ -221,7 +221,7 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
     print('load the projection on CCF space data...')
     proj_ccf, bstructs_ccf = preprocess_proj(proj_ccf_file, thresh, me2ccf=me2ccf, ccf2me=ccf2me, 
                                              is_me=False, ana_tree=ana_tree, meta=meta, 
-                                             keep_structures=('HPF', 'HY', 'STR'))
+                                             keep_structures=('HPF',))
     print('load the projection on CCF-ME space data...')
     proj_me, bstructs_me = preprocess_proj(proj_me_file, thresh, me2ccf=me2ccf, ccf2me=ccf2me, 
                                             is_me=True, ana_tree=ana_tree, meta=meta, ccf_regions=proj_ccf.columns)
@@ -268,7 +268,7 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
     print(proj_ccf_r.shape, proj_me_r.shape)
     #import ipdb; ipdb.set_trace()
 
-    if 0:
+    if 1:
         print(f'Visualize projection matrix of regions')
         cmap = plt.get_cmap('bwr')
         cmap = mpl.colors.ListedColormap(cmap(np.linspace(0.3, 1., 256)))
@@ -284,23 +284,27 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
         col_colors_ccf = np.array([lut_col[bs] for bs in bstructs_ccf])
         
         # plotting
-        g1 = sns.clustermap(proj_ccf_r, cmap=cmap, col_cluster=False, col_colors=col_colors_ccf, 
+        g1 = sns.clustermap(proj_ccf_r, cmap=cmap, col_cluster=False, #col_colors=col_colors_ccf, 
                             row_cluster=False, yticklabels=1, vmin=0, vmax=11,
-                            xticklabels=3, cbar_pos={0.08,0.05,0.02,0.15})
+                            xticklabels=1, cbar_pos={0.04,0.05,0.02,0.15})
+        #plt.setp(g1.ax_heatmap.get_xticklabels(), rotation=45, rotation_mode='anchor',
+        #             ha='right')
         #cbar_for_row_colors(g1, uniq_bs, cm_name='rainbow')
+        g1.ax_heatmap.tick_params(left=True, right=False, labelleft=True, labelright=False)
         plt.savefig('proj_ccf_regions.png', dpi=300)
         plt.close()
 
         col_colors_me = np.array([lut_col[bs] for bs in bstructs_me])
         g2 = sns.clustermap(proj_me_r, cmap=cmap, col_cluster=False, row_cluster=False, 
-                            col_colors=col_colors_me, yticklabels=1, vmin=0, vmax=11, 
-                            figsize=(20,10), xticklabels=4)
+                            #col_colors=col_colors_me, 
+                            yticklabels=1, vmin=0, vmax=11, 
+                            figsize=(10,10), xticklabels=3)
         g2.ax_heatmap.tick_params(left=True, right=False, labelleft=True, labelright=False)
         g2.ax_heatmap.set_ylabel('Source subregions', fontsize=18)
         g2.ax_heatmap.yaxis.set_label_position("left")
         g2.ax_heatmap.set_xlabel('Target subregions', fontsize=18)
-        plt.setp(g2.ax_heatmap.get_xticklabels(), rotation=45, rotation_mode='anchor',
-                     ha='right')
+        #plt.setp(g2.ax_heatmap.get_xticklabels(), rotation=45, rotation_mode='anchor',
+        #             ha='right')
 
         #g2.cax.set_position([0.05,0.05,0.03,0.15]) # why not working?!
         g2.cax.set_visible(False)
@@ -309,7 +313,7 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
         plt.close()
 
         ###### turn off  this part ########
-        if 0:
+        if 1:
             # Analyze the divergence of source, target and source-target suregions
             src_cc_means = []
             ipsi_cc_means = []
@@ -351,32 +355,74 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
                 #    st_cc_means.append(st_cc_mean)
 
                 
-            sns.set_theme(style='ticks', font_scale=1.5)
+            sns.set_theme(style='ticks', font_scale=2)
             # visualization
             df_corrs = pd.DataFrame({
                 'Source': pd.Series(src_cc_means),
                 'Target-ipsi': pd.Series(ipsi_cc_means),
                 'Target-contra': pd.Series(contra_cc_means)
             })
-            plt.figure(figsize=(6,6))
-            sns.stripplot(data=df_corrs, alpha=0.75, legend=False)
+            plt.figure(figsize=(5,6))
+            ax = sns.stripplot(data=df_corrs, alpha=0.75, legend=False, size=15)
             ax_pp = sns.pointplot(data=df_corrs, linestyle="none", errorbar=None, marker='_', 
-                                  markersize=20, markeredgewidth=3, color='red')
+                                  markersize=30, markeredgewidth=3, color='red')
             # annotate
             avg_ccs = df_corrs.mean()
             for xc, yc in zip(range(df_corrs.shape[0]), avg_ccs):
                 # The first container is the axis, skip
                 txt = f'{yc:.2f}'
-                ax_pp.text(xc+0.3, yc, txt, ha='center', va='center', color='red')
+                ax_pp.text(xc+0.45, yc, txt, ha='center', va='center', color='red')
 
-            plt.ylabel("Correlation between projections of subregions")
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['left'].set_linewidth(3)
+            ax.spines['bottom'].set_linewidth(3)
+            ax.xaxis.set_tick_params(width=3)
+            ax.yaxis.set_tick_params(width=3)
+            plt.setp(ax.get_xticklabels(), rotation=20, rotation_mode='anchor',
+                     ha='right')
+            
+            #plt.ylabel("Correlation between projections of subregions")
+            plt.ylabel("")
+            plt.subplots_adjust(bottom=0.15)
             plt.savefig('correlations_between_subregions.png', dpi=300)
             plt.close()
 
             print()    
 
+        if 1:
+            print(f'--> Estimate the number of target subregions')
+            nts_ca1 = [(proj_me_r.loc[subr]>1).sum() for subr in proj_me_r.index if subr.startswith('CA1')] 
+            nts_ca3 = [(proj_me_r.loc[subr]>1).sum() for subr in proj_me_r.index if subr.startswith('CA3')] 
+            nts_par = [(proj_me_r.loc[subr]>1).sum() for subr in proj_me_r.index if subr.startswith('PAR')] 
+            nts_pre = [(proj_me_r.loc[subr]>1).sum() for subr in proj_me_r.index if subr.startswith('PRE')] 
+            df_nts = pd.DataFrame({
+                'CA1': pd.Series(nts_ca1),
+                'CA3': pd.Series(nts_ca3),
+                'PAR': pd.Series(nts_par),
+                'PRE': pd.Series(nts_pre),
+            })
+            
+            sns.set_theme(style='ticks', font_scale=2.)
+            plt.figure(figsize=(5,6))
+            ax = sns.stripplot(data=df_nts, alpha=0.75, legend=False, size=15)
+
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['left'].set_linewidth(3)
+            ax.spines['bottom'].set_linewidth(3)
+            ax.xaxis.set_tick_params(width=3)
+            ax.yaxis.set_tick_params(width=3)
+
+            plt.ylabel("")
+            plt.subplots_adjust(bottom=0.15)
+            plt.savefig('number_of_target_regions.png', dpi=300)
+            plt.close()
+
+            print()
+
         
-    if 1:
+    if 0:
         cmap = plt.get_cmap('Reds')
         cmap = mpl.colors.ListedColormap(cmap(np.linspace(0, 0.8, 256)))
         #cmap = plt.get_cmap('bwr')
