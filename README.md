@@ -1,6 +1,8 @@
 # BrainParcellation
 This is a comprehensive codebase designed for generating whole-brain fine-grain sub-parcellation based on dendritic microenvironments. This repository is maintained mainly by Yufeng Liu (yufeng_liu@seu.edu.cn) and Sujun Zhao from SEU-ALLEN, with the help from Zuo-Han Zhao, and Zhixi Yun.
 
+The package was released along with our paper, which is currently archived on biorxiv (https://www.biorxiv.org/content/10.1101/2024.09.22.614330v1) and is in review. For more details, please refer to the paper.
+
 ## Getting Started
 ### Prerequisites
 - Python. The project is developed under Python 3.10 and should be compatible with Python versions 3.6 and above.
