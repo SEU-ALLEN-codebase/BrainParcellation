@@ -29,7 +29,7 @@ microenviron/
 
 ### Usage
 #### Constructing microenvironments from neuron morphologies
-1. Download the morphologies from NeuroXiv via https://download.neuroxiv.org. Alternatively, you can use your own dendritic morphologies. Optionally, you may choose to spherically crop the morphologies to ensure they are isotropic. Ensure that the morphologies are aligned in the same standardized space, such as CCFv3.
+1. Download the morphologies from Zenodo via https://zenodo.org/records/13761460. Alternatively, you can use your own dendritic morphologies. Optionally, you may choose to spherically crop the morphologies to ensure they are isotropic. Ensure that the morphologies are aligned in the same standardized space, such as CCFv3.
 2. Resample the morphologies (skeletons) to get homogeneously spaced skeletons using the `resample_swc.py` script.
 3. Calculate the global morphological features (similar to L-Measure) by using `get_global_features.py`.
 4. Aggregate additional features and metadata. This can be done with `preprocessing.py`, which will generate the full set of morphological features along with metadata, including brain regions, brain areas, and soma locations.
