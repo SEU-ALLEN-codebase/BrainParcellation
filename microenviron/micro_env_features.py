@@ -50,10 +50,13 @@ def estimate_radius(lmf, topk=5, percentile=50):
     
 
 class MEFeatures:
-    def __init__(self, feature_file, filter_file, topk=5, percentile=75):
+    def __init__(self, feature_file, filter_file, topk=5, percentile=75, radius=166.36):
         self.topk = topk
         self.df = get_highquality_subset(feature_file, filter_file)
-        self.radius = estimate_radius(self.df, topk=topk, percentile=percentile)
+        if radius is None:
+            self.radius = estimate_radius(self.df, topk=topk, percentile=percentile)
+        else:
+            self.radius = radius
 
 
     def calc_micro_env_features(self, mefeature_file):
@@ -142,8 +145,10 @@ if __name__ == '__main__':
     if 1:
         feature_file = './data/lm_features_d28.csv'
         filter_file = '../evaluation/data/final_filtered_swc.txt'
-        mefile = f'./data/mefeatures_100K.csv'
         topk = 5
+        #radius = 188.81
+        #mefile = f'./data/mefeatures_100K_radius{radius}.csv'
+        mefile = f'./data/mefeatures_100K.csv'
         
         mef = MEFeatures(feature_file, filter_file=filter_file, topk=topk)
         mef.calc_micro_env_features(mefile)

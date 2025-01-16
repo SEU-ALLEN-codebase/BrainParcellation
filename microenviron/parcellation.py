@@ -215,7 +215,7 @@ class BrainParcellation:
 
         return sub_mask, cc_mask, cc_ids, cc_cnts
         
-    def save_colorized_images(self, cmask, mask, reg_sub_parc, out_image_file, thickX2=10, plot_regid=False):
+    def save_colorized_images(self, cmask, mask, reg_sub_parc, out_image_file, thickX2=10, plot_regid=False, plot_all_dim=False):
         zdim, ydim, xdim = mask.shape
         zdim2, ydim2, xdim2 = zdim // 2, ydim // 2, xdim // 2
         # visualize
@@ -223,7 +223,7 @@ class BrainParcellation:
         fprefix = os.path.join(self.out_vis_dir, prefix)
 
         for i, dim in zip(range(3), (zdim, ydim, xdim)):
-            if i != 2: continue
+            if (not plot_all_dim) and (i != 2): continue
 
             for isec, sec in enumerate(range(thickX2, dim, thickX2*2)):
                 k = sec
@@ -684,7 +684,7 @@ class BrainParcellation:
         with open(f'{parc_file}.pkl', 'wb') as fp:
             pickle.dump(parcs2ccf, fp)
 
-    def plot_parc_sections(self, parc_file, plot_regid=False):
+    def plot_parc_sections(self, parc_file, plot_regid=False, plot_all_dim=True):
         parc = load_image(parc_file)
         # get the subregion
         reg_mask = parc > 0
@@ -698,7 +698,7 @@ class BrainParcellation:
 
         cmask = random_colorize(nzcoords_t, parc[nzcoords], self.mask.shape, parc.max())
         sub_parc = cmask[zmin:zmax+1, ymin:ymax+1, xmin:xmax+1]
-        self.save_colorized_images(sub_parc, reg_sub_mask, reg_sub_parc, parc_file, thickX2=10, plot_regid=plot_regid)
+        self.save_colorized_images(sub_parc, reg_sub_mask, reg_sub_parc, parc_file, thickX2=10, plot_regid=plot_regid, plot_all_dim=plot_all_dim)
     
 if __name__ == '__main__':
     mefile = './data/mefeatures_100K_with_PCAfeatures3.csv'
@@ -722,5 +722,5 @@ if __name__ == '__main__':
     #bp.parcellate_brain()
     #bp.merge_parcs(parc_file=parc_file)
     
-    bp.plot_parc_sections('output_full_r671/parc_region1022.nrrd', plot_regid=False)
+    bp.plot_parc_sections('output_full_r671/parc_region56.nrrd', plot_regid=False, plot_all_dim=True)
 

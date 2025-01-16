@@ -716,6 +716,21 @@ class AxonalProjection:
         axons = pd.read_csv(axon_file, index_col=0)
 
         emb_l, lab_l, emb_a, lab_a, na_flag = local_axon_emb_clustering(local, axons, is_local_me, plot=True)
+
+        # regions
+        lab_r = local.region_name[na_flag]
+        lab_ru = np.unique(lab_r)
+        lab_ru_d = dict(zip(lab_ru, range(len(lab_ru))))
+
+        debug_revision1 = True
+        if debug_revision1 and (not is_local_me):
+            # Visualize the region-colored Dendrite-only on umap, for revision#1 response purpose
+            # show only the neurons in DG, CA1, and CA3
+            show_regions = ('CA1', 'CA3', 'DG-mo', 'DG-po', 'DG-sg')
+            show_mask = lab_r.isin(show_regions)
+            tmp_figstr = 'dendrite_colored_by_regions'
+            clustering_on_umap(emb_l[show_mask], feat_names=None, nclusters=1, plot=True,
+                               figstr=tmp_figstr, precomputed_labels=lab_r.map(lab_ru_d)[show_mask])
         
         #make sure the share the same index order 
         projs = projs[axons.region_name.isin(__RNAMES__)][na_flag]
@@ -748,10 +763,6 @@ class AxonalProjection:
         #                   figstr='Projection_by_regions', precomputed_labels=regions)
         
         # sankey correspondence
-        lab_r = local.region_name[na_flag]
-        lab_ru = np.unique(lab_r)
-        lab_ru_d = dict(zip(lab_ru, range(len(lab_ru))))
-        
         labels_me = [f'c{i}_ME' for i in np.unique(lab_l)]
         labels_reg = [f'c{i}_reg' for i in lab_ru]
         labels_proj = [f'c{i}_proj' for i in np.unique(lab)]
@@ -856,6 +867,6 @@ if __name__ == '__main__':
         proj_csv = './ION_HIP/axon_proj_8um.csv'
         ap = AxonalProjection()
         #ap.calc_proj_matrix(axon_dir, proj_csv)
-        ap.clustering(proj_csv, local_me_file, axon_feat_file, is_local_me=True)
+        ap.clustering(proj_csv, local_me_file, axon_feat_file, is_local_me=False)
 
 
