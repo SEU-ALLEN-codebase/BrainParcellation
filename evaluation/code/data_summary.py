@@ -126,8 +126,7 @@ class QualityEstimation:
 
         return dfgi, dfri
 
-    def compare_features(self):
-        ratios = self.dfr / self.dfg.values
+    def plot_relative_boxplots(self, ratios, figout):
         pf2label = {
             'AverageBifurcationAngleRemote': 'Bif angle remote',
             'AverageBifurcationAngleLocal': 'Bif angle local',
@@ -174,26 +173,46 @@ class QualityEstimation:
         plt.ylim(0., 2.0)
         plt.xlabel('Morphological feature', fontsize=24)
         plt.ylabel('Relative to manual', fontsize=24)
-        plt.savefig(f'relative_features.png', dpi=300)
+        plt.savefig(figout, dpi=300)
         plt.close('all')
 
-        print()
+
+    def compare_features(self):
+        ratios = self.dfr / self.dfg.values
+        self.plot_relative_boxplots(ratios, f'relative_features.png')
     
+    
+    def compare_features_composite(self, me_file):
+        # load the me_features
+        dfme_orig = pd.read_csv(me_file, index_col=0)
+        # we rename the columns
+        fnames_me = [col for col in dfme_orig.columns if col.endswith('_me')]
+        # rename the "X_me" to "X" to facilitate subsequent comparison
+        dfme = dfme_orig[fnames_me].copy()
+        fname_mapper = {}
+        for mf in fnames_me:
+            fname_mapper[mf] = mf[:-3]
+        dfme.rename(columns=fname_mapper, inplace=True)
+
+        import ipdb; ipdb.set_trace()
+        print()
+
+
 
 if __name__ == '__main__':
-    if 1:
-        mefile = '../../microenviron/data/mefeatures_100K_with_PCAfeatures3.csv'
-
+    mefile = '../../microenviron/data/mefeatures_100K_with_PCAfeatures3.csv'
+    
+    if 0:
         nd = NeuronDistribution(mefile)
         nd.distribution_across_structures()
 
-    if 0:
+    if 1:
         match_file = '../data/so_match_table.txt'
         #gs_file = '../data/gf_1876_crop_2um.csv'
         gs_file = '../data/gf_1876_crop_2um_dendrite.csv'
         rec_file = '../../microenviron/data/gf_179k_crop_resampled.csv'
 
         qe = QualityEstimation(match_file, gs_file, rec_file)
-        qe.compare_features()
+        qe.compare_features_composite(mefile)
         
 

@@ -230,6 +230,7 @@ def compare_features(df1, df2, figname):
     ax.spines['bottom'].set_linewidth(2)
 
     plt.subplots_adjust(left=0.15, bottom=0.35)
+    plt.ylim(-3., 4.)
     plt.savefig(figname, dpi=300)
     plt.close('all')
 
@@ -238,52 +239,77 @@ def compute_distances(df, class_column='class'):
     # initialize the distance matrix
     dmat = np.zeros((len(classes), len(classes)))
     print(classes)
+    intra_dists = []
     # Compute In-Class Distances
+    dist_metric = 'l2'
     for icls, cls in enumerate(classes):
         cls_data = df[df[class_column] == cls].drop(columns=[class_column]).values
         if len(cls_data) < 2:
             continue  # Skip classes with less than 2 samples
-        distances = pairwise_distances(cls_data, metric='euclidean')
+        distances = pairwise_distances(cls_data, metric=dist_metric)
         triu_indices = np.triu_indices_from(distances, k=1)
-        dmat[icls,icls] = distances[triu_indices].mean()
-        print(distances.mean())
-    print(dmat)
+        dmat[icls,icls] = np.median(distances[triu_indices])
+        intra_dists.extend(distances[triu_indices].tolist())
+        print(np.median(distances))
     
     # Compute Inter-Class Distances
+    inter_dists = []
     for i, cls1 in enumerate(classes):
         for j, cls2 in enumerate(classes[i+1:]):
             j2 = j + i + 1
             cls1_data = df[df[class_column] == cls1].drop(columns=[class_column]).values
             cls2_data = df[df[class_column] == cls2].drop(columns=[class_column]).values
-            distances = pairwise_distances(cls1_data, cls2_data, metric='euclidean')
-            dij = distances.mean()
+            distances = pairwise_distances(cls1_data, cls2_data, metric=dist_metric)
+            dij = np.median(distances)
             dmat[i,j2] = dij
             dmat[j2,i] = dij
+            inter_dists.extend(distances.flatten().tolist())
     print(dmat)    
 
-    return dmat
+    return dmat, intra_dists, inter_dists
 
 
-def comp_parc_and_full(parc_file, meta_file, local_file, axon_file):
+def comp_parc_and_full(parc_file, meta_file, local_file, me_file, target_region=''):
     np.random.seed(1024)
     random.seed(1024)
 
     parc = load_image(parc_file)
-    meta = pd.read_excel(meta_file, index_col=0)
+    if meta_file.endswith('xlsx'):
+        meta = pd.read_excel(meta_file, index_col=0)
+    else:
+        meta = pd.read_csv(meta_file, index_col=0)
+        # the file names in NeuroXiv is different from original names
+        meta.index = [fname[9:-6] for fname in meta.index]
+
     dfl = pd.read_csv(local_file, index_col=0)
-    dfa = pd.read_csv(axon_file, index_col=0)
+    dfme = pd.read_csv(me_file, index_col=0)
+    # rename the me_feature names
+    __ME_NAMES__ = [fn for fn in __FEAT_NAMES22__ if fn not in ('Nodes', 'SomaSurface', 'AverageDiameter', 'Surface')]
+    dfme.drop(list(__ME_NAMES__), axis=1, inplace=True)
+    mapper = {}
+    for mf in __ME_NAMES__:
+        mapper[f'{mf}_me'] = mf
+    dfme.rename(columns=mapper, inplace=True)
+
+    #feat_names = ['AverageContraction', 'AverageBifurcationAngleRemote',
+    #              'HausdorffDimension', 'Bifurcations']
 
     # standardize
     standardize_features(dfl, __FEAT_NAMES22__)
-    standardize_features(dfa, __FEAT_NAMES22__)
+    standardize_features(dfme, __ME_NAMES__)
 
-    feat_names = ['AverageContraction', 'AverageBifurcationAngleRemote',
-                  'HausdorffDimension', 'Bifurcations']
-    
-    # keep only the manual annotated CP neurons
-    cp_neurons = meta[meta['Projection class'].isin(['CP_SNr', 'CP_GPe', 'CP_others'])]
-    # get the parcellations
-    coords = cp_neurons[['Soma_Z(CCFv3_1𝜇𝑚)', 'Soma_Y(CCFv3_1𝜇𝑚)', 'Soma_X(CCFv3_1𝜇𝑚)']] / 25.  # 25um
+    if target_region == 'CP':
+        # This is for CP neurons
+        # keep only the manual annotated CP neurons
+        cp_neurons = meta[meta['Projection class'].isin(['CP_SNr', 'CP_GPe', 'CP_others'])]
+        # get the parcellations
+        coords = cp_neurons[['Soma_Z(CCFv3_1𝜇𝑚)', 'Soma_Y(CCFv3_1𝜇𝑚)', 'Soma_X(CCFv3_1𝜇𝑚)']] / 25.  # 25um
+    else:
+        # for hip neurons
+        cp_neurons = meta[meta.region_name_ccf == target_region]
+        cp_neurons = cp_neurons[cp_neurons.index.isin(dfl.index)]
+        coords = cp_neurons[['z', 'y', 'x']] / 25. # to CCF-25 space
+
     # in parcellation
     zyx = np.floor(coords).astype(int).values
     # mirroring to left
@@ -292,10 +318,14 @@ def comp_parc_and_full(parc_file, meta_file, local_file, axon_file):
     zyx[r_nz,0] = zdim - zyx[r_nz,0]
     # get the parcellations
     in_indices = np.nonzero(parc[zyx[:,0], zyx[:,1], zyx[:,2]] > 0)[0]
+    print(in_indices.shape[0], coords.shape[0])
     # re-select the neurons
     in_zyx = zyx[in_indices]
+    cp_neurons = cp_neurons.iloc[in_indices]
+    # note, not tall the neurons are of full dendrites
+    print(cp_neurons.shape)
+
     cp_parc = parc[in_zyx[:,0], in_zyx[:,1], in_zyx[:,2]] - 1 # start from 0
-    ptypes = cp_neurons.iloc[in_indices]['Projection class']
 
     if 1:   # pairwise similarity
         min_neurons = 15
@@ -305,59 +335,93 @@ def comp_parc_and_full(parc_file, meta_file, local_file, axon_file):
 
         parc_mask = np.isin(cp_parc, regs_m)
         cp_parc_m = cp_parc[parc_mask]
-        neurons_m = ptypes[parc_mask].index
+        neurons_m = cp_neurons[parc_mask].index
 
         # get the features
-        dfl_m = dfl.loc[neurons_m][feat_names].copy()
+        dfl_m = dfl.loc[neurons_m][__FEAT_NAMES22__].copy()
         dfl_m['class'] = cp_parc_m
         # categorizing by classes
-        dmat = compute_distances(dfl_m)
-        import ipdb; ipdb.set_trace()
-        print()
+        dmat, intra_dists, inter_dists = compute_distances(dfl_m)
+        # plot the distribution
+        sns.histplot(intra_dists, color="blue", kde=False, label='Intra-dist', stat="density", bins=50, alpha=0.6)
+        sns.histplot(inter_dists, color="red", kde=False, label='Inter-dist', stat="density", bins=50, alpha=0.6)
+        plt.legend()
+        plt.xlabel('Value')
+        plt.ylabel('Density')
+        plt.title('Histogram of List1 and List2')
+        plt.savefig(f'Intra_inter_distances_{target_region}.png', dpi=300)
+        plt.close()
+
+
+        sns.heatmap(dmat, cmap='seismic')
+        plt.savefig(f'{target_region}.png', dpi=300); plt.close()
+        print(dmat)
 
 
     # select neurons in target region
     r1_idx, r2_idx = 0, 12
     r7_mask = cp_parc == r1_idx
     r12_mask = cp_parc == r2_idx
-    ptypes_sub = ptypes[r7_mask | r12_mask]
     cp_parc_sub = cp_parc[r7_mask | r12_mask]
+    cp_neurons_sub = cp_neurons[r7_mask | r12_mask]
     # 
-    dfl_sub = dfl.loc[ptypes_sub.index]
-    dfa_sub = dfa.loc[ptypes_sub.index]
-    # map ptypes to integars
-    pmap = {
-        'CP_GPe': 0,
-        'CP_SNr': 1,
-        'CP_others': 2
-    }
-    pints = ptypes_sub.map(pmap)
+    dfl_sub = dfl.loc[cp_neurons_sub.index]
+
+    # get the in-region me files
+    coords_me = dfme[['soma_z', 'soma_y', 'soma_x']] / 25.
+    zyx_me = np.floor(coords_me).astype(int).values
+    # mirroring to left
+    zdim = 456
+    r_nz = np.nonzero(zyx_me[:,0] <= zdim/2)
+    zyx_me[r_nz,0] = zdim - zyx_me[r_nz,0]
+    # get the parcellations
+    parc_values_me = parc[zyx_me[:,0], zyx_me[:,1], zyx_me[:,2]]
+    dfme_sub1 = dfme[parc_values_me == r1_idx+1]
+    dfme_sub2 = dfme[parc_values_me == r2_idx+1]
+    print(dfme_sub1.shape[0], dfme_sub2.shape[0])
+    
     cp_parc_ints = cp_parc_sub.copy()
     cp_parc_ints[cp_parc_ints == r1_idx] = 0
     cp_parc_ints[cp_parc_ints == r2_idx] = 1
 
-    compare_features(dfl_sub[cp_parc_sub == r1_idx], dfl_sub[cp_parc_sub == r2_idx], 'comp_features.png')
+    compare_features(dfl_sub[cp_parc_sub == r1_idx], dfl_sub[cp_parc_sub == r2_idx], 
+                     f'comp_features_full_dendrite_R{r1_idx+1}_R{r2_idx+1}.png')
+    compare_features(dfme_sub1, dfme_sub2, 
+                     f'comp_features_me_R{r1_idx+1}_R{r2_idx+1}.png')
     
-    import ipdb; ipdb.set_trace()
     # overall
     emb_all, label_all, colors_all = clustering_on_umap(
                 dfl.loc[neurons_m], feat_names=__FEAT_NAMES22__, nclusters=3, plot=True,
                 figstr='tmp', precomputed_labels=cp_parc_m)
 
-    emb_local, labels_local, colors_local = clustering_on_umap(
-                dfl_sub, feat_names=__FEAT_NAMES22__, nclusters=3, plot=True, 
-                figstr='local', precomputed_labels=pints)
-
     emb_parc_l, labels_parc_l, colors_parc_l = clustering_on_umap(
                 dfl_sub, feat_names=__FEAT_NAMES22__, nclusters=2, plot=True, 
-                figstr='local_by_parc', precomputed_labels=cp_parc_ints)
+                figstr='full_dendrite_by_parc', precomputed_labels=cp_parc_ints)
+    emb_parc_m, labels_parc_m, colors_parc_m = clustering_on_umap(
+                dfme_sub, feat_names=__ME_NAMES__, nclusters=2, plot=True, 
+                figstr='me_by_parc', precomputed_labels=cp_parc_ints)
 
 if __name__ == '__main__':
     if 1:
         # compare with existing neuron types
-        parc_file = '../output_full_r671/parc_region672.nrrd'
-        meta_file = '../plotters/CP_single_morphologies/TableS6_Full_morphometry_1222.xlsx'
-        local_file = '../plotters/CP_single_morphologies/cp_1876_dendrite_features.csv'
-        axon_file = '../plotters/CP_single_morphologies/cp_1876_axonal_features.csv'
-        comp_parc_and_full(parc_file, meta_file, local_file, axon_file)
+        rdict = {
+            'CP': 672,
+            'CA1': 382,
+            'CA3': 463,
+            'SUB': 502,
+            'ProS': 484682470
+        }
+
+        target_region = 'CP'   # 'CA1', 'CA3', SUB, ProS
+        target_regid = rdict[target_region]
+        parc_file = f'../output_full_r671/parc_region{target_regid}.nrrd'
+        if target_region == 'CP':
+            meta_file = '../plotters/CP_single_morphologies/TableS6_Full_morphometry_1222.xlsx'
+            local_file = '../plotters/CP_single_morphologies/cp_1876_dendrite_features.csv'
+            me_file = '../data/mefeatures_100K_with_PCAfeatures3.csv'
+        else:
+            meta_file = '../plotters/whole-brain_projection/data/meta_hip.csv'
+            local_file = '../plotters/hippocampus/ION_HIP/lm_features_d28_dendrites.csv'
+            me_file = ''
+        comp_parc_and_full(parc_file, meta_file, local_file, me_file, target_region=target_region)
 
