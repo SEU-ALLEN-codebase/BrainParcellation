@@ -313,7 +313,7 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
         plt.close()
 
         ###### turn off  this part ########
-        if 1:
+        if 0:
             # Analyze the divergence of source, target and source-target suregions
             src_cc_means = []
             ipsi_cc_means = []
@@ -390,7 +390,7 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
 
             print()    
 
-        if 1:
+        if 0:
             print(f'--> Estimate the number of target subregions')
             nts_ca1 = [(proj_me_r.loc[subr]>1).sum() for subr in proj_me_r.index if subr.startswith('CA1')] 
             nts_ca3 = [(proj_me_r.loc[subr]>1).sum() for subr in proj_me_r.index if subr.startswith('CA3')] 
@@ -419,7 +419,48 @@ def analyze_proj(proj_ccf_file, proj_me_file, meta_file, me2ccf_file, thresh=100
             plt.savefig('number_of_target_regions.png', dpi=300)
             plt.close()
 
-            print()
+
+        if 1:
+            print(f'--> Estimate the number of source subregions')
+            nts_ca1_ipsi = [(proj_me_r.loc[:,subr]>1).sum() for subr in proj_me_r.columns if 'ipsi_CA1-' in subr] 
+            nts_ca3_ipsi = [(proj_me_r.loc[:,subr]>1).sum() for subr in proj_me_r.columns if 'ipsi_CA3-' in subr] 
+            nts_par_ipsi = [(proj_me_r.loc[:,subr]>1).sum() for subr in proj_me_r.columns if 'ipsi_PAR-' in subr] 
+            nts_pre_ipsi = [(proj_me_r.loc[:,subr]>1).sum() for subr in proj_me_r.columns if 'ipsi_PRE-' in subr] 
+            # contra-lateral
+            nts_ca1_contra = [(proj_me_r.loc[:,subr]>1).sum() for subr in proj_me_r.columns if 'contra_CA1-' in subr] 
+            nts_ca3_contra = [(proj_me_r.loc[:,subr]>1).sum() for subr in proj_me_r.columns if 'contra_CA3-' in subr] 
+            nts_par_contra = [(proj_me_r.loc[:,subr]>1).sum() for subr in proj_me_r.columns if 'contra_PAR-' in subr] 
+            nts_pre_contra = [(proj_me_r.loc[:,subr]>1).sum() for subr in proj_me_r.columns if 'contra_PRE-' in subr] 
+
+            df_nts = pd.DataFrame({
+                'ipsi-CA1': pd.Series(nts_ca1_ipsi),
+                'contra-CA1': pd.Series(nts_ca1_contra),
+                'ipsi-CA3': pd.Series(nts_ca3_ipsi),
+                'contra-CA3': pd.Series(nts_ca3_contra),
+                'ipsi-PAR': pd.Series(nts_par_ipsi),
+                'contra-PAR': pd.Series(nts_par_contra),
+                'ipsi-PRE': pd.Series(nts_pre_ipsi),
+                'contra-PRE': pd.Series(nts_pre_contra),
+            })
+            
+            sns.set_theme(style='ticks', font_scale=2.)
+            
+            plt.figure(figsize=(7,6))
+            ax = sns.stripplot(data=df_nts, alpha=0.75, legend=False, size=15)
+
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['left'].set_linewidth(3)
+            ax.spines['bottom'].set_linewidth(3)
+            ax.xaxis.set_tick_params(width=3)
+            ax.yaxis.set_tick_params(width=3)
+
+            plt.ylabel("")
+            plt.setp(ax.get_xticklabels(), rotation=45, rotation_mode='anchor', ha='right')
+            plt.subplots_adjust(bottom=0.24)
+            plt.savefig('number_of_source_regions.png', dpi=300)
+            plt.close()
+            
 
         
     if 0:

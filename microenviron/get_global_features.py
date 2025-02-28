@@ -49,5 +49,6 @@ if __name__ == '__main__':
     #merge_all_brains('global_features')
 
     # for gold standard
-    calc_global_features_from_folder('../evaluation/data/1891_100um_2um_dendrite', '../evaluation/data/gf_1876_crop_2um_dendrite.csv')
+    #calc_global_features_from_folder('../evaluation/data/1891_100um_2um_dendrite', '../evaluation/data/gf_1876_crop_2um_dendrite.csv')
+    calc_global_features_from_folder('./data/S3_2um_final', './data/gf_S3_2um_final.csv')
 
