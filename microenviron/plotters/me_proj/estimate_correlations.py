@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from mvlearn.embed import CCA, MCCA
-from mvlearn.plotting import crossviews_plot
+#from mvlearn.embed import CCA, MCCA
+#from mvlearn.plotting import crossviews_plot
 
 from anatomy.anatomy_core import parse_ana_tree, get_struct_from_id_path
 from anatomy.anatomy_config import MASK_CCF25_FILE, SALIENT_REGIONS, \
@@ -189,7 +189,7 @@ class MEProjAnalyzer:
             displot_(pd_me, pd_proj, sub_indices, 'me', dataset)
             displot_(pd_dend, pd_proj, sub_indices, 'dend', dataset)
 
-        if 0:
+        if 1:
             # plot all regions
             regions, counts = np.unique(curr_df.region_name_r316, return_counts=True)
             min_neurons = 30
@@ -230,7 +230,7 @@ class MEProjAnalyzer:
                 #sys.exit()
                 
 
-        if 1:
+        if 0:
             ana_tree = parse_ana_tree()
             # group by brain structure
             bstructs = []
