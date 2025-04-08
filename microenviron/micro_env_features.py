@@ -59,7 +59,7 @@ class MEFeatures:
             self.radius = radius
 
 
-    def calc_micro_env_features(self, mefeature_file):
+    def calc_micro_env_features(self, mefeature_file, integrate_method='spatial-weighting'):
         debug = False
         if debug: 
             self.df = self.df[:5000]
@@ -67,9 +67,16 @@ class MEFeatures:
         df = self.df.copy()
         df_mef = df.copy()
         feat_names = __FEAT_NAMES__ + ['pc11', 'pc12', 'pc13', 'pca_vr1', 'pca_vr2', 'pca_vr3']
-        mefeat_names = [f'{fn}_me' for fn in feat_names]
 
-        df_mef[mefeat_names] = 0.
+        if integrate_method in ('median-std', 'median-std-stdn'):
+            mefeat_names = []
+            for de in integrate_method.split('-'):
+                for feat_name in feat_names:
+                    mefeat_names.append(f'{feat_name}-{de}_me')
+        else:
+            mefeat_names = [f'{fn}_me' for fn in feat_names]
+        
+        df_mef[mefeat_names] = np.nan
     
         # we should pre-normalize each feature for topk extraction
         feats = df.loc[:, feat_names]
@@ -95,17 +102,49 @@ class MEFeatures:
             topk_indices = indices[idx_topk]
             topk_dists = dists[idx_topk]
 
-            # get the average features
+            # integrate the neuronal features
             swc = df_mef.index[i]
-            # spatial-tuned features
-            dweights = np.exp(-topk_dists/self.radius)
-            dweights /= dweights.sum()
-            values = self.df.iloc[topk_indices][feat_names] * dweights.reshape(-1,1)
 
             if len(topk_indices) == 1:
-                df_mef.loc[swc, mefeat_names] = values.to_numpy()[0]
+                if integrate_method in ('median-std', 'median-std-stdn'):
+                    continue
+
+                df_mef.loc[swc, mefeat_names] = self.df.iloc[topk_indices][feat_names].to_numpy()[0]
             else:
-                df_mef.loc[swc, mefeat_names] = values.sum().to_numpy()
+                if integrate_method == 'spatial-weighting':
+                    # spatial-tuned features
+                    dweights = np.exp(-topk_dists/self.radius)
+                    dweights /= dweights.sum()
+                    values = self.df.iloc[topk_indices][feat_names] * dweights.reshape(-1,1)
+                    # summarize
+                    df_mef.loc[swc, mefeat_names] = values.sum().to_numpy()
+
+                elif integrate_method == 'median':
+                    df_mef.loc[swc, mefeat_names] = self.df.iloc[topk_indices][feat_names].median().to_numpy()
+
+                elif integrate_method == 'mean':
+                    df_mef.loc[swc, mefeat_names] = self.df.iloc[topk_indices][feat_names].mean().to_numpy()
+
+                elif integrate_method == 'variance-normalized-median':
+                    median = self.df.iloc[topk_indices][feat_names].median().to_numpy()
+                    std = self.df.iloc[topk_indices][feat_names].std().to_numpy()
+                    stdn = median / (std + 1e-10)
+                    df_mef.loc[swc, mefeat_names] = stdn
+
+                elif integrate_method == 'median-std-stdn':
+                    median = self.df.iloc[topk_indices][feat_names].median().to_numpy()
+                    std = self.df.iloc[topk_indices][feat_names].std().to_numpy()
+                    stdn = median / (std + 1e-10)
+                    df_mef.loc[swc, mefeat_names] = np.concatenate((median, std, stdn))
+
+                elif integrate_method == 'median-std':
+                    median = self.df.iloc[topk_indices][feat_names].median().to_numpy()
+                    std = self.df.iloc[topk_indices][feat_names].std().to_numpy()
+                    df_mef.loc[swc, mefeat_names] = np.concatenate((median, std))
+
+                else:
+                    raise ValueError('Incorrect value for argument: integrate_method')
+
 
             if i % 1000 == 0:
                 print(f'[{i}]: time used: {time.time()-t0:.2f} seconds')
@@ -146,12 +185,14 @@ if __name__ == '__main__':
         feature_file = './data/lm_features_d28.csv'
         filter_file = '../evaluation/data/final_filtered_swc.txt'
         topk = 5
-        #radius = 188.81
+        #radius = 188.81, #166.36
+        radius = 166.36
+        integrate_method = 'mean'
         #mefile = f'./data/mefeatures_100K_radius{radius}.csv'
-        mefile = f'./data/mefeatures_100K.csv'
+        mefile = f'./data/mefeatures_100K_{integrate_method}.csv'
         
-        mef = MEFeatures(feature_file, filter_file=filter_file, topk=topk)
-        mef.calc_micro_env_features(mefile)
+        mef = MEFeatures(feature_file, filter_file=filter_file, topk=topk, radius=radius)
+        mef.calc_micro_env_features(mefile, integrate_method=integrate_method)
     
        
     if 0:

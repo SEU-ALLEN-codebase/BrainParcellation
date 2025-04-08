@@ -33,9 +33,11 @@ BS7_COLORS = {
 
 
 def load_features(mefile, scale=25., feat_type='mRMR', flipLR=True, standardize=True):
-    df = pd.read_csv(mefile, index_col=0)
+    df = pd.read_csv(mefile, index_col=0, low_memory=False)
 
-    if feat_type == 'full':
+    if feat_type == 'full-and-me':
+        fnames = __FEAT24D__ + [fname for fname in df.columns if fname.endswith('_me')]
+    elif feat_type == 'full':
         cols = df.columns
         fnames = [fname for fname in cols if fname[-3:] == '_me']
     elif feat_type == 'mRMR':
