@@ -92,58 +92,65 @@ class MEFeatures:
         # iterate over all samples
         t0 = time.time()
         for i, indices, dists in zip(range(spos.shape[0]), *in_radius_neurons):
+            swc = df_mef.index[i]
+            
             f0 = feats.iloc[i]  # feature for current neuron
             fir = feats.iloc[indices]   # features for in-range neurons
             fdists = np.linalg.norm(f0 - fir, axis=1)
-            # select the topK most similar neurons for feature aggregation
-            k = min(self.topk, fir.shape[0]-1)
-            idx_topk = np.argpartition(fdists, k)[:k+1]
-            # map to the original index space
-            topk_indices = indices[idx_topk]
-            topk_dists = dists[idx_topk]
-
-            # integrate the neuronal features
-            swc = df_mef.index[i]
-
-            if len(topk_indices) == 1:
-                if integrate_method in ('median-std', 'median-std-stdn'):
-                    continue
-
-                df_mef.loc[swc, mefeat_names] = self.df.iloc[topk_indices][feat_names].to_numpy()[0]
+            if integrate_method == 'mean_all':
+                # averaging the features for all with estimate their similarities
+                df_mef.loc[swc, mefeat_names] = fir.mean().to_numpy()
+            elif integrate_method == 'median_all':
+                df_mef.loc[swc, mefeat_names] = fir.median().to_numpy()
             else:
-                if integrate_method == 'spatial-weighting':
-                    # spatial-tuned features
-                    dweights = np.exp(-topk_dists/self.radius)
-                    dweights /= dweights.sum()
-                    values = self.df.iloc[topk_indices][feat_names] * dweights.reshape(-1,1)
-                    # summarize
-                    df_mef.loc[swc, mefeat_names] = values.sum().to_numpy()
+                # select the topK most similar neurons for feature aggregation
+                k = min(self.topk, fir.shape[0]-1)
+                idx_topk = np.argpartition(fdists, k)[:k+1]
+                # map to the original index space
+                topk_indices = indices[idx_topk]
+                topk_dists = dists[idx_topk]
 
-                elif integrate_method == 'median':
-                    df_mef.loc[swc, mefeat_names] = self.df.iloc[topk_indices][feat_names].median().to_numpy()
+                # integrate the neuronal features
 
-                elif integrate_method == 'mean':
-                    df_mef.loc[swc, mefeat_names] = self.df.iloc[topk_indices][feat_names].mean().to_numpy()
+                if len(topk_indices) == 1:
+                    if integrate_method in ('median-std', 'median-std-stdn'):
+                        continue
 
-                elif integrate_method == 'variance-normalized-median':
-                    median = self.df.iloc[topk_indices][feat_names].median().to_numpy()
-                    std = self.df.iloc[topk_indices][feat_names].std().to_numpy()
-                    stdn = median / (std + 1e-10)
-                    df_mef.loc[swc, mefeat_names] = stdn
-
-                elif integrate_method == 'median-std-stdn':
-                    median = self.df.iloc[topk_indices][feat_names].median().to_numpy()
-                    std = self.df.iloc[topk_indices][feat_names].std().to_numpy()
-                    stdn = median / (std + 1e-10)
-                    df_mef.loc[swc, mefeat_names] = np.concatenate((median, std, stdn))
-
-                elif integrate_method == 'median-std':
-                    median = self.df.iloc[topk_indices][feat_names].median().to_numpy()
-                    std = self.df.iloc[topk_indices][feat_names].std().to_numpy()
-                    df_mef.loc[swc, mefeat_names] = np.concatenate((median, std))
-
+                    df_mef.loc[swc, mefeat_names] = self.df.iloc[topk_indices][feat_names].to_numpy()[0]
                 else:
-                    raise ValueError('Incorrect value for argument: integrate_method')
+                    if integrate_method == 'spatial-weighting':
+                        # spatial-tuned features
+                        dweights = np.exp(-topk_dists/self.radius)
+                        dweights /= dweights.sum()
+                        values = self.df.iloc[topk_indices][feat_names] * dweights.reshape(-1,1)
+                        # summarize
+                        df_mef.loc[swc, mefeat_names] = values.sum().to_numpy()
+
+                    elif integrate_method == 'median':
+                        df_mef.loc[swc, mefeat_names] = self.df.iloc[topk_indices][feat_names].median().to_numpy()
+
+                    elif integrate_method == 'mean':
+                        df_mef.loc[swc, mefeat_names] = self.df.iloc[topk_indices][feat_names].mean().to_numpy()
+
+                    elif integrate_method == 'variance-normalized-median':
+                        median = self.df.iloc[topk_indices][feat_names].median().to_numpy()
+                        std = self.df.iloc[topk_indices][feat_names].std().to_numpy()
+                        stdn = median / (std + 1e-10)
+                        df_mef.loc[swc, mefeat_names] = stdn
+
+                    elif integrate_method == 'median-std-stdn':
+                        median = self.df.iloc[topk_indices][feat_names].median().to_numpy()
+                        std = self.df.iloc[topk_indices][feat_names].std().to_numpy()
+                        stdn = median / (std + 1e-10)
+                        df_mef.loc[swc, mefeat_names] = np.concatenate((median, std, stdn))
+
+                    elif integrate_method == 'median-std':
+                        median = self.df.iloc[topk_indices][feat_names].median().to_numpy()
+                        std = self.df.iloc[topk_indices][feat_names].std().to_numpy()
+                        df_mef.loc[swc, mefeat_names] = np.concatenate((median, std))
+
+                    else:
+                        raise ValueError('Incorrect value for argument: integrate_method')
 
 
             if i % 1000 == 0:
@@ -187,7 +194,7 @@ if __name__ == '__main__':
         topk = 5
         #radius = 188.81, #166.36
         radius = 166.36
-        integrate_method = 'mean'
+        integrate_method = 'median_all'
         #mefile = f'./data/mefeatures_100K_radius{radius}.csv'
         mefile = f'./data/mefeatures_100K_{integrate_method}.csv'
         

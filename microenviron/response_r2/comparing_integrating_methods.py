@@ -3,10 +3,13 @@
 #Create time:     2025-04-07
 #Description:               
 ##########################################################
+import os
 import numpy as np
 import pandas as pd
 import pickle
 from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans, SpectralClustering
+from sklearn.metrics import silhouette_score
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -102,7 +105,7 @@ def calc_eigenvalues(data_file):
         data = pickle.load(f1)
 
 
-    if 1:
+    if 0:
         # Calculate the eigenvalues of PCA transformation
         vratio_dict = {}
         nbase = len(__FEAT24D__)
@@ -112,7 +115,7 @@ def calc_eigenvalues(data_file):
                 feats = df[__FEAT24D__]
                 vratio_dict['dendrite-only'] = get_vratio(feats)
 
-            if metype in ('variance-normalized-median', 'median-std-stdn'):
+            if metype in ('variance-normalized-median', 'median-std-stdn', 'median-std'):
                 continue
             
             fnames = [fname for fname in df.columns if fname.endswith('_me')]
@@ -165,7 +168,7 @@ def calc_eigenvalues(data_file):
         print()
 
     
-    if 1:
+    if 0:
         # pairwise correlation-coefficients
         sns.set_theme(style='ticks', font_scale=1.8)
         
@@ -206,6 +209,142 @@ def calc_eigenvalues(data_file):
 
         plt.savefig('pairwise_feature_corr.png', dpi=300)
         plt.close()
+
+
+    if 1:
+
+        ############### Helper functions ##################
+        def evaluate_clustering(df, fnames, max_k=10):
+            """
+            参数：
+            df: 输入DataFrame
+            fnames: 用于聚类的特征列名列表
+            max_k: 最大聚类数（默认到10）
+            
+            返回：
+            results: 包含k值和对应silhouette score的DataFrame
+            """
+            # 1. 数据预处理
+            X = df[fnames].values
+            
+            # 2. 遍历k值并计算silhouette score
+            results = []
+            for k in range(2, max_k+1):
+                #print(k)
+                cluster_ = KMeans(n_clusters=k, random_state=1024, n_init='auto')
+                #cluster_ = SpectralClustering(n_clusters=k, random_state=1024)
+                cluster_labels = cluster_.fit_predict(X)
+                
+                # 计算silhouette score（忽略单聚类情况）
+                if len(np.unique(cluster_labels)) >= 2:
+                    score = silhouette_score(X, cluster_labels)
+                else:
+                    score = np.nan
+                    
+                results.append({'k': k, 'silhouette_score': score})
+            
+            # 3. 转换为DataFrame并可视化
+            results_df = pd.DataFrame(results)
+
+            return results_df
+        ############ End of helper functions ##############
+
+
+        # Clustering and evaluate the silhoutte scores
+        imethods = ('spatial-weighting', 'mean', 'mean_all', 'median', 'median_all')
+        
+        regions = data[imethods[0]].region_name_r316
+        min_neurons = 20
+        max_clusters = 5
+
+        scores_file = 'sil_scores_across_methods.csv'
+        if os.path.exists(scores_file):
+            df_scores = pd.read_csv(scores_file, index_col=0)
+        
+        else:
+            regions_set, regions_counts = np.unique(regions, return_counts=True)
+            regions_kept = regions_set[regions_counts > min_neurons]
+
+            scores = {'dendrite-only': []}
+            for imethod in imethods:
+                scores[imethod] = []
+
+            im = 0
+            for imethod in imethods:
+                df = data[imethod]
+                fnames = [fname for fname in df.columns if fname.endswith('_me')]
+                
+                for region in regions_kept:
+                    # do clustering
+                    df_reg = df[df.region_name_r316 == region]
+                    sil_score = evaluate_clustering(df_reg, fnames, max_clusters)
+                    scores[imethod].append(sil_score.silhouette_score.max())
+
+                    if im == 0:
+                        sil_score_orig = evaluate_clustering(df_reg, __FEAT24D__, max_clusters)
+                        scores['dendrite-only'].append(sil_score_orig.silhouette_score.max())
+
+                    print(f'[{imethod}/{region}]: {sil_score.silhouette_score.max():.3f}')
+
+                im += 1
+
+            df_scores = pd.DataFrame(scores)
+            df_scores['region'] = regions_kept
+            df_scores.to_csv(scores_file, float_format='%.4f')
+        
+        
+        # filter out non-standard regions
+        df_scores = df_scores[~(df_scores.region.isin(['error', 'fiber tracts']))]
+        
+        # plotting
+        sns.set_theme(style='ticks', font_scale=1.8)
+
+        baseline = 'dendrite-only'
+        methods_to_compare = ['spatial-weighting', 'mean_all']
+
+        # 统计每个方法比baseline高的区域数
+        improved_counts = {}
+        for method in methods_to_compare:
+            improved_counts[method] = (df_scores[method] > df_scores[baseline]).sum()
+
+        # 转换为DataFrame便于绘图
+        result_df = pd.DataFrame.from_dict(improved_counts, orient='index', columns=['Count'])
+        result_df = result_df.reset_index().rename(columns={'index': 'Method'})
+
+        # 绘制条形图
+        plt.figure(figsize=(8, 6))
+        bars = plt.bar(result_df['Method'], result_df['Count'], color=['skyblue', 'salmon'], width=0.4)
+
+        # 添加数值标签
+        for bar in bars:
+            height = bar.get_height()
+            plt.text(bar.get_x() + bar.get_width()/2., height,
+                     f'{int(height)}',
+                     ha='center', va='bottom')
+
+        # 计算baseline总区域数（排除error和fiber tracts等非标准区域）
+        total_regions = len(df_scores)
+
+        # 添加参考线和说明
+        plt.axhline(y=total_regions, color='gray', linestyle='--', alpha=0.5)
+        plt.text(0.5, total_regions-10, f'Total regions: {total_regions}', ha='center', color='gray')
+
+        plt.title('Number of Regions with Improved Silhouette Scores\n(Compared to dendrite-only baseline)')
+        plt.ylabel('Number of Regions')
+        plt.ylim(0, total_regions + 10)
+        plt.xlim(-0.5, 1.5)
+        #plt.grid(axis='y', alpha=0.3)
+        plt.savefig('improved_scores.png', dpi=300)
+        plt.close()
+
+        # 输出详细统计结果
+        print("Detailed comparison:")
+        for method in methods_to_compare:
+            improved_regions = df_scores[df_scores[method] > df_scores[baseline]]['region'].tolist()
+            print(f"\n{method} outperforms baseline in {len(improved_regions)} regions:")
+            print(improved_regions)
+
+        print()
         
 
 
@@ -213,10 +352,12 @@ if __name__ == '__main__':
     file_dict = {
         'spatial-weighting': '../data/mefeatures_100K_with_PCAfeatures3.csv',
         'mean': '../data/mefeatures_100K_mean.csv',
+        'mean_all': '../data/mefeatures_100K_mean_all.csv',
         'median': '../data/mefeatures_100K_median.csv',
-        'median-std': '../data/mefeatures_100K_median-std.csv',
-        'median-std-stdn': '../data/mefeatures_100K_median-std-stdn.csv',
-        'variance-normalized-median': '../data/mefeatures_100K_variance-normalized-median.csv',
+        'median_all': '../data/mefeatures_100K_median_all.csv',
+        #'median-std': '../data/mefeatures_100K_median-std.csv',
+        #'median-std-stdn': '../data/mefeatures_100K_median-std-stdn.csv',
+        #'variance-normalized-median': '../data/mefeatures_100K_variance-normalized-median.csv',
     }
     cache_file = 'mefeatures_all_methods.pkl'
 
