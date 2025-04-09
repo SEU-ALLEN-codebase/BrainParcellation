@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
+
 #from mvlearn.embed import CCA, MCCA
 #from mvlearn.plotting import crossviews_plot
 
@@ -189,7 +191,7 @@ class MEProjAnalyzer:
             displot_(pd_me, pd_proj, sub_indices, 'me', dataset)
             displot_(pd_dend, pd_proj, sub_indices, 'dend', dataset)
 
-        if 1:
+        if 0:
             # plot all regions
             regions, counts = np.unique(curr_df.region_name_r316, return_counts=True)
             min_neurons = 30
@@ -230,10 +232,16 @@ class MEProjAnalyzer:
                 #sys.exit()
                 
 
-        if 0:
+        if 1:
             ana_tree = parse_ana_tree()
             # group by brain structure
             bstructs = []
+            title_mapper = {
+                'HPF': 'Hippocampal neurons',
+                'Isocortex': 'Isocortical neurons',
+                'STR': 'Striatal neurons', 
+                'TH': 'Thalamic neurons'
+            }
             for reg_id, reg_name in zip(curr_df.region_id_r316, curr_df.region_name_r316):
                 id_path = ana_tree[reg_id]['structure_id_path']
                 sid13 = get_struct_from_id_path(id_path, BSTRUCTS13)
@@ -276,9 +284,15 @@ class MEProjAnalyzer:
                 print(f'{bname}: n={emb_me_curr.shape[0]},  cc={lr.rvalue:.3f}')
                 lr_fn = np.poly1d([slope, intercept])
                 plt.plot(data['me'].values, lr_fn(data['me']), '-r')
-                plt.text(0.15, 0.8, r'$Coeff={:.3f}$'.format(lr.rvalue), transform=g.ax.transAxes, color='r')
+                plt.text(0.1, 0.85, r'$R={:.3f}$'.format(lr.rvalue), # + '\n' + r'$p={:.5g}$'.format(lr.pvalue), 
+                         transform=g.ax.transAxes, color='r')
                 
-                plt.title(f'{bname} (n={emb_me_curr.shape[0]})')
+                g.ax.xaxis.set_major_locator(MultipleLocator(3))
+                g.ax.yaxis.set_major_locator(MultipleLocator(3))
+
+                plt.title(f'{title_mapper[bname]} (n={emb_me_curr.shape[0]})')
+                plt.xlabel('Distances between MEs')
+                plt.ylabel('Distances neuronal projections')
                 plt.savefig(f'me_{dataset}_{bname}.png', dpi=300)
                 plt.close()
             print()
