@@ -105,7 +105,7 @@ def calc_eigenvalues(data_file):
         data = pickle.load(f1)
 
 
-    if 0:
+    if 1:
         # Calculate the eigenvalues of PCA transformation
         vratio_dict = {}
         nbase = len(__FEAT24D__)
@@ -115,7 +115,8 @@ def calc_eigenvalues(data_file):
                 feats = df[__FEAT24D__]
                 vratio_dict['dendrite-only'] = get_vratio(feats)
 
-            if metype in ('variance-normalized-median', 'median-std-stdn', 'median-std'):
+            if metype in ('variance-normalized-median', 'median-std-stdn', 'median-std', 
+                          'mean', 'mean_all', 'median', 'median_all'):
                 continue
             
             fnames = [fname for fname in df.columns if fname.endswith('_me')]
@@ -143,11 +144,12 @@ def calc_eigenvalues(data_file):
         # 绘制折线图
         sns.set_theme(style='ticks', font_scale=1.8)
         plt.figure(figsize=(8, 6))
-        sns.lineplot(data=melted_df, x='dimension', y='vratio', 
+        # rename
+        sns.lineplot(data=melted_df.replace('spatial-weighting', 'ME'), x='dimension', y='vratio', 
                      hue='method', marker='o', lw=2, markersize=8,
                      alpha=1.0)
         plt.title('Comparison of cumulative variance across Methods')
-        plt.xlabel('PCA dimension')
+        plt.xlabel('Number of top-ranking PCA components')
         plt.ylabel('Cumulative variance')
         plt.xticks(range(1, 25, 2))
         #plt.grid(True, linestyle='--')
@@ -351,10 +353,10 @@ def calc_eigenvalues(data_file):
 if __name__ == '__main__':
     file_dict = {
         'spatial-weighting': '../data/mefeatures_100K_with_PCAfeatures3.csv',
-        'mean': '../data/mefeatures_100K_mean.csv',
-        'mean_all': '../data/mefeatures_100K_mean_all.csv',
-        'median': '../data/mefeatures_100K_median.csv',
-        'median_all': '../data/mefeatures_100K_median_all.csv',
+        #'mean': '../data/mefeatures_100K_mean.csv',
+        #'mean_all': '../data/mefeatures_100K_mean_all.csv',
+        #'median': '../data/mefeatures_100K_median.csv',
+        #'median_all': '../data/mefeatures_100K_median_all.csv',
         #'median-std': '../data/mefeatures_100K_median-std.csv',
         #'median-std-stdn': '../data/mefeatures_100K_median-std-stdn.csv',
         #'variance-normalized-median': '../data/mefeatures_100K_variance-normalized-median.csv',
