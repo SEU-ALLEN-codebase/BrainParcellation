@@ -21,9 +21,12 @@ from configs import __FEAT_NAMES__
 from config import load_features, __FEAT24D__
 
 
-def processing_data(df_in, scale=25., flipLR=True, standardize=True):
+def processing_data(df_in, scale=25., flipLR=True, standardize=True, is_me=True):
     df = df_in.copy()
-    fnames = __FEAT24D__ + [fname for fname in df.columns if fname.endswith('_me')]
+    if is_me:
+        fnames = [fname for fname in df.columns if fname.endswith('_me')]
+    else:
+        fnames = __FEAT24D__
 
     if standardize:
         # standardize
