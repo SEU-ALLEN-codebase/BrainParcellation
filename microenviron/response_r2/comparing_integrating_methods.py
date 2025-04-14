@@ -14,6 +14,9 @@ from sklearn.metrics import silhouette_score
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+from anatomy.anatomy_config import SALIENT_REGIONS
+from ml.feature_processing import standardize_features
+
 import sys
 sys.path.append('..')
 sys.path.append('../../common_lib')
@@ -25,14 +28,10 @@ def processing_data(df_in, scale=25., flipLR=True, standardize=True, is_me=True)
     df = df_in.copy()
     if is_me:
         fnames = [fname for fname in df.columns if fname.endswith('_me')]
+        standardize_features(df, __FEAT24D__+fnames, inplace=True)
     else:
         fnames = __FEAT24D__
-
-    if standardize:
-        # standardize
-        tmp = df[fnames]
-        tmp = (tmp - tmp.mean()) / (tmp.std() + 1e-10)
-        df[fnames] = tmp
+        standardize_features(df, __FEAT24D__, inplace=True)
 
     # scaling the coordinates to CCFv3-25um space
     df['soma_x'] /= scale
@@ -81,8 +80,12 @@ def prepare_all_data(file_dict, cache_file):
         df_s = df[df.index.isin(skeys)]
         # processing
         df_s, _ = processing_data(df_s)
+        # keep only neurons in salient regions
+        df_s = df_s[df_s.region_id_r671.isin(SALIENT_REGIONS)]
+
         data[metype] = df_s
 
+        print(metype, df_s.shape)
         cnter += 1
 
     with open(cache_file, 'wb') as f1:

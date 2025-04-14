@@ -88,7 +88,8 @@ def find_neurons_within_radius(gf, me, fnames_gf, fnames_me,
                              gf_similarity_threshold=0.9,
                              me_difference_threshold=0.5,
                              radius_um=166.36,
-                             voxel_size=25):
+                             voxel_size=25,
+                             top_n=5):
     """
     1. 找出GF特征相似但ME特征有差异的神经元对
     2. 对每个满足条件的神经元，找出其周围radius_um范围内的其他神经元
@@ -134,22 +135,39 @@ def find_neurons_within_radius(gf, me, fnames_gf, fnames_me,
     
     # 创建距离矩阵(单位:微米)
     distance_matrix = cdist(all_coords, all_coords, 'euclidean')
+
+    # 计算GF特征相似度矩阵
+    gf_features = gf[fnames_gf].values
+    gf_sim_matrix = cosine_similarity(gf_features)
     
     # 为每个满足条件的神经元找出周围神经元
     result = {}
     for neuron in unique_neurons:
-        # 找到该神经元在距离矩阵中的索引
+        # 找到该神经元在矩阵中的索引
         neuron_idx = np.where(neuron_names == neuron)[0][0]
         
         # 找出距离内的神经元(不包括自己)
-        within_radius = (distance_matrix[neuron_idx] <= radius_um) & \
-                       (distance_matrix[neuron_idx] > 0)
+        within_radius_mask = (distance_matrix[neuron_idx] <= radius_um) & \
+                           (distance_matrix[neuron_idx] > 0)
         
-        # 获取神经元名称
-        nearby_neurons = neuron_names[within_radius].tolist()
+        # 获取这些神经元的索引
+        nearby_indices = np.where(within_radius_mask)[0]
         
-        if nearby_neurons:
-            result[neuron] = nearby_neurons
+        if len(nearby_indices) > 0:
+            # 获取这些神经元与目标神经元的GF相似度
+            similarities = gf_sim_matrix[neuron_idx, nearby_indices]
+            
+            # 创建(神经元名, 相似度)的元组列表
+            nearby_neurons = list(zip(neuron_names[nearby_indices], similarities))
+            
+            # 按相似度降序排序并取前top_n个
+            nearby_neurons_sorted = sorted(nearby_neurons, key=lambda x: x[1], reverse=True)
+            top_neurons = nearby_neurons_sorted[:top_n]
+
+            # output the neurons, but not the scores
+            top_neurons = [tn[0] for tn in top_neurons]
+            
+            result[neuron] = top_neurons
     
     return similar_pairs, result
     
@@ -165,18 +183,25 @@ def find_distal_similar_neurons(gf_file, me_file, swc_dir, save_swc_image=True):
 
     # get the pairwise distances
     similar_pairs, neighboring_neurons = find_neurons_within_radius(gf, me, fnames_gf, fnames_me)
+    #print(similar_pairs); sys.exit()
 
     if save_swc_image:
         ############### Helper functions ###################
-        def _plot(swc_dir, swc, plot_type, pair_name, iswc, is_target=True):
+        def _plot(swc_dir, swc, plot_type, neurite_color, pair_name, iswc, is_target=True):
+            soma_params = {
+                'size': 160,
+                'color': 'red',
+                'alpha': 1.0,
+            }
+            
             swcfile = os.path.join(swc_dir, f'{swc}.swc')
-            na = NeuriteArbors(swcfile)
+            na = NeuriteArbors(swcfile, soma_params=soma_params)
             if is_target:
                 figname = f'{pair_name}-p{iswc}'
             else:
                 figname = f'{pair_name}-p{iswc}-{swc}'
 
-            na.plot_morph_mip(plot_type, color='b', figname=figname, out_dir='.', show_name=False)
+            na.plot_morph_mip(plot_type, color=neurite_color, figname=figname, out_dir='.', show_name=False, bkg_transparent=True)
 
         ####################################################
 
@@ -192,12 +217,12 @@ def find_distal_similar_neurons(gf_file, me_file, swc_dir, save_swc_image=True):
             # plotting
             pair_name = f'pair-{swc1}-{swc2}'
             for iswc, swc in enumerate([swc1, swc2]):
-                _plot(swc_dir, swc, plot_type, pair_name, iswc, True)
+                _plot(swc_dir, swc, plot_type, 'chocolate', pair_name, iswc, True)
 
                 for nswc in neighbors[iswc]:
-                    _plot(swc_dir, nswc, plot_type, pair_name, iswc, False)
+                    _plot(swc_dir, nswc, plot_type, 'blue', pair_name, iswc, False)
 
-    import ipdb; ipdb.set_trace()
+    #import ipdb; ipdb.set_trace()
     print()
 
 if __name__ == '__main__':
