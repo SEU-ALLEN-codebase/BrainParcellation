@@ -136,6 +136,8 @@ def calc_eigenvalues(data_file):
 
         # 重命名列
         df.columns = [f'v{i+1}' for i in range(nbase)]
+        # show only the top-5 components
+        df = df.iloc[:, :5]
 
         # 将索引转换为'method'列
         df = df.reset_index().rename(columns={'index': 'method'})
@@ -152,18 +154,20 @@ def calc_eigenvalues(data_file):
         plt.figure(figsize=(8, 6))
         # rename
         sns.lineplot(data=melted_df.replace('spatial-weighting', 'ME'), x='dimension', y='vratio', 
-                     hue='method', marker='o', lw=2, markersize=8,
+                     hue='method', marker='o', lw=2, markersize=12,
                      alpha=1.0)
         plt.title('Comparison of cumulative variance across Methods')
+        plt.xlim(0.5, 5.5)
+        plt.ylim(5, 18)
         plt.xlabel('Number of top-ranking PCA components')
         plt.ylabel('Cumulative variance')
-        plt.xticks(range(1, 25, 2))
+        #plt.xticks(range(1, 25, 2))
         #plt.grid(True, linestyle='--')
         #plt.legend(ncol=2, frameon=False, markerscale=3)
-        plt.legend(labelspacing=0.1, handletextpad=0.1,
+        plt.legend(labelspacing=0.2, handletextpad=0.2,
                        borderpad=0.05, frameon=False,
                        fontsize=16, alignment='center', ncols=2,
-                       markerscale=1.8, columnspacing=0.5)
+                       markerscale=1.25, columnspacing=0.8)
 
         ax = plt.gca()
         ax.spines['left'].set_linewidth(2)
