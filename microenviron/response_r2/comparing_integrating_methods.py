@@ -14,7 +14,7 @@ from sklearn.metrics import silhouette_score
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from anatomy.anatomy_config import SALIENT_REGIONS
+from anatomy.anatomy_config import SALIENT_REGIONS, REGION314
 from ml.feature_processing import standardize_features
 
 import sys
@@ -81,7 +81,8 @@ def prepare_all_data(file_dict, cache_file):
         # processing
         df_s, _ = processing_data(df_s)
         # keep only neurons in salient regions
-        df_s = df_s[df_s.region_id_r671.isin(SALIENT_REGIONS)]
+        #df_s = df_s[df_s.region_id_r671.isin(SALIENT_REGIONS)]
+        df_s = df_s[df_s.region_id_r316.isin(REGION314)]
 
         data[metype] = df_s
 
@@ -341,7 +342,7 @@ def calc_eigenvalues(data_file):
         plt.axhline(y=total_regions, color='gray', linestyle='--', alpha=0.5)
         plt.text(0.5, total_regions-10, f'Total regions: {total_regions}', ha='center', color='gray')
 
-        plt.title('Number of Regions with Improved Silhouette Scores\n(Compared to dendrite-only baseline)')
+        plt.title('Number of Regions with Improved Silhouette Scores\n(Compared to single-neuron dendrite baseline)')
         plt.ylabel('Number of Regions')
         plt.ylim(0, total_regions + 10)
         plt.xlim(-0.5, 1.5)
@@ -361,18 +362,51 @@ def calc_eigenvalues(data_file):
 
 
 if __name__ == '__main__':
-    file_dict = {
-        'spatial-weighting': '../data/mefeatures_100K_with_PCAfeatures3.csv',
-        #'mean': '../data/mefeatures_100K_mean.csv',
-        #'mean_all': '../data/mefeatures_100K_mean_all.csv',
-        #'median': '../data/mefeatures_100K_median.csv',
-        #'median_all': '../data/mefeatures_100K_median_all.csv',
-        #'median-std': '../data/mefeatures_100K_median-std.csv',
-        #'median-std-stdn': '../data/mefeatures_100K_median-std-stdn.csv',
-        #'variance-normalized-median': '../data/mefeatures_100K_variance-normalized-median.csv',
-    }
-    cache_file = 'mefeatures_all_methods.pkl'
 
-    #prepare_all_data(file_dict, cache_file=cache_file)
-    calc_eigenvalues(cache_file)
+    if 1:
+        # prepare the data
+        #file_dict = {
+        #    'spatial-weighting': '../data/mefeatures_100K_with_PCAfeatures3.csv',
+            #'mean': '../data/mefeatures_100K_mean.csv',
+            #'mean_all': '../data/mefeatures_100K_mean_all.csv',
+            #'median': '../data/mefeatures_100K_median.csv',
+            #'median_all': '../data/mefeatures_100K_median_all.csv',
+            #'median-std': '../data/mefeatures_100K_median-std.csv',
+            #'median-std-stdn': '../data/mefeatures_100K_median-std-stdn.csv',
+            #'variance-normalized-median': '../data/mefeatures_100K_variance-normalized-median.csv',
+        #}
+        #cache_file = 'mefeatures_all_methods.pkl'
+
+        file_dict = {
+            'spatial-weighting': '../data/mefeatures_100K_with_PCAfeatures3.csv',
+            'sw-N2_r50': '../data/mefeatures_100K_top2_radius50_selRandom.csv',
+            'sw-N2_r100': '../data/mefeatures_100K_top2_radius100_selRandom.csv',
+            'sw-N2_r200': '../data/mefeatures_100K_top2_radius200_selRandom.csv',
+            'sw-N2_r400': '../data/mefeatures_100K_top2_radius400_selRandom.csv',
+            'sw-N2_r800': '../data/mefeatures_100K_top2_radius800_selRandom.csv',
+            'sw-N2_r1000': '../data/mefeatures_100K_top2_radius1000_selRandom.csv',
+            'sw-N5_r50': '../data/mefeatures_100K_top5_radius50_selRandom.csv',
+            'sw-N5_r100': '../data/mefeatures_100K_top5_radius100_selRandom.csv',
+            'sw-N5_r200': '../data/mefeatures_100K_top5_radius200_selRandom.csv',
+            'sw-N5_r400': '../data/mefeatures_100K_top5_radius400_selRandom.csv',
+            'sw-N5_r800': '../data/mefeatures_100K_top5_radius800_selRandom.csv',
+            'sw-N5_r1000': '../data/mefeatures_100K_top5_radius1000_selRandom.csv',
+            'sw-N8_r50': '../data/mefeatures_100K_top8_radius50_selRandom.csv',
+            'sw-N8_r100': '../data/mefeatures_100K_top8_radius100_selRandom.csv',
+            'sw-N8_r200': '../data/mefeatures_100K_top8_radius200_selRandom.csv',
+            'sw-N8_r400': '../data/mefeatures_100K_top8_radius400_selRandom.csv',
+            'sw-N8_r800': '../data/mefeatures_100K_top8_radius800_selRandom.csv',
+            'sw-N8_r1000': '../data/mefeatures_100K_top8_radius1000_selRandom.csv',
+            'sw-N11_r50': '../data/mefeatures_100K_top11_radius50_selRandom.csv',
+            'sw-N11_r100': '../data/mefeatures_100K_top11_radius100_selRandom.csv',
+            'sw-N11_r200': '../data/mefeatures_100K_top11_radius200_selRandom.csv',
+            'sw-N11_r400': '../data/mefeatures_100K_top11_radius400_selRandom.csv',
+            'sw-N11_r800': '../data/mefeatures_100K_top11_radius800_selRandom.csv',
+            'sw-N11_r1000': '../data/mefeatures_100K_top11_radius1000_selRandom.csv',
+        }
+        cache_file = 'mefeatures_topN_rN.pkl'
+        prepare_all_data(file_dict, cache_file=cache_file)
+
+    if 1:
+        calc_eigenvalues(cache_file)
 
