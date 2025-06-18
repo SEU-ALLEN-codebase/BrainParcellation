@@ -10,6 +10,7 @@
 #
 #================================================================
 import time
+import random
 import numpy as np
 import pandas as pd
 from scipy.spatial import distance_matrix
@@ -59,7 +60,7 @@ class MEFeatures:
             self.radius = radius
 
 
-    def calc_micro_env_features(self, mefeature_file, integrate_method='spatial-weighting'):
+    def calc_micro_env_features(self, mefeature_file, integrate_method='spatial-weighting', select_method='Similar'):
         debug = False
         if debug: 
             self.df = self.df[:5000]
@@ -103,9 +104,15 @@ class MEFeatures:
             elif integrate_method == 'median_all':
                 df_mef.loc[swc, mefeat_names] = fir.median().to_numpy()
             else:
-                # select the topK most similar neurons for feature aggregation
                 k = min(self.topk, fir.shape[0]-1)
-                idx_topk = np.argpartition(fdists, k)[:k+1]
+                if select_method == 'Similar':
+                    # select the topK most similar neurons for feature aggregation
+                    idx_topk = np.argpartition(fdists, k)[:k+1]
+                elif select_method == 'Random':
+                    idx_topk = random.sample(range(len(fdists)), k)
+                else:
+                    raise ValueError(f"select_method={select_method} is not supported!")
+
                 # map to the original index space
                 topk_indices = indices[idx_topk]
                 topk_dists = dists[idx_topk]
@@ -188,18 +195,25 @@ def calc_regional_mefeatures(mefeature_file, rmefeature_file, region_num=316):
        
 
 if __name__ == '__main__':
+    import os
+
     if 1:
         feature_file = './data/lm_features_d28.csv'
         filter_file = '../evaluation/data/final_filtered_swc.txt'
-        topk = 5
-        #radius = 188.81, #166.36
-        radius = 166.36
-        integrate_method = 'median_all'
-        #mefile = f'./data/mefeatures_100K_radius{radius}.csv'
-        mefile = f'./data/mefeatures_100K_{integrate_method}.csv'
-        
-        mef = MEFeatures(feature_file, filter_file=filter_file, topk=topk, radius=radius)
-        mef.calc_micro_env_features(mefile, integrate_method=integrate_method)
+        select_method = 'Random'    # default: `Similar`
+        integrate_method = 'spatial-weighting'
+
+        for topk in [2,5,8,11]:
+            print(f'\nTopk = {topk}')
+            for radius in [50,100,200,400,800,1000]:
+                print(f'Radius = {radius}')
+                #radius = 188.81, #166.36
+                mefile = f'./data/mefeatures_100K_top{topk}_radius{radius}_sel{select_method}.csv'
+                if os.path.exists(mefile):
+                    continue
+                
+                mef = MEFeatures(feature_file, filter_file=filter_file, topk=topk, radius=radius)
+                mef.calc_micro_env_features(mefile, integrate_method=integrate_method, select_method=select_method)
     
        
     if 0:

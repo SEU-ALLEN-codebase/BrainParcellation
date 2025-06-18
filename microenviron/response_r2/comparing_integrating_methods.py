@@ -153,10 +153,10 @@ def calc_eigenvalues(data_file):
         sns.set_theme(style='ticks', font_scale=1.8)
         plt.figure(figsize=(8, 6))
         # rename
-        sns.lineplot(data=melted_df.replace('spatial-weighting', 'ME'), x='dimension', y='vratio', 
+        sns.lineplot(data=melted_df.replace('spatial-weighting', 'ME').replace('dendrite-only', 'Single-neuron dendrite'), x='dimension', y='vratio', 
                      hue='method', marker='o', lw=2, markersize=12,
                      alpha=1.0)
-        plt.title('Comparison of cumulative variance across Methods')
+        plt.title('Cumulative variance comparison across methods')
         plt.xlim(0.5, 5.5)
         plt.ylim(5, 18)
         plt.xlabel('Number of top-ranking PCA components')
